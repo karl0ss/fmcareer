@@ -170,17 +170,88 @@ def pyramid_of(above, start):
     return seen
 
 
-def collect(save_path, manager_name, names_dir):
-    comp_csv = os.path.join(names_dir, "competition_names.csv")
-    s = fmsave.open(save_path, competition_names=comp_csv)
-    with open(comp_csv, encoding="utf-8") as f:
-        db_names = {int(r[0]): r[1] for r in csv.reader(f)}
-    with open(os.path.join(names_dir, "award_names.csv"), encoding="utf-8") as f:
-        award_names = {int(r["award_index"]): r["name"] for r in csv.DictReader(f)}
+DEFAULT_OPTIONS = {
+    # report pages, in nav order
+    "sections": ["me", "seasons", "players", "records", "honours", "transfers", "club"],
+    # which kinds of move transfer lists show at first (viewers can toggle them)
+    "show": {"Loan": False, "Trial": False, "Youth intake": False, "Released": True, "staff": False},
+}
+
+
+def read_names(names_dir):
+    """Competition and award names from fmcareer-names CSVs; empty maps when absent."""
+    db_names, award_names, comp_csv = {}, {}, None
+    if names_dir:
+        path = os.path.join(names_dir, "competition_names.csv")
+        if os.path.exists(path):
+            comp_csv = path
+            with open(path, encoding="utf-8") as f:
+                db_names = {int(r[0]): r[1] for r in csv.reader(f)}
+        path = os.path.join(names_dir, "award_names.csv")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                award_names = {int(r["award_index"]): r["name"] for r in csv.DictReader(f)}
+    return db_names, award_names, comp_csv
+
+
+def open_save(save_path, names_dir=None):
+    """Open a save with the competition names hooked in when they exist."""
+    _db, _aw, comp_csv = read_names(names_dir)
+    return fmsave.open(save_path, competition_names=comp_csv) if comp_csv else fmsave.open(save_path)
+
+
+def list_managers(s, progress=lambda text: None, everyone=False):
+    """Managers to report on: the save's human managers, or with `everyone` every current
+    staff member with a managerial record (human managers first, then by games).
+
+    [{staff_uid, name, club, games, wins, draws, losses, club_jobs, human}]
+    """
+    progress("Reading staff")
+    staff = list(s.staff())
+    found = {}
+    for x in staff:  # human managers: their record joins by reference
+        if x.is_human_manager:
+            rec = s.manager_career(x.uid)
+            if rec is not None:
+                found[x.uid] = (x, rec)
+    if everyone:
+        progress("Reading managerial records")
+        records = {r.reference: r for r in s.career_manager_records()}
+        progress("Reading people")
+        people = {h.reference: h for h in s.history_people()}
+        by_unique = {x.unique_id: x for x in staff if x.unique_id}
+        for ref, rec in records.items():
+            h = people.get(ref)
+            x = by_unique.get(h.unique_id) if h else None
+            if x is not None and x.uid not in found:
+                found[x.uid] = (x, rec)
+    out = [dict(staff_uid=x.uid, name=x.name, club=x.club_name, games=rec.games, wins=rec.wins,
+                draws=rec.draws, losses=rec.losses, club_jobs=rec.club_jobs, human=x.is_human_manager)
+           for x, rec in found.values() if x.name and rec.games]
+    out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
+    return out
+
+
+def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, options=None,
+            progress=lambda text: None):
+    """The whole career of one manager, as a JSON-ready dict.
+
+    The manager is `staff_uid` when given, else found by `manager_name`. `save` reuses an
+    already opened Save; `options` overrides DEFAULT_OPTIONS (sections, transfer toggles).
+    """
+    db_names, award_names, comp_csv = read_names(names_dir)
+    s = save if save is not None else open_save(save_path, names_dir)
+    opts = {**DEFAULT_OPTIONS, **(options or {})}
+    opts["show"] = {**DEFAULT_OPTIONS["show"], **(options or {}).get("show", {})}
     info = s.info
     game_date = info.game_date
-
-    me = find_manager(s, manager_name)
+    progress("Finding the manager")
+    if staff_uid is not None:
+        me = next((x for x in s.staff() if x.uid == staff_uid), None)
+        if me is None:
+            raise SystemExit(f"no staff member with uid {staff_uid}")
+    else:
+        me = find_manager(s, manager_name)
     staff_uid = me.uid
     manager_name = me.name or manager_name
     clubs = {c.uid: c for c in s.clubs()}
@@ -225,6 +296,7 @@ def collect(save_path, manager_name, names_dir):
         st = stint_for_season(end_year)
         return st is not None and st["club_uid"] == club_uid
 
+    progress("Reading players and retired players")
     # people names: current players, then retired people found in game_db
     players = {p.uid: p for p in s.players()}
     people = list(s.history_people())
@@ -249,6 +321,7 @@ def collect(save_path, manager_name, names_dir):
             return players[uid].name
         return retired.get(ref) or fallback or f"Unknown player ({ref})"
 
+    progress("Reading league history")
     # league levels, from every club's moves between competitions
     all_rows = [r for r in s.career_league_history() if not r.imported]
     level, above = league_levels(all_rows)
@@ -301,6 +374,7 @@ def collect(save_path, manager_name, names_dir):
         levels.append(dict(level=lv, name=names.most_common(1)[0][0] if names else f"Level {lv}",
                            size=level_size[lv]))
 
+    progress("Reading honours, cups and awards")
     honours = [dict(season=season_label(h.season), end_year=h.season, club=clubs[h.club_uid].name,
                     competition_db=h.competition_id,
                     name=db_names.get(h.competition_id, f"Competition {h.competition_id}"))
@@ -344,6 +418,7 @@ def collect(save_path, manager_name, names_dir):
                                 competition=comp_name.get(e.competition_id) if e.competition_id is not None else None))
     notable.sort(key=lambda x: x["date"])
 
+    progress("Reading transfers and fees")
     # transfers, per stint
     current = next((st for st in stints if st["end"] is None), None)
     current_uids = {u for u, p in players.items() if current and p.club_uid == current["club_uid"]}
@@ -380,6 +455,7 @@ def collect(save_path, manager_name, names_dir):
     moves.sort(key=lambda m: m["date"])
     bought = sum(1 for m in moves if m["direction"] == "in" and m["type"] in ("Transfer", "Free", "Signing"))
 
+    progress("Reading player statistics")
     # every stats row of the clubs' players, current and gone
     history_rows = list(s.player_season_history(sorted(mover_uids)))
     history_rows += list(s.history_person_season_history(sorted(gone_refs)))
@@ -472,6 +548,7 @@ def collect(save_path, manager_name, names_dir):
     squad = sorted((dict(name=p.name, age=p.age, person_id=p.unique_id or u + 1) for u, p in players.items() if u in current_uids),
                    key=lambda x: x["name"])
 
+    progress("Reading the club today")
     club_today = None
     if current is not None and current["club_uid"] in clubs:
         club_today = club_now(s, clubs, current["club_uid"], players, comp_name, comp_db)
@@ -491,7 +568,7 @@ def collect(save_path, manager_name, names_dir):
         tables=tables, career=career, squad_stats=squad_stats, notable_matches=notable,
         league=league, levels=levels, honours=honours, cups=cups, awards=awards,
         best_eleven=best_eleven, transfers=moves, players_bought=bought, squad=squad,
-        club_today=club_today,
+        club_today=club_today if "club" in opts["sections"] else None, options=opts,
     )
 
 

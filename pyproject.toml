@@ -12,6 +12,7 @@ images = ["UnityPy>=1.20"]
 [project.scripts]
 fmcareer = "fmcareer.report:main"
 fmcareer-names = "fmcareer.names:main"
+fmcareer-app = "fmcareer.app:main"
 
 [build-system]
 requires = ["hatchling"]

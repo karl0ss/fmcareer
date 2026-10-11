@@ -127,6 +127,7 @@ footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 <script>
 const D = JSON.parse(document.getElementById('data').textContent);
 const M = D.manager, L = D.league;
+const OPT = D.options || {};
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ord = n => { const s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 const slug = season => season.replace('/', '-');
@@ -191,6 +192,19 @@ const promotions = L.filter(r => r.promotedAfter).length, titles = L.filter(r =>
 const best = L.reduce((b, r) => (r.tier && (!b || pyramid(r) < pyramid(b)) ? r : b), null);
 const awardWins = D.awards.filter(a => a.placing === 'Winner');
 const SIGN = t => t.direction === 'in' && ['Transfer','Free','Signing'].includes(t.type);
+// which kinds of move the lists show: report defaults, then the viewer's own choice (kept in this browser)
+const TOGGLES = [['Loan', 'Loans'], ['Trial', 'Trials'], ['Youth intake', 'Youth intake'], ['Released', 'Released'], ['staff', 'Staff moves']];
+let SHOW = {...{Loan: false, Trial: false, 'Youth intake': false, Released: true, staff: false}, ...(OPT.show || {})};
+try { Object.assign(SHOW, JSON.parse(localStorage.getItem('fmcareer-show') || '{}')); } catch (e) {}
+const CORE = ['Transfer', 'Free', 'Signing'];
+const visible = t => t.staff ? SHOW.staff : CORE.includes(t.type) || !!SHOW[t.type];
+const showBar = () => `<div class="controls">Show: ${TOGGLES.map(([k, l]) => `<label><input type="checkbox" data-show="${esc(k)}"${SHOW[k] ? ' checked' : ''}> ${l}</label>`).join('')}</div>`;
+document.addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.show; if (k === undefined) return;
+  SHOW[k] = e.target.checked;
+  try { localStorage.setItem('fmcareer-show', JSON.stringify(SHOW)); } catch (err) {}
+  const y = window.scrollY; route(); window.scrollTo(0, y);
+});
 const SOLD = t => t.direction === 'out' && t.type === 'Transfer';
 const FREE_OUT = t => t.direction === 'out' && t.type === 'Free' && t.other;
 const extraBadges = r => (honoursBy[r.season] || []).filter(h => h.name !== r.competition)
@@ -234,8 +248,9 @@ function seasonStory(r) {
 }
 
 // ---- navigation and routing
-const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']]
-  .concat(D.club_today ? [['club', 'Club today']] : []);
+const SECTIONS = OPT.sections || ['me', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
+const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
+  .filter(([id]) => SECTIONS.includes(id) && (id !== 'club' || D.club_today));
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 document.getElementById('brand').innerHTML = `${CUR ? crest(CUR.club_uid, CUR.club) : ''}${esc(M.name)} <span>· career history</span>`;
 // tint the page with the current club's badge colour
@@ -251,7 +266,9 @@ document.getElementById('asof').textContent = M.game_date ? 'As of ' + fmtDate(M
 document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#${id}" data-nav="${id}">${label}</a>`).join('');
 const view = document.getElementById('view');
 function route() {
-  const [page, arg] = (location.hash.slice(1) || 'me').split('/');
+  let [page, arg] = (location.hash.slice(1) || SECTIONS[0] || 'me').split('/');
+  const owner = {season: 'seasons', player: 'players'}[page] || page;
+  if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
   ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg), honours: pageHonours, transfers: pageTransfers, club: pageClub, players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: pageRecords}[page] || pageMe)();
   window.scrollTo(0, 0);
@@ -435,9 +452,9 @@ function pageSeason(arg) {
       <div class="card scroll"><b>Rest of the 18</b><table>${pHead}<tbody>${xi.filter(p => p.slot > 10).map(playerRow).join('')}</tbody></table></div></div>
       <p class="note">The game's record of the season's most-used players, goalkeeper first.</p>` : '<p class="muted">Not available for this season.</p>'}
     <h2>Transfers</h2>
-    <div class="grid2"><div class="card"><b>In</b>${moveList(moves.filter(SIGN), 'in')}</div><div class="card"><b>Out</b>${moveList(moves.filter(t => SOLD(t) || FREE_OUT(t) || t.type === 'Released'), 'out')}</div></div>
+    ${showBar()}
+    <div class="grid2"><div class="card"><b>In</b>${moveList(moves.filter(t => t.direction === 'in' && visible(t)), 'in')}</div><div class="card"><b>Out</b>${moveList(moves.filter(t => t.direction === 'out' && visible(t)), 'out')}</div></div>
     ${(() => { const nm = (D.notable_matches || []).filter(m => m.season === season); return nm.length ? `<h2>Notable results</h2><div class="card"><ul class="list">${nm.map(m => `<li><span>${fmtDate(m.date)} · v ${esc(m.opponent || 'unknown')}${m.competition ? ' <span class="muted">(' + esc(m.competition) + ')</span>' : ''}</span><b>${m.goals_for}–${m.goals_against}</b></li>`).join('')}</ul></div><p class="note">Matches the game logged as milestones in the manager's history.</p>` : ''; })()}
-    <p class="note">Loans, trials and youth intake are on the <a href="#transfers">Transfers</a> page.</p>
     <h2>Where this season sits</h2>
     <div class="card chart" id="climb">${chart.html}</div>`;
   chart.wire(document.getElementById('climb'));
@@ -483,18 +500,18 @@ function pageTransfers() {
       <select id="ts"><option value="">All seasons</option>${seasons.map(s => `<option>${s}</option>`).join('')}</select>
       <select id="td"><option value="">In and out</option><option value="in">Incoming</option><option value="out">Outgoing</option></select>
       <select id="tt"><option value="">All types</option>${[...new Set(T.map(t => t.type))].sort().map(t => `<option>${t}</option>`).join('')}</select>
-      <label><input type="checkbox" id="tstaff"> Include staff</label>
     </div>
+    ${showBar()}
     <div class="card scroll"><table><thead><tr><th>Date</th><th></th><th>Player</th><th>Type</th><th>Club</th><th class="n">Fee</th></tr></thead><tbody id="tbody"></tbody></table></div>`;
   const ts = document.getElementById('ts'), td = document.getElementById('td'), tt = document.getElementById('tt'),
-        tstaff = document.getElementById('tstaff'), tbody = document.getElementById('tbody');
+        tbody = document.getElementById('tbody');
   const draw = () => {
-    const fs = ts.value, fd = td.value, ft = tt.value, staff = tstaff.checked;
-    tbody.innerHTML = T.filter(t => (staff || !t.staff || ft === t.type) && (!fs || t.season === fs) && (!fd || t.direction === fd) && (!ft || t.type === ft))
+    const fs = ts.value, fd = td.value, ft = tt.value;
+    tbody.innerHTML = T.filter(t => (ft === t.type || visible(t)) && (!fs || t.season === fs) && (!fd || t.direction === fd) && (!ft || t.type === ft))
       .map(t => `<tr><td>${fmtDate(t.date)}</td><td>${t.direction === 'in' ? '<span class="badge up first">In</span>' : t.direction === 'out' ? '<span class="badge first">Out</span>' : '<span class="badge first">Internal</span>'}</td>
         <td>${face(t.person_id)}${plink({...t, name: t.player})}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
   };
-  [ts, td, tt, tstaff].forEach(e => e.onchange = draw); draw();
+  [ts, td, tt].forEach(e => e.onchange = draw); draw();
 }
 
 // ---- page: the current club today

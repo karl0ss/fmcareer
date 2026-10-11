@@ -34,7 +34,29 @@ redistributed here):
 
 This writes `names/competition_names.csv` and `names/award_names.csv`.
 
-## Usage
+## The app
+
+```sh
+.venv/bin/fmcareer-app
+```
+
+opens a page in your browser (served only on your own machine, at
+`http://127.0.0.1:8765/`) where you:
+
+1. set your saves folder and FM26 install folder (it guesses the usual Steam and
+   Documents locations) and read the competition/award names from the game once;
+2. pick a save;
+3. load its managers and pick one: the save's human managers (tick "Show all managers"
+   for every manager in the save, searchable by name or club);
+4. tick the pages to include, which kinds of move the transfer lists show at first
+   (loans, trials, youth intake, released players, staff), and whether to embed images;
+5. generate: progress shows as it goes, and the report opens in a new tab. Reports are
+   kept in `~/.cache/fmcareer/reports`.
+
+Settings live in `~/.config/fmcareer/settings.json`. The save stays open between steps,
+so a second report from the same save is much quicker.
+
+## Command line
 
 ```sh
 .venv/bin/fmcareer "/path/to/My Career.fm" "Manager Name" names -o career_report.html
@@ -47,6 +69,9 @@ This writes `names/competition_names.csv` and `names/award_names.csv`.
   `pip install "fmcareer[images] @ git+https://github.com/karl0ss/fmcareer.git"`. Clubs and
   players without licensed artwork (most non-league clubs, every regen) get a lettered
   crest or no photo.
+- `--sections me,seasons,players,records,honours,transfers,club` picks the pages (default:
+  all). `--show loans,trials,youth,released,staff` picks which kinds of move the transfer
+  lists show at first (default: released); viewers can switch them in the report.
 - `--json career_data.json` also writes the collected data.
 - A large save takes a few minutes and about 3 GB of memory.
 

@@ -13,17 +13,29 @@ import time
 from fmcareer.collect import collect
 from fmcareer.render import render
 
+SHOW_WORDS = {"Loan": "loans", "Trial": "trials", "Youth intake": "youth", "Released": "released", "staff": "staff"}
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("save"); ap.add_argument("manager"); ap.add_argument("names")
     ap.add_argument("-o", "--out", default="career_report.html")
     ap.add_argument("--json", help="also write the collected data as JSON")
+    ap.add_argument("--sections", help="pages to include, comma-separated, from: "
+                    "me,seasons,players,records,honours,transfers,club (default: all)")
+    ap.add_argument("--show", help="move types transfer lists show at first, comma-separated, from: "
+                    "loans,trials,youth,released,staff (default: released)")
     ap.add_argument("--install", help="FM26 install folder: embed club badges, player photos, "
                     "competition logos and flags from it (needs UnityPy)")
     a = ap.parse_args()
     t = time.time()
-    data = collect(a.save, a.manager, a.names)
+    options = {}
+    if a.sections:
+        options["sections"] = [x.strip() for x in a.sections.split(",") if x.strip()]
+    if a.show is not None:
+        picked = {x.strip() for x in a.show.split(",")}
+        options["show"] = {key: word in picked for key, word in SHOW_WORDS.items()}
+    data = collect(a.save, a.manager, a.names, options=options)
     if a.install:
         from fmcareer.images import load, wanted_images
         data["images"] = load(a.install, wanted_images(data))
