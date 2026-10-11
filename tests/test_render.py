@@ -80,13 +80,19 @@ def view_of(text):
 PAGES = {
     "me": ["Alex Example", "2 clubs so far", "The climb", "Second Division Manager of the Season"],
     "seasons": ["2032/33", "First Division"],
-    "season/2032-33": ["2032/33 season review", "Big City", "Not yet identified", "Old Retiree", "Partial"],
+    "season/2032-33": ["2032/33 season review", "Summary", "Out to Big City", "Where this season sits"],
+    "season/2032-33/table": ["Final table", "Big City", "Not yet identified"],
+    "season/2032-33/squad": ["Full squad statistics", "Old Retiree", "Partial", "Best XI"],
+    "season/2031-32/transfers": ["Sam Striker", "Big City", "£1.50M"],
     "players": ["Sam Striker", "Gary Keeper"],
     "player/p202": ["Sam Striker", "Season by season", "£1.50M"],
-    "records": ["Most goals", "Biggest signings", "5–0"],
+    "records": ["Most goals", "5–0", "All-time players"],
+    "records/transfers": ["Biggest signings", "Sam Striker"],
     "honours": ["Every cup run", "National Cup"],
     "transfers": ["Every move", "Show:", "Sam Striker"],
-    "club": ["Example Park", "−£250k", "Balanced 4-4-2", "live table"],
+    "club": ["Example Park", "−£250k", "Balanced 4-4-2", "League table"],
+    "club/table": ["live table", "Big City", "Example Town"],
+    "club/squad": ["Gary Keeper", "Regular starter"],
 }
 
 
@@ -183,3 +189,20 @@ def test_front_end_files_are_committed():
     tracked = subprocess.run(["git", "ls-files", "fmcareer/web"], cwd=root, capture_output=True, text=True).stdout
     for name in ("report.html", "report.css", "report.js", "app.html", "app.css", "app.js"):
         assert f"fmcareer/web/{name}" in tracked, f"{name} is not committed"
+
+
+@needs_chrome
+def test_tabs_show_one_section_at_a_time(tmp_path, sample):
+    summary = view_of(dom(tmp_path, render(sample), "season/2032-33"))
+    assert "Full squad statistics" not in summary and "Not yet identified" not in summary
+    squad = view_of(dom(tmp_path, render(sample), "season/2032-33/squad"))
+    assert "Where this season sits" not in squad and 'class="on" aria-current="page">Squad' in squad
+    # the pager keeps the tab when moving between seasons
+    assert 'href="#season/2031-32/squad"' in squad
+
+
+@needs_chrome
+def test_transfers_fold_by_season_newest_open(tmp_path, sample):
+    view = view_of(dom(tmp_path, render(sample), "transfers"))
+    folds = re.findall(r'<details class="card fold"( open(?:="")?)?><summary><b>([^<]+)</b>', view)
+    assert folds[0][1] == "2033/34" and folds[0][0] and all(not o for o, _ in folds[1:]) and len(folds) == 2

@@ -94,4 +94,58 @@ select { font: inherit; color: var(--text); background: var(--surface); border: 
 .story p { margin: 0 0 10px; max-width: 75ch; }
 .story p:last-child { margin-bottom: 0; }
 footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
-@media (max-width: 640px) { .hero { grid-template-columns: 1fr; } h1 { font-size: 25px; } }
+/* a page's own sections, one at a time */
+.tabs { display: flex; gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs a { font: 600 16px var(--head); color: var(--text-2); padding: 8px 14px; border-bottom: 3px solid transparent;
+  margin-bottom: -1px; white-space: nowrap; }
+.tabs a:hover { text-decoration: none; color: var(--text); }
+.tabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
+.count { font: 500 12px "Barlow", system-ui, sans-serif; color: var(--text-3); background: var(--surface-2);
+  border-radius: 999px; padding: 1px 7px; margin-left: 4px; vertical-align: 2px; }
+/* folding sections (transfers by season) */
+.fold { padding: 0; margin-bottom: 10px; }
+.fold > summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; cursor: pointer;
+  list-style: none; font-size: 15px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary b::before { content: "▸"; display: inline-block; width: 1em; color: var(--accent); transition: transform .15s; }
+.fold[open] > summary b::before { transform: rotate(90deg); }
+.fold > .scroll { padding: 0 16px 12px; }
+button.more { font: 600 15px var(--head); color: var(--text); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 16px; margin-top: 10px; cursor: pointer; }
+button.more:hover { border-color: var(--accent); }
+.who { display: flex; gap: 18px; align-items: center; }
+/* tables and charts wider than the screen scroll sideways; a soft edge shows there is more */
+.scroll, .chart { background:
+  linear-gradient(90deg, var(--surface) 30%, transparent) left / 24px 100% no-repeat local,
+  linear-gradient(270deg, var(--surface) 30%, transparent) right / 24px 100% no-repeat local,
+  radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.45), transparent) left / 10px 100% no-repeat scroll,
+  radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.45), transparent) right / 10px 100% no-repeat scroll,
+  var(--surface); }
+
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .bar .in { padding: 8px 12px 0; }
+  .brand { font-size: 18px; gap: 8px; }
+  .brand span { display: none; }
+  .brand img { width: 28px; height: 28px; }
+  .asof { font-size: 12px; padding: 3px 10px; }
+  nav { margin-top: 4px; mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  nav a { font-size: 16px; padding: 6px 10px 8px; }
+  .wrap { padding: 16px 12px 48px; }
+  h1 { font-size: 25px; }
+  h2 { font-size: 18px; margin: 24px 0 8px; }
+  .hero { grid-template-columns: 1fr; }
+  .who { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .who .pic.lg, .heroband .pic.lg { width: 64px; height: 64px; }
+  .who .crest.lg, .heroband .crest.lg { width: 64px; height: 72px; font-size: 22px; }
+  .card { padding: 12px; }
+  .tile .v { font-size: 26px; }
+  .tiles { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid2 { grid-template-columns: 1fr; }
+  th, td { padding: 6px 6px; }
+  th.o, td.o { display: none; }   /* the less important columns, on narrow screens */
+  .tabs a { font-size: 15px; padding: 8px 10px; }
+  .fold > summary { padding: 10px 12px; flex-wrap: wrap; }
+  .fold > .scroll { padding: 0 8px 8px; }
+  .list li { flex-wrap: wrap; }
+}
