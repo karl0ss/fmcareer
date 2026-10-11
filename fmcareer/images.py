@@ -14,6 +14,14 @@ The images are read from the user's own install at report time and
 embedded in their report; nothing from the game is stored in this repository.
 
 Needs the optional dependency UnityPy (`pip install fmcareer[images]`).
+
+Graphics packs (logo, face and kit packs the player has put in the game's `graphics`
+folder, next to `games`) are read too, and win over the game's own images as they do in
+the game. A pack folder either maps its files with a config file
+(`<record from="716" to="graphics/pictures/club/716/logo"/>`, or `person/<id>/portrait`
+and `person/r-<id>/portrait` for players the game generated) or names its files by id
+(`logos/Clubs/Normal/Normal/716.png`), the folder saying what they are. The ids are the
+same as above: club uid, person unique_id, competition database id.
 """
 import base64
 import io
@@ -74,13 +82,100 @@ def load(install, wanted):
                 key = by_hash.get((folder, path))
                 if key is None or obj.type.name != "Texture2D":
                     continue
-                image = obj.read().image
-                size = _SIZE[key[0]]
-                image.thumbnail((size, size))
-                buf = io.BytesIO()
-                image.save(buf, format="PNG", optimize=True)
-                out[f"{key[0]}:{key[1]}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+                out[f"{key[0]}:{key[1]}"] = _encode(obj.read().image, key[0])
     return out
+
+
+# ---- graphics packs
+
+_MAP = re.compile(r'<record\s+from="([^"]+)"\s+to="graphics/pictures/(club|person|comp)/(?:r-)?(\d+)/(\w+)"')
+_IMAGE_EXT = (".png", ".jpg", ".jpeg")
+# alternative and retro badge sets, placeholders, small sizes, and things the report doesn't show
+_SKIP_DIRS = {"alternatives", "alternative", "retro", "fantasy", "default", "small", "kits", "backgrounds",
+              "media", "nations", "confederations"}
+_KIND_DIRS = {"clubs": "club", "club": "club", "competitions": "comp", "faces": "person", "players": "person"}
+_ROLE_RANK = {"logo": 0, "portrait": 0, "icon": 1}  # full-size pictures before small icons
+
+
+def _image_file(folder, name):
+    path = os.path.join(folder, name)
+    if os.path.splitext(name)[1].lower() in _IMAGE_EXT:
+        return path if os.path.isfile(path) else None
+    return next((path + ext for ext in _IMAGE_EXT if os.path.isfile(path + ext)), None)
+
+
+def pack_images(graphics, wanted):
+    """{(kind, id): image path} from the graphics packs, for the wanted pairs they have."""
+    found = {}  # key -> (rank, path)
+
+    def offer(key, rank, path):
+        if key in wanted and (key not in found or rank < found[key][0]):
+            found[key] = (rank, path)
+
+    def walk(folder, kind):
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            return
+        maps = [n for n in names if n.lower().endswith(".xml")]
+        mapped = False
+        for name in maps:
+            try:
+                with open(os.path.join(folder, name), encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            except OSError:
+                continue
+            for src, k, ident, role in _MAP.findall(text):
+                mapped = True
+                key = (k, int(ident))
+                if key in wanted:
+                    path = _image_file(folder, src)
+                    if path:
+                        offer(key, _ROLE_RANK.get(role, 2), path)
+        if mapped:  # a mapped folder says where everything in it goes
+            return
+        for name in names:
+            stem, ext = os.path.splitext(name)
+            if kind and ext.lower() in _IMAGE_EXT and stem.isdigit():
+                offer((kind, int(stem)), 3, os.path.join(folder, name))
+        for name in names:
+            low = name.lower()
+            sub = os.path.join(folder, name)
+            if low not in _SKIP_DIRS and os.path.isdir(sub):
+                walk(sub, _KIND_DIRS.get(low, kind))
+
+    if graphics and os.path.isdir(graphics):
+        walk(graphics, None)
+    return {key: path for key, (_rank, path) in found.items()}
+
+
+def _encode(image, kind):
+    size = _SIZE[kind]
+    image.thumbnail((size, size))
+    buf = io.BytesIO()
+    image.save(buf, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def load_pack(graphics, wanted):
+    """Data URIs for the wanted (kind, id) pairs the graphics packs have: {"kind:id": uri}."""
+    from PIL import Image
+    out = {}
+    for (kind, ident), path in pack_images(graphics, wanted).items():
+        try:
+            with Image.open(path) as image:
+                out[f"{kind}:{ident}"] = _encode(image.convert("RGBA"), kind)
+        except (OSError, ValueError):  # a damaged or unreadable picture: fall back to the game's
+            continue
+    return out
+
+
+def guess_graphics(saves_dir):
+    """The game's graphics folder, which sits next to the saves folder (`games`)."""
+    if not saves_dir:
+        return ""
+    path = os.path.join(os.path.dirname(os.path.normpath(saves_dir)), "graphics")
+    return path if os.path.isdir(path) else ""
 
 
 def wanted_images(data):

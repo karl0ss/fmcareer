@@ -38,3 +38,52 @@ def test_wanted_images_cover_every_page(sample):
     assert {("comp", 901), ("comp", 902), ("comp", 905)} <= want
     assert not any(kind == "nation_flag" for kind, _ in want)
     assert ("person", None) not in want
+
+
+def png(path, colour):
+    from PIL import Image
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (8, 8), colour).save(path)
+    return path
+
+
+def test_packs_by_file_name_and_by_config(tmp_path):
+    from fmcareer.images import load_pack, pack_images
+    g = tmp_path / "graphics"
+    badge = png(g / "logos" / "Clubs" / "Normal" / "Normal" / "716.png", "blue")
+    png(g / "logos" / "Clubs" / "Retro" / "Normal" / "716.png", "red")             # retro sets are skipped
+    png(g / "logos" / "Clubs" / "Normal" / "Small" / "717.png", "red")             # so are small sizes
+    comp = png(g / "logos" / "Competitions" / "Normal" / "Normal" / "901.png", "green")
+    face = png(g / "faces" / "Big_Pack" / "12345.png", "white")
+    png(g / "faces" / "Big_Pack" / "999.png", "white")                            # not mapped, so not used
+    (g / "faces" / "Big_Pack" / "config.xml").write_text(
+        '<record><list id="maps"><record from="12345" to="graphics/pictures/person/12345/portrait"/>'
+        '</list></record>')
+    newgen = png(g / "faces" / "Generated" / "Caucasian" / "Caucasian7.png", "white")
+    (g / "faces" / "Generated" / "nonfic.xml").write_text(
+        '<list id="maps"><record from="Caucasian/Caucasian7" to="graphics/pictures/person/r-2000000001/portrait"/>'
+        '<record from="Caucasian/Missing" to="graphics/pictures/person/r-2000000002/portrait"/></list>')
+    want = {("club", 716), ("club", 717), ("comp", 901), ("person", 12345), ("person", 999),
+            ("person", 2000000001), ("person", 2000000002), ("club", 1)}
+    assert pack_images(str(g), want) == {
+        ("club", 716): str(badge), ("comp", 901): str(comp),
+        ("person", 12345): str(face), ("person", 2000000001): str(newgen)}
+    pics = load_pack(str(g), want)
+    assert set(pics) == {"club:716", "comp:901", "person:12345", "person:2000000001"}
+    assert all(uri.startswith("data:image/png;base64,") for uri in pics.values())
+
+
+def test_pack_logo_beats_a_small_icon_and_missing_folders_are_empty(tmp_path):
+    from fmcareer.images import guess_graphics, pack_images
+    g = tmp_path / "graphics"
+    icon = png(g / "mine" / "icon716.png", "red")
+    logo = png(g / "mine" / "logo716.png", "blue")
+    (g / "mine" / "config.xml").write_text(
+        '<record from="icon716" to="graphics/pictures/club/716/icon"/>'
+        '<record from="logo716" to="graphics/pictures/club/716/logo"/>')
+    assert pack_images(str(g), {("club", 716)}) == {("club", 716): str(logo)}
+    assert icon.exists()
+    assert pack_images(str(tmp_path / "nowhere"), {("club", 716)}) == {}
+    (tmp_path / "games").mkdir()
+    assert guess_graphics(str(tmp_path / "games")) == str(g)
+    assert guess_graphics("") == ""

@@ -96,6 +96,14 @@ them names each image by the save's own ids (`club_<club uid>`, `person_<unique 
 `comp_<database id>`). fmcareer reads only the images a report needs and embeds them,
 scaled down, in the HTML. Nothing from the game is stored in this repository.
 
+The game only has artwork for licensed clubs and people. Logo and face packs you've
+added to the game's `graphics` folder (next to `games`, where the saves are) are used
+too, and win over the game's own images, as they do in the game. The app finds that
+folder by itself; on the command line pass `--graphics`. Packs that map their pictures
+with a `config.xml` (face packs, generated-player faces) and packs that name pictures by
+id (logo megapacks: `logos/Clubs/Normal/Normal/716.png`) both work; alternative and
+retro badge sets and small sizes are skipped.
+
 ## How it works out the history
 
 - **Clubs managed**: every spell the save's manager history keeps (`Save.manager_spells`:

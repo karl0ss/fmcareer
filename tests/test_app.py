@@ -41,7 +41,7 @@ def test_page_and_state(server):
     assert code == 200 and b"fmcareer" in page
     code, state = call(base + "/api/state")
     state = json.loads(state)
-    assert state["settings"] == {"saves_dir": "", "install": ""}
+    assert state["settings"] == {"saves_dir": "", "install": "", "graphics": ""}
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
     assert "sections" in state["defaults"]
 
@@ -211,3 +211,17 @@ def test_a_second_start_hands_over_to_the_running_app(server, capsys):
     port = server[0].rsplit(":", 1)[1]
     app.main(["--no-browser", "--port", port])  # returns instead of failing on the busy port
     assert "in use" in capsys.readouterr().out
+
+
+def test_pack_images_win_over_the_games(monkeypatch, tmp_path):
+    import fmcareer.images as images
+    monkeypatch.setattr(app, "DATA", tmp_path / "data")
+    monkeypatch.setattr(app, "images_key", lambda install: "imgkey")
+    monkeypatch.setattr(images, "wanted_images", lambda data: {("club", 1), ("club", 2), ("club", 3)})
+    monkeypatch.setattr(images, "load_pack", lambda graphics, want: {"club:1": "pack1"})
+    monkeypatch.setattr(images, "load", lambda install, want: {f"club:{i}": f"game{i}" for k, i in want if i != 3})
+    steps = []
+    pics = app.report_images(steps.append, {}, "/install", "/graphics", False)
+    assert pics == {"club:1": "pack1", "club:2": "game2"}
+    assert steps == ["Embedding badges and photos from your graphics packs and the game"]
+    assert app.report_images(steps.append, {}, "", "/graphics", False) == {"club:1": "pack1"}

@@ -27,6 +27,8 @@ def main():
                     "loans,trials,youth,released,staff (default: released)")
     ap.add_argument("--install", help="FM26 install folder: embed club badges, player photos, "
                     "competition logos and flags from it (needs UnityPy)")
+    ap.add_argument("--graphics", help="the game's graphics folder: logo and face packs there win over "
+                    "the install's images (needs Pillow, part of the images extra)")
     a = ap.parse_args()
     t = time.time()
     options = {}
@@ -36,9 +38,12 @@ def main():
         picked = {x.strip() for x in a.show.split(",")}
         options["show"] = {key: word in picked for key, word in SHOW_WORDS.items()}
     data = collect(a.save, a.manager, a.names, options=options)
-    if a.install:
-        from fmcareer.images import load, wanted_images
-        data["images"] = load(a.install, wanted_images(data))
+    if a.install or a.graphics:
+        from fmcareer.images import load, load_pack, wanted_images
+        want = wanted_images(data)
+        pack = load_pack(a.graphics, want) if a.graphics else {}
+        game = load(a.install, {k for k in want if f"{k[0]}:{k[1]}" not in pack}) if a.install else {}
+        data["images"] = {**game, **pack}
     with open(a.out, "w", encoding="utf-8") as f:
         f.write(render(data))
     if a.json:

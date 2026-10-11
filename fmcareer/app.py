@@ -46,7 +46,7 @@ INSTALL_GUESSES = [
 # ---- settings
 
 def load_settings():
-    settings = {"saves_dir": "", "install": ""}
+    settings = {"saves_dir": "", "install": "", "graphics": ""}
     try:
         settings.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
     except (OSError, ValueError):
@@ -55,6 +55,9 @@ def load_settings():
         settings["saves_dir"] = next((str(p) for p in SAVE_DIR_GUESSES if p.is_dir()), "")
     if not settings["install"]:
         settings["install"] = next((str(p) for p in INSTALL_GUESSES if p.is_dir()), "")
+    if not settings["graphics"]:
+        from fmcareer.images import guess_graphics
+        settings["graphics"] = guess_graphics(settings["saves_dir"])
     return settings
 
 
@@ -226,10 +229,33 @@ def job_managers(step, path, everyone, fresh=False):
     return dict(managers=managers)
 
 
-def job_report(step, path, staff_uid, options, images, install, fresh=False):
+def report_images(step, data, install, graphics, fresh):
+    """Badges and photos for a career: graphics packs first (as in the game), then the
+    install's own, which are kept between runs. One progress step."""
+    from fmcareer.images import load, load_pack, wanted_images
+    want = wanted_images(data)
+    sources = [name for name, folder in (("your graphics packs", graphics), ("the game", install)) if folder]
+    step("Embedding badges and photos from " + " and ".join(sources))
+    pack = load_pack(graphics, want) if graphics else {}
+    game = {}
+    if install:
+        ikey = images_key(install)
+        known = ({} if fresh else cache_read(ikey)) or {}
+        pics, absent = known.get("pics", {}), known.get("absent", [])
+        missing = {k for k in want if f"{k[0]}:{k[1]}" not in pics and list(k) not in absent}
+        if missing:
+            found = load(install, missing)
+            pics = {**pics, **found}
+            absent = absent + [list(k) for k in missing if f"{k[0]}:{k[1]}" not in found]
+            cache_write(ikey, dict(pics=pics, absent=absent))
+        game = {f"{k[0]}:{k[1]}": pics[f"{k[0]}:{k[1]}"] for k in want if f"{k[0]}:{k[1]}" in pics}
+    return {**game, **pack}
+
+
+def job_report(step, path, staff_uid, options, images, install, fresh=False, graphics=""):
     key = cache_key(path, "career", staff_uid)
     data = None if fresh else cache_read(key)
-    images = bool(images and install)
+    images = bool(images and (install or graphics))
     step.plan((1 if data is not None else 1 + COLLECT_STEPS) + images + 1)  # read, images, writing
     if data is not None:
         step("Using the career read earlier from this save")
@@ -240,20 +266,7 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False):
     # options only choose what the page shows, so one read serves every choice of options
     data = dict(data, options=options, club_today=data["club_today"] if "club" in options["sections"] else None)
     if images:
-        from fmcareer.images import load, wanted_images
-        want = wanted_images(data)
-        ikey = images_key(install)
-        known = ({} if fresh else cache_read(ikey)) or {}
-        missing = {k for k in want if f"{k[0]}:{k[1]}" not in known.get("pics", {}) and list(k) not in known.get("absent", [])}
-        if missing:
-            step("Embedding badges and photos from the game")
-            found = load(install, missing)
-            known = dict(pics={**known.get("pics", {}), **found},
-                         absent=known.get("absent", []) + [list(k) for k in missing if f"{k[0]}:{k[1]}" not in found])
-            cache_write(ikey, known)
-        else:
-            step("Using the badges and photos read earlier")
-        data["images"] = {f"{k[0]}:{k[1]}": known["pics"][f"{k[0]}:{k[1]}"] for k in want if f"{k[0]}:{k[1]}" in known["pics"]}
+        data["images"] = report_images(step, data, install, graphics, fresh)
     step("Writing the report")
     REPORTS.mkdir(parents=True, exist_ok=True)
     stem, name = Path(path).stem, data["manager"]["name"]
@@ -312,7 +325,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "bad JSON"})
         settings = load_settings()
         if self.path == "/api/settings":
-            settings.update({k: str(req.get(k, settings[k])).strip() for k in ("saves_dir", "install")})
+            settings.update({k: str(req.get(k, settings[k])).strip() for k in ("saves_dir", "install", "graphics")})
             store_settings(settings)
             return self.send(200, dict(settings=settings, saves=list_saves(settings["saves_dir"])))
         if self.path == "/api/names":
@@ -335,7 +348,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 if k in DEFAULT_OPTIONS["show"]}}
             return self.send(200, {"job": start_job(job_report, save, staff_uid, options,
                                                     bool(req.get("images")), settings["install"],
-                                                    bool(req.get("fresh")))})
+                                                    bool(req.get("fresh")), settings["graphics"])})
         return self.send(404, {"error": "not found"})
 
 
@@ -387,7 +400,7 @@ h2 .n { display: inline-grid; place-items: center; width: 26px; height: 26px; bo
 label.f { display: block; color: var(--text-2); font-size: 13px; margin: 0 0 4px; }
 input[type=text], input[type=search] { width: 100%; font: inherit; color: var(--text); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-.row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
 button { font: 600 16px var(--head); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer;
   background: linear-gradient(90deg, #7b3cff, var(--accent-2)); }
 button.ghost { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
@@ -427,6 +440,7 @@ footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
     <div class="row">
       <div><label class="f">Saves folder (where your .fm files are)</label><input type="text" id="savesDir"></div>
       <div><label class="f">Football Manager 26 install folder (for names, badges and photos)</label><input type="text" id="install"></div>
+      <div><label class="f">Graphics folder (logo and face packs; optional)</label><input type="text" id="graphics"></div>
       <button class="ghost" id="saveSettings">Save folders</button>
     </div>
     <div class="actions"><span id="namesState" class="muted"></span><button class="ghost" id="buildNames">Read names from the game</button></div>
@@ -454,7 +468,7 @@ footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
   <div class="card opts">
     <div><b>Pages</b><div id="sections"></div></div>
     <div><b>Transfer lists show at first</b><div id="show"></div><p class="muted" style="font-size:13px">Viewers can switch these on and off in the report.</p></div>
-    <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your install</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
+    <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your graphics packs and the game</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
   </div>
 
   <h2><span class="n">5</span>Report</h2>
@@ -522,9 +536,10 @@ function drawOptions() {
   const d = state.defaults, sec = recall('sections', d.sections), show = recall('show', d.show);
   $('sections').innerHTML = d.sections.map(k => `<label><input type="checkbox" data-sec="${k}" ${sec.includes(k) ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('');
   $('show').innerHTML = Object.keys(d.show).map(k => `<label><input type="checkbox" data-show="${esc(k)}" ${show[k] ? 'checked' : ''}> ${SHOW_NAMES[k] || k}</label>`).join('');
-  $('images').disabled = !state.images || !state.settings.install;
+  const sources = [state.settings.graphics && 'your graphics packs', state.settings.install && 'the game'].filter(Boolean);
+  $('images').disabled = !state.images || !sources.length;
   $('images').checked = !$('images').disabled && recall('images', true);
-  $('imagesNote').textContent = !state.images ? 'Needs the images extra: pip install "fmcareer[images]".' : !state.settings.install ? 'Set the install folder first.' : '';
+  $('imagesNote').textContent = !state.images ? 'Needs the images extra: pip install "fmcareer[images]".' : !sources.length ? 'Set the install or graphics folder first.' : 'From ' + sources.join(' and ') + (state.settings.graphics ? '; packs win, as in the game.' : '.');
 }
 function drawReports() {
   $('reports').innerHTML = state.reports.length ? '<b class="muted">Reports</b>' + state.reports.map(r => `<div class="item"><a href="/reports/${encodeURIComponent(r.file)}" target="_blank">${esc(r.file.replace(/\.html$/, '').replace(/-/g, ' '))}</a><span class="m">${fmtTime(r.modified)} · ${fmtSize(r.size)} · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a></span></div>`).join('')
@@ -536,7 +551,7 @@ function drawNames() {
 }
 async function refresh() {
   state = await api('/api/state');
-  $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install;
+  $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install; $('graphics').value = state.settings.graphics;
   chosenSave = chosenSave || recall('save', null);
   if (chosenSave && !state.saves.some(s => s.path === chosenSave)) chosenSave = null;
   drawSaves(); drawOptions(); drawReports(); drawNames();
@@ -545,9 +560,9 @@ $('saves').onclick = e => { const it = e.target.closest('[data-path]'); if (!it)
   managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers(); };
 $('managers').onclick = e => { const it = e.target.closest('[data-uid]'); if (!it) return; chosenManager = +it.dataset.uid; drawManagers(); };
 $('saveFilter').oninput = drawSaves; $('managerFilter').oninput = drawManagers;
-$('saveSettings').onclick = async () => { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value}); await refresh(); };
+$('saveSettings').onclick = async () => { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh(); };
 $('buildNames').onclick = async () => {
-  try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value});
+  try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value});
     const {job} = await api('/api/names', {}); $('buildNames').disabled = true; await follow(job, $('namesLog')); await refresh();
   } catch (e) { $('namesLog').innerHTML = `<div class="err">${esc(e.message)}</div>`; } finally { $('buildNames').disabled = false; }
 };
