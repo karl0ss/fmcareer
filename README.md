@@ -99,6 +99,17 @@ scaled down, in the HTML. Nothing from the game is stored in this repository.
 - **Transfer fees**: from each player's statistics history, plus the human manager's
   event log.
 
+## Tests
+
+```sh
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m pytest
+```
+
+The tests use a small made-up career, so they need no save or game install. The page
+tests run the report in headless Chromium and check that every page draws. They are
+skipped when no Chromium is found; set `FMCAREER_CHROME` to point at one.
+
 ## Limits
 
 - **Spells from before the save's history began** (for example a real manager's jobs
