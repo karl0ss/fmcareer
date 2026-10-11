@@ -53,14 +53,14 @@ This writes `names/competition_names.csv` and `names/award_names.csv`.
 ## Images
 
 The game keeps its licensed artwork in Unity asset bundles; the address catalog next to
-them names each image by the save's own ids (`club_<club uid>`, `person_<uid + 1>`,
+them names each image by the save's own ids (`club_<club uid>`, `person_<unique id>`,
 `comp_<database id>`). fmcareer reads only the images a report needs and embeds them,
 scaled down, in the HTML. Nothing from the game is stored in this repository.
 
 ## How it works out the history
 
-- **Clubs managed**: from the manager's spell records, the career record's longest and
-  shortest spells, the human manager's event log and his current club.
+- **Clubs managed**: every spell the save's manager history keeps (`Save.manager_spells`:
+  ended spells with dates and results, plus the current job).
 - **League tables**: past tables come from the save's league history. fmsave works out
   which club each table row belongs to from fixtures, uid order and each club's
   league-by-season record in player history.
@@ -76,10 +76,8 @@ scaled down, in the HTML. Nothing from the game is stored in this repository.
 
 ## Limits
 
-- **Past clubs of managers with many jobs.** fmsave does not yet decode ended spells
-  from the save's manager history. So only the current club and the career record's
-  longest and shortest spells are known, and some clubs are missed for managers with
-  more than two past jobs.
+- **Spells from before the save's history began** (for example a real manager's jobs
+  before the game started) are not stored, so they don't appear.
 - Seasons are July–June. A spell that started mid-season counts that whole season.
 - The event log (fees, notable matches) exists only for human managers.
 - Checked against one long career save so far. Reports from other saves are welcome.

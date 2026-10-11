@@ -142,6 +142,29 @@ const pic = (kind, id, cls = '') => id != null && IM[kind + ':' + id] ? `<img cl
 const initials = name => (name || '?').replace(/\b(FC|AFC|City|Town|United)\b/g, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase() || '?';
 const crest = (uid, name, cls = '') => pic('club', uid, cls) || `<span class="crest ${cls}">${esc(initials(name))}</span>`;
 const face = (id, cls = '') => pic('person', id, 'face ' + cls);
+
+// ---- every player who played for the manager: seasons, totals, moves
+const pkey = p => p.person_id != null ? 'p' + p.person_id : 'n' + p.name;
+const PL = {};
+const plOf = p => PL[pkey(p)] ||= {key: pkey(p), name: p.name, person_id: p.person_id, current: false, seasons: [], moves: [],
+  apps: 0, goals: 0, assists: 0, minutes: 0, pom: 0, rated: 0, ratingSum: 0, partial: false};
+Object.entries(D.squad_stats || {}).sort().forEach(([season, rows]) => rows.forEach(p => {
+  const P = plOf(p), lr = (D.league || []).find(r => r.season === season);
+  P.current ||= p.current; P.partial ||= !!p.partial;
+  P.seasons.push({season, club: lr ? lr.club : '', club_uid: lr ? lr.club_uid : null, ...p});
+  P.apps += p.apps || 0; P.goals += p.goals || 0; P.assists += p.assists || 0; P.minutes += p.minutes || 0; P.pom += p.pom || 0;
+  if (p.rating != null && p.apps) { P.rated += p.apps; P.ratingSum += p.rating * p.apps; }
+}));
+(D.transfers || []).filter(t => !t.staff && t.player && !t.player.startsWith('Unknown')).forEach(t => {
+  const P = PL[pkey(t)]; if (P) P.moves.push(t);
+});
+Object.values(PL).forEach(P => {
+  P.rating = P.rated ? P.ratingSum / P.rated : null;
+  P.paid = P.moves.filter(t => t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0);
+  P.sold = P.moves.filter(t => t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0);
+});
+const PLIST = Object.values(PL);
+const plink = p => PL[pkey(p)] ? `<a href="#player/${encodeURIComponent(pkey(p))}">${esc(p.name)}</a>` : esc(p.name);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const short = name => name.replace(/^English /, '');
 
@@ -211,7 +234,7 @@ function seasonStory(r) {
 }
 
 // ---- navigation and routing
-const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']]
+const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']]
   .concat(D.club_today ? [['club', 'Club today']] : []);
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 document.getElementById('brand').innerHTML = `${CUR ? crest(CUR.club_uid, CUR.club) : ''}${esc(M.name)} <span>· career history</span>`;
@@ -229,8 +252,8 @@ document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#$
 const view = document.getElementById('view');
 function route() {
   const [page, arg] = (location.hash.slice(1) || 'me').split('/');
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page)));
-  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg), honours: pageHonours, transfers: pageTransfers, club: pageClub}[page] || pageMe)();
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
+  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg), honours: pageHonours, transfers: pageTransfers, club: pageClub, players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: pageRecords}[page] || pageMe)();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -369,9 +392,9 @@ function pageSeason(arg) {
   const top = xi.length ? xi.reduce((a, b) => (b.goals > a.goals ? b : a)) : null;
   const unnamed = table.filter(t => !t.club && !t.me).length;
   const chart = climbChart(season);
-  const playerRow = p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p === top ? '<span class="badge gold">Top scorer</span>' : ''}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td></tr>`;
+  const playerRow = p => `<tr><td>${face(p.person_id)}${plink(p)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p === top ? '<span class="badge gold">Top scorer</span>' : ''}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td></tr>`;
   const pHead = '<thead><tr><th>Player</th><th class="n">Apps</th><th class="n">Goals</th><th class="n">Avg</th></tr></thead>';
-  const moveList = (list, dir) => list.length ? `<ul class="list">${list.map(t => `<li><span>${face(t.person_id)}${esc(t.player)} <span class="muted">${dir === 'in' ? 'from' : 'to'} ${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || 'no club')}</span></span><span class="muted">${t.fee ? '<b style="color:var(--text)">' + moneyShort(t.fee) + '</b> · ' : ''}${t.type} · ${fmtDate(t.date)}</span></li>`).join('')}</ul>` : '<p class="muted">None</p>';
+  const moveList = (list, dir) => list.length ? `<ul class="list">${list.map(t => `<li><span>${face(t.person_id)}${plink({...t, name: t.player})} <span class="muted">${dir === 'in' ? 'from' : 'to'} ${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || 'no club')}</span></span><span class="muted">${t.fee ? '<b style="color:var(--text)">' + moneyShort(t.fee) + '</b> · ' : ''}${t.type} · ${fmtDate(t.date)}</span></li>`).join('')}</ul>` : '<p class="muted">None</p>';
   const gd = r.goals_for - r.goals_against;
   const cupOutcome = c => c.won ? `<span class="badge gold first">Won</span> v ${esc(c.opponent || '?')}`
     : c.league_stage ? `<span class="muted">League stage${c.position != null ? ', ' + ord(c.position + 1) : ''}</span>`
@@ -404,7 +427,7 @@ function pageSeason(arg) {
     </div>
     ${(D.squad_stats[season] || []).length ? `<h2>Full squad statistics</h2>
     <div class="card scroll"><table><thead><tr><th>Player</th><th class="n">Apps</th><th class="n">Starts</th><th class="n">Sub</th><th class="n">Goals</th><th class="n">Assists</th><th class="n">Mins</th><th class="n">Avg</th><th class="n">PoM</th><th class="n">YC</th><th class="n">RC</th></tr></thead><tbody>
-      ${D.squad_stats[season].map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}</tr>`).join('')}
+      ${D.squad_stats[season].map(p => `<tr><td>${face(p.person_id)}${plink(p)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
     <p class="note">League, cup and continental games. ${D.squad_stats[season].some(p => p.partial) ? 'The game deletes most of a player\'s statistics when he retires. Players marked Partial keep only their appearances, goals and rating from the season\'s best-18 record; retired players outside the best 18 are missing.' : 'Players who retired since may be missing.'}</p>` : ''}
     <h2>Squad: the season's best 18</h2>
@@ -469,7 +492,7 @@ function pageTransfers() {
     const fs = ts.value, fd = td.value, ft = tt.value, staff = tstaff.checked;
     tbody.innerHTML = T.filter(t => (staff || !t.staff || ft === t.type) && (!fs || t.season === fs) && (!fd || t.direction === fd) && (!ft || t.type === ft))
       .map(t => `<tr><td>${fmtDate(t.date)}</td><td>${t.direction === 'in' ? '<span class="badge up first">In</span>' : t.direction === 'out' ? '<span class="badge first">Out</span>' : '<span class="badge first">Internal</span>'}</td>
-        <td>${face(t.person_id)}${esc(t.player)}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
+        <td>${face(t.person_id)}${plink({...t, name: t.player})}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
   };
   [ts, td, tt, tstaff].forEach(e => e.onchange = draw); draw();
 }
@@ -515,6 +538,100 @@ function pageClub() {
         <td class="n">${num(p.ability)}</td><td class="n">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td>${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted">${esc(p.status || '')}</td></tr>`).join('')}
     </tbody></table></div>
     <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save.</p>`;
+}
+
+// ---- page: all players
+function pagePlayers() {
+  view.innerHTML = `<h1>Players</h1><p class="lede">Everyone who played league, cup or continental football under ${esc(M.name)}: ${PLIST.length} players. Click a column to sort, a name for the full record.</p>
+    <div class="controls"><input id="pq" placeholder="Search players" style="font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px">
+    <label><input type="checkbox" id="pcur"> Current squad only</label></div>
+    <div class="card scroll"><table><thead><tr>${[['name','Player'],['seasons','Seasons'],['apps','Apps'],['goals','Goals'],['assists','Assists'],['rating','Avg'],['pom','PoM'],['paid','Fee paid'],['sold','Fee received']].map(([k, l], i) => `<th class="${i ? 'n' : ''}" data-k="${k}" style="cursor:pointer">${l}</th>`).join('')}</tr></thead><tbody id="pbody"></tbody></table></div>
+    <p class="note">Players marked Partial have only best-18 records left for some seasons (the game deletes most statistics of retired players), so their totals are incomplete.</p>`;
+  let key = 'apps', dir = -1;
+  const val = (P, k) => k === 'seasons' ? P.seasons.length : k === 'name' ? P.name : P[k] ?? -1;
+  const draw = () => {
+    const q = document.getElementById('pq').value.toLowerCase(), cur = document.getElementById('pcur').checked;
+    document.getElementById('pbody').innerHTML = PLIST.filter(P => (!q || P.name.toLowerCase().includes(q)) && (!cur || P.current))
+      .sort((a, b) => { const x = val(a, key), y = val(b, key); return (x < y ? -1 : x > y ? 1 : 0) * dir; })
+      .map(P => `<tr class="click" data-href="player/${encodeURIComponent(P.key)}"><td>${face(P.person_id)}<a href="#player/${encodeURIComponent(P.key)}">${esc(P.name)}</a>${P.current ? '<span class="badge accent">Current</span>' : ''}${P.partial ? '<span class="badge">Partial</span>' : ''}</td>
+        <td class="n">${P.seasons.length}</td><td class="n">${P.apps}</td><td class="n">${P.goals}</td><td class="n">${P.partial && !P.assists ? '–' : P.assists}</td><td class="n">${P.rating ? P.rating.toFixed(2) : '–'}</td><td class="n">${P.partial && !P.pom ? '–' : P.pom}</td><td class="n">${moneyShort(P.paid)}</td><td class="n">${moneyShort(P.sold)}</td></tr>`).join('');
+  };
+  view.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { dir = key === th.dataset.k ? -dir : (th.dataset.k === 'name' ? 1 : -1); key = th.dataset.k; draw(); });
+  document.getElementById('pq').oninput = draw; document.getElementById('pcur').onchange = draw; draw();
+}
+
+// ---- page: one player
+function pagePlayer(key) {
+  const P = PL[key];
+  if (!P) { view.innerHTML = '<p>Player not found. <a href="#players">All players</a></p>'; return; }
+  const first = P.seasons[0], last = P.seasons[P.seasons.length - 1];
+  const best = P.seasons.reduce((b, s) => (s.goals > (b ? b.goals : -1) ? s : b), null);
+  view.innerHTML = `<div class="pager"><a href="#players">← All players</a></div>
+    <div class="card heroband">${face(P.person_id, 'lg') || `<span class="crest lg">${esc(initials(P.name))}</span>`}<div>
+      <h1>${esc(P.name)}</h1>
+      <p class="lede">${P.seasons.length === 1 ? first.season : first.season + ' to ' + last.season} under ${esc(M.name)}${P.current ? ' · in the current squad' : ''}.
+      ${best && best.goals ? ` Best season: ${best.goals} goals in ${best.season}.` : ''}</p></div></div>
+    <h2>Totals</h2>
+    <div class="tiles">
+      <div class="card tile"><div class="v">${P.apps}</div><div class="k">Appearances</div><div class="s">${plural(P.seasons.length, 'season')}</div></div>
+      <div class="card tile"><div class="v">${P.goals}</div><div class="k">Goals</div><div class="s">${P.apps ? (P.goals / P.apps).toFixed(2) + ' per game' : ''}</div></div>
+      <div class="card tile"><div class="v">${P.partial && !P.assists ? '–' : P.assists}</div><div class="k">Assists</div></div>
+      <div class="card tile"><div class="v">${P.rating ? P.rating.toFixed(2) : '–'}</div><div class="k">Average rating</div></div>
+      <div class="card tile"><div class="v">${P.partial && !P.pom ? '–' : P.pom}</div><div class="k">Player of the match</div></div>
+      <div class="card tile"><div class="v">${moneyShort(P.paid)}</div><div class="k">Signed for</div><div class="s">${P.sold ? 'sold for ' + moneyShort(P.sold) : ''}</div></div>
+    </div>
+    <h2>Season by season</h2>
+    <div class="card scroll"><table><thead><tr><th>Season</th><th>Club</th><th class="n">Apps</th><th class="n">Starts</th><th class="n">Goals</th><th class="n">Assists</th><th class="n">Mins</th><th class="n">Avg</th><th class="n">PoM</th><th class="n">YC</th><th class="n">RC</th></tr></thead><tbody>
+      ${P.seasons.map(s => `<tr class="click" data-href="season/${slug(s.season)}"><td><a href="#season/${slug(s.season)}">${s.season}</a>${s.partial ? '<span class="badge">Partial</span>' : ''}</td><td>${crest(s.club_uid, s.club)}${esc(s.club)}</td><td class="n">${s.apps}</td><td class="n">${num(s.starts)}</td><td class="n">${s.goals}</td><td class="n">${num(s.assists)}</td><td class="n">${s.minutes != null ? s.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${s.rating != null ? s.rating.toFixed(2) : '–'}</td><td class="n">${num(s.pom)}</td><td class="n">${num(s.yellow)}</td><td class="n">${num(s.red)}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${P.moves.length ? `<h2>Moves</h2><div class="card"><ul class="list">${P.moves.map(t => `<li><span>${fmtDate(t.date)} · ${t.type} ${t.direction === 'in' ? 'from' : 'to'} ${t.other ? crest(t.other_uid, t.other) + esc(t.other) : 'no club'}</span><span>${t.fee ? '<b>' + moneyShort(t.fee) + '</b>' : '<span class="muted">' + (t.type === 'Free' ? 'Free' : '–') + '</span>'}</span></li>`).join('')}</ul></div>` : ''}`;
+}
+
+// ---- page: records
+function pageRecords() {
+  const top = (list, f, n = 10) => [...list].filter(x => f(x) != null && f(x) > 0).sort((a, b) => f(b) - f(a)).slice(0, n);
+  const plist = (title, list, f, fmt = v => v, sub = () => '') => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((P, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(P.person_id)}<a href="#player/${encodeURIComponent(P.key)}">${esc(P.name)}</a>${P.current ? '<span class="badge accent">Current</span>' : ''}<span class="muted"> ${sub(P)}</span></td><td class="n"><b>${fmt(f(P))}</b></td></tr>`).join('') || '<tr><td class="muted">None</td></tr>'}</tbody></table></div>`;
+  const seasonsRows = Object.entries(D.squad_stats || {}).flatMap(([season, rows]) => rows.map(p => ({...p, season, key: pkey(p)})));
+  const slist = (title, list, f, fmt = v => v) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((p, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(p.person_id)}<a href="#player/${encodeURIComponent(p.key)}">${esc(p.name)}</a> <a class="muted" href="#season/${slug(p.season)}">${p.season}</a></td><td class="n"><b>${fmt(f(p))}</b></td></tr>`).join('')}</tbody></table></div>`;
+  const moves = (D.transfers || []).filter(t => t.fee && !t.staff);
+  const mlist = (title, list) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((t, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(t.person_id)}${plink({...t, name: t.player})} <span class="muted">${t.direction === 'in' ? 'from' : 'to'} ${esc(t.other || '?')}, ${t.season}</span></td><td class="n"><b>${moneyShort(t.fee)}</b></td></tr>`).join('')}</tbody></table></div>`;
+  const byPts = [...L].sort((a, b) => b.points / b.played - a.points / a.played);
+  const tile = (v, k, s) => `<div class="card tile"><div class="v">${v}</div><div class="k">${k}</div><div class="s">${s}</div></div>`;
+  const gdBest = [...L].sort((a, b) => (b.goals_for - b.goals_against) - (a.goals_for - a.goals_against))[0];
+  const mostGoals = [...L].sort((a, b) => b.goals_for - a.goals_for)[0];
+  const meanest = [...L].sort((a, b) => a.goals_against / a.played - b.goals_against / b.played)[0];
+  const wins = (D.notable_matches || []).filter(m => m.goals_for > m.goals_against).sort((a, b) => (b.goals_for - b.goals_against) - (a.goals_for - a.goals_against));
+  view.innerHTML = `<h1>Records</h1><p class="lede">The best of the ${esc(M.name)} era, from the league tables, squad statistics and transfers.</p>
+    <h2>Team records</h2>
+    <div class="tiles">
+      ${byPts[0] ? tile(byPts[0].points, 'Most points per game', `${(byPts[0].points / byPts[0].played).toFixed(2)} ppg · ${esc(byPts[0].competition)}, ${byPts[0].season}`) : ''}
+      ${mostGoals ? tile(mostGoals.goals_for, 'Most league goals', `${esc(mostGoals.competition)}, ${mostGoals.season}`) : ''}
+      ${gdBest ? tile((gdBest.goals_for - gdBest.goals_against >= 0 ? '+' : '') + (gdBest.goals_for - gdBest.goals_against), 'Best goal difference', `${esc(gdBest.competition)}, ${gdBest.season}`) : ''}
+      ${meanest ? tile(meanest.goals_against, 'Fewest conceded', `${(meanest.goals_against / meanest.played).toFixed(2)} a game · ${meanest.season}`) : ''}
+      ${wins[0] ? tile(`${wins[0].goals_for}–${wins[0].goals_against}`, 'Biggest logged win', `v ${esc(wins[0].opponent || '?')}, ${fmtDate(wins[0].date)}`) : ''}
+    </div>
+    <h2>All-time players</h2>
+    <div class="grid2">
+      ${plist('Most appearances', top(PLIST, P => P.apps), P => P.apps, v => v, P => plural(P.seasons.length, 'season'))}
+      ${plist('Most goals', top(PLIST, P => P.goals), P => P.goals, v => v, P => `in ${P.apps}`)}
+      ${plist('Most assists', top(PLIST, P => P.assists), P => P.assists)}
+      ${plist('Best average rating (60+ apps)', top(PLIST.filter(P => P.rated >= 60), P => P.rating), P => P.rating, v => v.toFixed(2), P => `${P.rated} rated apps`)}
+      ${plist('Most player of the match awards', top(PLIST, P => P.pom), P => P.pom)}
+      ${plist('Longest serving', top(PLIST, P => P.seasons.length), P => P.seasons.length, v => plural(v, 'season'))}
+    </div>
+    <h2>Single seasons</h2>
+    <div class="grid2">
+      ${slist('Most goals in a season', top(seasonsRows, p => p.goals), p => p.goals)}
+      ${slist('Most assists in a season', top(seasonsRows, p => p.assists), p => p.assists)}
+      ${slist('Best season rating (25+ apps)', top(seasonsRows.filter(p => p.apps >= 25), p => p.rating), p => p.rating, v => v.toFixed(2))}
+      ${slist('Most appearances in a season', top(seasonsRows, p => p.apps), p => p.apps)}
+    </div>
+    <h2>Transfers</h2>
+    <div class="grid2">
+      ${mlist('Biggest signings', top(moves.filter(t => t.direction === 'in'), t => t.fee))}
+      ${mlist('Biggest sales', top(moves.filter(t => t.direction === 'out'), t => t.fee))}
+    </div>
+    <p class="note">Player totals cover league, cup and continental games. Retired players whose statistics the game deleted count only their best-18 seasons.</p>`;
 }
 
 route();

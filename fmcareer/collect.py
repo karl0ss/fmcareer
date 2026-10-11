@@ -65,10 +65,25 @@ def find_manager(s, manager_name):
 def manager_stints(s, me, record, events, club_by_team, game_date):
     """The manager's club spells, oldest first: [{club_uid, start, end}] (end None = current).
 
-    Sources, merged per club: the save's spell table when fmsave has one for ended spells
-    (`manager_spells`), the career record's longest/shortest club spell windows, the
-    event log's team stamps (human managers), and the current managed club.
+    `Save.manager_spells` (every ended spell from the save's manager history, plus the
+    current job) when this fmsave has it; otherwise, merged per club, the career record's
+    longest/shortest club windows, the event log's team stamps and the managed club.
+    National-team spells are left out. Back-to-back spells at one club are joined.
     """
+    stints = []
+    if hasattr(s, "manager_spells"):
+        for sp in s.manager_spells(me.uid):
+            club_uid = club_by_team.get(sp.team_id)
+            if club_uid is None:  # a national team, or a team the save does not name
+                continue
+            if stints and stints[-1]["club_uid"] == club_uid and stints[-1]["end"] is not None and (
+                    sp.start_date is None or (sp.start_date - stints[-1]["end"]).days <= 1):
+                stints[-1]["end"] = sp.end_date
+                continue
+            stints.append(dict(club_uid=club_uid, start=sp.start_date, end=sp.end_date))
+        if stints:
+            return stints
+
     spans = collections.defaultdict(lambda: [None, None])
 
     def add(club_uid, start, end):
@@ -80,9 +95,6 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
         if end and (span[1] is None or end > span[1]):
             span[1] = end
 
-    if hasattr(s, "manager_spells"):  # decoded spell history, when available
-        for sp in s.manager_spells(me.uid):
-            add(sp.club_uid, sp.start_date, sp.end_date or game_date)
     if record is not None:
         for w in (record.longest_club_spell, record.shortest_club_spell):
             if w is not None:
@@ -94,7 +106,6 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
     current = managed.get(me.uid)
     if current is not None:
         add(current, None, game_date)
-    stints = []
     for club_uid, (start, end) in spans.items():
         is_current = club_uid == current or (end is not None and game_date and end >= game_date)
         stints.append(dict(club_uid=club_uid, start=start, end=None if is_current else end))
@@ -184,13 +195,17 @@ def collect(save_path, manager_name, names_dir):
     stints = manager_stints(s, me, record, events, club_by_team, game_date)
     if not stints:
         raise SystemExit(f"{manager_name}: the save keeps no club spell for this manager")
+    # an unknown start (a spell older than the save's history) counts from that history's start
+    history_years = [r.season_year for r in s.career_league_history() if not r.imported]
+    history_start = dt.date(min(history_years) - 1, 7, 1) if history_years else dt.date.min
     for st in stints:
         st["club"] = clubs[st["club_uid"]].name if st["club_uid"] in clubs else f"Club {st['club_uid']}"
+        st["from"] = st["start"] or history_start
 
     def stint_for(day):
         """The stint covering a date, else None."""
         for st in stints:
-            if st["start"] and day >= st["start"] and (st["end"] is None or day <= st["end"]):
+            if day >= st["from"] and (st["end"] is None or day <= st["end"]):
                 return st
         return None
 
@@ -200,7 +215,7 @@ def collect(save_path, manager_name, names_dir):
         first_day = dt.date(end_year - 1, 7, 1)
         best = None
         for st in stints:
-            start = st["start"] or dt.date.min
+            start = st["from"]
             end = st["end"] or dt.date.max
             if start <= last_day and end >= first_day:
                 best = st  # stints are oldest first: keep the latest overlapping
@@ -218,11 +233,11 @@ def collect(save_path, manager_name, names_dir):
     ref_to_uid = s.history_player_references()
 
     def person_id(uid, ref):
-        """The person's unique id (uid + 1), the key of his photo."""
+        """The person's unique id, the key of his photo."""
         if uid is None:
             uid = ref_to_uid.get(ref)
-        if uid is not None:
-            return uid + 1
+        if uid in players:
+            return players[uid].unique_id or uid + 1
         return retired_unique.get(ref)
 
     def person(uid, ref, fallback=None):
@@ -454,7 +469,7 @@ def collect(save_path, manager_name, names_dir):
                       agent_fees=record.agent_fees, club_jobs=record.club_jobs,
                       record_signing=fee(record.highest_fee_paid), record_sale=fee(record.highest_fee_received))
 
-    squad = sorted((dict(name=p.name, age=p.age, person_id=u + 1) for u, p in players.items() if u in current_uids),
+    squad = sorted((dict(name=p.name, age=p.age, person_id=p.unique_id or u + 1) for u, p in players.items() if u in current_uids),
                    key=lambda x: x["name"])
 
     club_today = None
@@ -469,7 +484,7 @@ def collect(save_path, manager_name, names_dir):
                      age=me.age, wage=me.wage if current else None,
                      contract_start=me.contract_start.isoformat() if current and me.contract_start else None,
                      contract_end=me.contract_end.isoformat() if current and me.contract_end else None,
-                     human=me.is_human_manager, person_id=staff_uid + 1, nation_id=me.nation_id),
+                     human=me.is_human_manager, person_id=me.unique_id or staff_uid + 1, nation_id=me.nation_id),
         stints=[dict(club=st["club"], club_uid=st["club_uid"],
                      start=st["start"].isoformat() if st["start"] else None,
                      end=st["end"].isoformat() if st["end"] else None) for st in stints],
@@ -511,7 +526,7 @@ def club_now(s, clubs, club_uid, players, comp_name, comp_db):
             continue
         c = contracts.get(uid)
         squad.append(dict(
-            name=p.name, person_id=uid + 1, age=p.age,
+            name=p.name, person_id=p.unique_id or uid + 1, age=p.age,
             positions=" ".join(str(x) for x in (p.natural_positions or ())) or None,
             ability=p.ability.current if p.ability else None,
             potential=p.ability.potential if p.ability else None,

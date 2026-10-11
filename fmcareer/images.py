@@ -7,8 +7,8 @@ it under:
 
     [u32 length] "<kind>_<id>" [u32 32] "<32 hex digits>"
 
-with kinds `club` (keyed by the save's club uid), `person` (keyed by the person's unique
-id, the save's uid + 1) and `comp` (the competition's editor database id). Nation flags
+with kinds `club` (keyed by the save's club uid), `person` (keyed by the person's
+`unique_id`, which for many players is not uid + 1) and `comp` (the competition's editor database id). Nation flags
 (`nation_flag_<nation id>`) sit in sprite atlases under other keys and are not read yet.
 The images are read from the user's own install at report time and
 embedded in their report; nothing from the game is stored in this repository.
