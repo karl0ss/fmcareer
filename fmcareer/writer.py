@@ -11,6 +11,9 @@ import json
 import re
 import urllib.error
 import urllib.request
+from typing import Any
+
+from fmcareer._types import Record, Step
 
 PROMPT_VERSION = 5  # bump when the prompts or facts change, so cached text is rewritten
 
@@ -44,7 +47,7 @@ separated by a blank line (the journey, then the honours and record); keep it br
 class WriterError(Exception):
     """The endpoint could not be reached or failed: writing stops."""
 
-    def __init__(self, message, status=None):
+    def __init__(self, message: str, status: int | None = None) -> None:
         super().__init__(message)
         self.status = status  # the HTTP status, when the endpoint answered with an error
 
@@ -53,7 +56,7 @@ class UnusableAnswer(Exception):
     """One answer had no usable text: that piece keeps its plain summary."""
 
 
-def money(n):
+def money(n: int | None) -> str | None:
     if n is None:
         return None
     sign, n = ("-" if n < 0 else ""), abs(n)
@@ -64,14 +67,14 @@ def money(n):
     return f"{sign}£{n}"
 
 
-def ordinal(n):
+def ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
 # ---- facts
 
 
-def comparison(prev, r):
+def comparison(prev: Record, r: Record) -> str:
     """How a season compares with the one before, spelt out so the model needn't work it out."""
     if prev["club"] != r["club"]:
         return "a different club from the previous season"
@@ -95,13 +98,13 @@ def comparison(prev, r):
     return f"{place} in the same division than the previous season, with {points}"
 
 
-def award_phrase(a):
+def award_phrase(a: Record) -> str:
     if a["placing"] == "Winner":
         return f"won {a['name']}"
     return f"{a['placing'].lower()} for {a['name']} (did not win it)"
 
 
-def season_facts(data):
+def season_facts(data: Record) -> list[tuple[str, Record]]:
     """[(season, facts)] for every league season, in order."""
     league, manager = data.get("league", []), data.get("manager", {}).get("name")
     out = []
@@ -169,7 +172,7 @@ def season_facts(data):
         ins = [t for t in moves if t["kind"] == "signing"]
         outs = [t for t in moves if t["kind"] in ("sale", "free_departure")]
         if ins or outs:
-            market = {"signings": len(ins), "departures_to_other_clubs": len(outs)}
+            market: Record = {"signings": len(ins), "departures_to_other_clubs": len(outs)}
             spent = sum(t["fee"] or 0 for t in moves if t["direction"] == "in")
             got = sum(t["fee"] or 0 for t in moves if t["direction"] == "out")
             if spent:
@@ -200,7 +203,7 @@ def season_facts(data):
     return out
 
 
-def overview_facts(data):
+def overview_facts(data: Record) -> Record:
     league, m, career = data.get("league", []), data.get("manager", {}), data.get("career") or {}
     stints = [
         {"club": s["club"], "from": (s["start"] or "")[:4] or None, "to": (s["end"] or "")[:4] or "present"}
@@ -260,11 +263,11 @@ def overview_facts(data):
 # ---- the endpoint
 
 
-def _base(endpoint):
+def _base(endpoint: str) -> str:
     return endpoint.rstrip("/")
 
 
-def _request(endpoint, token, path, body=None, timeout=300):
+def _request(endpoint: str, token: str, path: str, body: Record | None = None, timeout: int = 300) -> Any:
     req = urllib.request.Request(
         _base(endpoint) + path,
         data=None if body is None else json.dumps(body).encode(),
@@ -282,12 +285,12 @@ def _request(endpoint, token, path, body=None, timeout=300):
         raise WriterError("the endpoint did not answer with JSON") from None
 
 
-def list_models(endpoint, token):
+def list_models(endpoint: str, token: str) -> list[str]:
     found = _request(endpoint, token, "/models", timeout=20)
     return sorted(m["id"] for m in found.get("data", []) if isinstance(m, dict) and m.get("id"))
 
 
-def tidy(text):
+def tidy(text: str | None) -> list[str]:
     """Model output as plain paragraphs: no thinking blocks, markdown or headings."""
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
     text = re.sub(r"\*\*|__|^#+\s*", "", text, flags=re.M)
@@ -304,7 +307,7 @@ MORE_TOKENS = 16000  # asked again with this much when thinking used it all up
 _NO_EFFORT = set()
 
 
-def chat(endpoint, token, model, system, facts, max_tokens=TOKENS):
+def chat(endpoint: str, token: str, model: str, system: str, facts: Record, max_tokens: int = TOKENS) -> list[str]:
     body = {
         "model": model,
         "temperature": 0.3,
@@ -341,7 +344,7 @@ def chat(endpoint, token, model, system, facts, max_tokens=TOKENS):
 _NUMBER = re.compile(r"\d[\d,.]*")
 
 
-def unsupported_numbers(paras, facts):
+def unsupported_numbers(paras: list[str], facts: Record) -> list[str]:
     """Numbers in the text that the facts don't contain (a sign the model made something up)."""
     known = json.dumps(facts, ensure_ascii=False)
     pool = set(_NUMBER.findall(known)) | {n.replace(",", "") for n in _NUMBER.findall(known)}
@@ -354,7 +357,7 @@ def unsupported_numbers(paras, facts):
     return bad
 
 
-def checked_chat(endpoint, token, model, system, facts, tries=2):
+def checked_chat(endpoint: str, token: str, model: str, system: str, facts: Record, tries: int = 2) -> list[str]:
     """chat(), asked again when the text has numbers the facts don't, or when a reasoning
     model ran out of tokens before writing. Raises UnusableAnswer when nothing fits."""
     room, why = TOKENS, "wrote nothing"
@@ -372,12 +375,14 @@ def checked_chat(endpoint, token, model, system, facts, tries=2):
     raise UnusableAnswer(why)
 
 
-def text_key(model, endpoint, system, facts):
+def text_key(model: str, endpoint: str, system: str, facts: Record) -> str:
     raw = json.dumps([PROMPT_VERSION, _base(endpoint), model, system, facts], sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
-def write(data, endpoint, token, model, step, known=None):
+def write(
+    data: Record, endpoint: str, token: str, model: str, step: Step, known: dict[str, list[str]] | None = None
+) -> Record:
     """The model's text for the career: {"model", "overview", "seasons": {season: [paragraphs]},
     "written", "pieces", "problems"}.
 
@@ -412,6 +417,6 @@ def write(data, endpoint, token, model, step, known=None):
     return out
 
 
-def pieces(data):
+def pieces(data: Record) -> int:
     """How many pieces of text write() produces (and progress steps it reports)."""
     return 1 + len(data.get("league", []))

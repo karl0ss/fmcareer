@@ -15,6 +15,9 @@ import unicodedata
 import warnings
 
 import fmsave
+from fmsave import LeagueHistorySeason, ManagerCareerRecord, ManagerEvent, Save, Staff
+
+from fmcareer._types import Record, Step
 
 warnings.simplefilter("ignore")
 
@@ -35,21 +38,21 @@ STAFF_TYPES = {6, 9}
 PLACING = {0: "Winner", 1: "Runner-up", 2: "Third"}
 
 
-def season_label(end_year):
+def season_label(end_year: int) -> str:
     return f"{end_year - 1}/{str(end_year)[2:]}"
 
 
-def season_end_of(day):
+def season_end_of(day: dt.date) -> int:
     """The ending year of the (July-June) season a date falls in."""
     return day.year + 1 if day.month >= 7 else day.year
 
 
-def _norm(text):
+def _norm(text: str | None) -> str:
     text = unicodedata.normalize("NFKD", text or "")
     return " ".join("".join(c for c in text if not unicodedata.combining(c)).casefold().split())
 
 
-def find_manager(s, manager_name):
+def find_manager(s: Save, manager_name: str) -> Staff:
     """The staff member the name means: full, first+last or common name, accents ignored.
 
     Several matches prefer the human manager, then whoever has a managerial record.
@@ -77,7 +80,14 @@ def find_manager(s, manager_name):
     return found[0]
 
 
-def manager_stints(s, me, record, events, club_by_team, game_date):
+def manager_stints(
+    s: Save,
+    me: Staff,
+    record: ManagerCareerRecord | None,
+    events: list[ManagerEvent],
+    club_by_team: dict[int | None, int],
+    game_date: dt.date | None,
+) -> list[Record]:
     """The manager's club spells, oldest first: [{club_uid, start, end}] (end None = current).
 
     `Save.manager_spells` (every ended spell from the save's manager history, plus the
@@ -103,9 +113,9 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
         if stints:
             return stints
 
-    spans = collections.defaultdict(lambda: [None, None])
+    spans: dict[int, list[dt.date | None]] = collections.defaultdict(lambda: [None, None])
 
-    def add(club_uid, start, end):
+    def add(club_uid: int | None, start: dt.date | None, end: dt.date | None) -> None:
         if club_uid is None:
             return
         span = spans[club_uid]
@@ -132,7 +142,7 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
     return stints
 
 
-def league_levels(rows):
+def league_levels(rows: list[LeagueHistorySeason]) -> tuple[dict[int, int], dict[int, set[int]]]:
     """Level of every competition, inferred from clubs moving between competitions.
 
     A club finishing in the top third of X and playing Y the next season says Y is
@@ -160,7 +170,7 @@ def league_levels(rows):
             above[lo].add(hi)
     level = {}
 
-    def depth(comp, seen=()):
+    def depth(comp: int, seen: tuple[int, ...] = ()) -> int:
         if comp in level:
             return level[comp]
         if comp in seen:  # a cycle the votes did not settle
@@ -173,7 +183,7 @@ def league_levels(rows):
     return {c: depth(c) for c in comps}, above
 
 
-def pyramid_of(above, start):
+def pyramid_of(above: dict[int, set[int]], start: set[int]) -> set[int]:
     """The competitions linked to `start` by club movement: one nation's pyramid."""
     links = collections.defaultdict(set)
     for lo, his in above.items():
@@ -197,7 +207,7 @@ DEFAULT_OPTIONS = {
 }
 
 
-def read_names(names_dir):
+def read_names(names_dir: str | None) -> tuple[dict[int, str], dict[int, str], str | None]:
     """Competition and award names from fmcareer-names CSVs; empty maps when absent."""
     db_names, award_names, comp_csv = {}, {}, None
     if names_dir:
@@ -213,18 +223,18 @@ def read_names(names_dir):
     return db_names, award_names, comp_csv
 
 
-def open_save(save_path, names_dir=None):
+def open_save(save_path: str, names_dir: str | None = None) -> Save:
     """Open a save with the competition names hooked in when they exist."""
     _db, _aw, comp_csv = read_names(names_dir)
     return fmsave.open(save_path, competition_names=comp_csv) if comp_csv else fmsave.open(save_path)
 
 
-def manager_steps(everyone):
+def manager_steps(everyone: bool) -> int:
     """How many progress steps list_managers reports."""
     return 3 if everyone else 1
 
 
-def list_managers(s, progress=lambda text: None, everyone=False):
+def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = False) -> list[Record]:
     """Managers to report on: the save's human managers, or with `everyone` every current
     staff member with a managerial record (human managers first, then by games).
 
@@ -272,7 +282,16 @@ COLLECT_STEPS = 7  # progress steps collect reports; tests check this against th
 SIGNING_TYPES = ("Transfer", "Free", "Signing")
 
 
-def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, options=None, progress=lambda text: None):
+def collect(
+    save_path: str,
+    manager_name: str | None,
+    names_dir: str | None,
+    *,
+    staff_uid: int | None = None,
+    save: Save | None = None,
+    options: Record | None = None,
+    progress: Step = lambda text: None,
+) -> Record:
     """The whole career of one manager, as a JSON-ready dict.
 
     The manager is `staff_uid` when given, else found by `manager_name`. `save` reuses an
@@ -331,7 +350,7 @@ def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, op
 class Career:
     """What every part of a career needs: the manager, his spells, and the save's lookups."""
 
-    def __init__(self, s, names_dir, manager_name, staff_uid):
+    def __init__(self, s: Save, names_dir: str | None, manager_name: str | None, staff_uid: int | None) -> None:
         self.s = s
         self.db_names, self.award_names, _csv = read_names(names_dir)
         self.game_date = s.info.game_date
@@ -340,15 +359,18 @@ class Career:
             if me is None:
                 raise SystemExit(f"no staff member with uid {staff_uid}")
         else:
-            me = find_manager(s, manager_name)
+            me = find_manager(s, manager_name or "")
         self.me, self.staff_uid = me, me.uid
-        self.manager_name = me.name or manager_name
+        self.manager_name: str = me.name or manager_name or f"Staff {me.uid}"
         self.clubs = {c.uid: c for c in s.clubs()}
-        self.club_by_team = {t.team_id: c.uid for c in self.clubs.values() for t in c.teams if not t.is_affiliate}
-        self.teams = {t.team_id: c.name for c in self.clubs.values() for t in c.teams}
+        # lookups by ids a record may lack (None), so they take None as a key
+        self.club_by_team: dict[int | None, int] = {
+            t.team_id: c.uid for c in self.clubs.values() for t in c.teams if not t.is_affiliate
+        }
+        self.teams: dict[int | None, str | None] = {t.team_id: c.name for c in self.clubs.values() for t in c.teams}
         comps = list(s.competitions())
-        self.comp_name = {c.id: c.name for c in comps}
-        self.comp_db = {c.id: c.database_id for c in comps}
+        self.comp_name: dict[int | None, str | None] = {c.id: c.name for c in comps}
+        self.comp_db: dict[int | None, int | None] = {c.id: c.database_id for c in comps}
         self.record = s.manager_career(self.staff_uid)
         self.manager_ref = s.history_person_reference(self.staff_uid)
         self.events = list(s.manager_events(self.staff_uid)) if me.is_human_manager else []
@@ -365,14 +387,14 @@ class Career:
 
     # ---- spells
 
-    def stint_for(self, day):
+    def stint_for(self, day: dt.date) -> Record | None:
         """The stint covering a date, else None."""
         for st in self.stints:
             if day >= st["from"] and (st["end"] is None or day <= st["end"]):
                 return st
         return None
 
-    def stint_for_season(self, end_year):
+    def stint_for_season(self, end_year: int) -> Record | None:
         """The club the manager had at the end of a season (or latest in it)."""
         last_day, first_day = dt.date(end_year, 6, 30), dt.date(end_year - 1, 7, 1)
         best = None
@@ -381,24 +403,24 @@ class Career:
                 best = st  # stints are oldest first: keep the latest overlapping
         return best
 
-    def in_career(self, club_uid, end_year):
+    def in_career(self, club_uid: int, end_year: int) -> bool:
         st = self.stint_for_season(end_year)
         return st is not None and st["club_uid"] == club_uid
 
     # ---- people
 
-    def read_people(self):
+    def read_people(self) -> None:
         """Names and photo ids: current players, then retired people found in game_db."""
         s = self.s
         self.players = {p.uid: p for p in s.players()}
         people = list(s.history_people())
-        self.retired = {h.reference: h.name for h in people if h.name}
-        self.retired_unique = {h.reference: h.unique_id for h in people}
-        self.ref_to_uid = s.history_player_references()
+        self.retired: dict[int | None, str] = {h.reference: h.name for h in people if h.name}
+        self.retired_unique: dict[int | None, int | None] = {h.reference: h.unique_id for h in people}
+        self.ref_to_uid: dict[int | None, int] = dict(s.history_player_references().items())
         club = self.current["club_uid"] if self.current else None
         self.current_uids = {u for u, p in self.players.items() if club is not None and p.club_uid == club}
 
-    def person_id(self, uid, ref):
+    def person_id(self, uid: int | None, ref: int | None) -> int | None:
         """The person's unique id, the key of his photo."""
         if uid is None:
             uid = self.ref_to_uid.get(ref)
@@ -406,16 +428,16 @@ class Career:
             return self.players[uid].unique_id or uid + 1
         return self.retired_unique.get(ref)
 
-    def person(self, uid, ref, fallback=None):
+    def person(self, uid: int | None, ref: int | None, fallback: str | None = None) -> str:
         if ref is not None and ref == self.manager_ref:
             return self.manager_name
         if uid is None:
             uid = self.ref_to_uid.get(ref)
         if uid in self.players:
-            return self.players[uid].name
+            return self.players[uid].name or fallback or f"Unknown player ({ref})"
         return self.retired.get(ref) or fallback or f"Unknown player ({ref})"
 
-    def current_squad(self):
+    def current_squad(self) -> list[Record]:
         return sorted(
             (
                 dict(name=p.name, age=p.age, person_id=p.unique_id or u + 1)
@@ -425,7 +447,7 @@ class Career:
             key=lambda x: x["name"],
         )
 
-    def manager_summary(self):
+    def manager_summary(self) -> Record:
         me, current = self.me, self.current
         return dict(
             name=self.manager_name,
@@ -443,7 +465,7 @@ class Career:
         )
 
 
-def league_section(c):
+def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], list[Record]]:
     """The manager's league seasons, each season's final table, and the pyramid's levels.
 
     Each season carries what the report and the AI writer both say about it: champion,
@@ -485,10 +507,11 @@ def league_section(c):
     for i, r in enumerate(league):
         nxt = league[i + 1] if i + 1 < len(league) else None
         same = nxt is not None and nxt["club_uid"] == r["club_uid"]
+        up_down = nxt["tier"] - r["tier"] if same and nxt and nxt["tier"] and r["tier"] else 0
         r["champion"] = r["position"] == 1
-        r["promoted"] = bool(same and nxt["tier"] and r["tier"] and nxt["tier"] < r["tier"])
-        r["relegated"] = bool(same and nxt["tier"] and r["tier"] and nxt["tier"] > r["tier"])
-        r["moved"] = bool(nxt and not same)
+        r["promoted"] = up_down < 0
+        r["relegated"] = up_down > 0
+        r["moved"] = nxt is not None and not same
     # level sizes within the pyramid of the manager's latest league, then each row's overall rank
     home = pyramid_of(above, {league[-1]["competition_id"]}) if league else set()
     level_size = collections.defaultdict(int)
@@ -536,7 +559,7 @@ def league_section(c):
     return league, tables, levels
 
 
-def honours_section(c):
+def honours_section(c: Career) -> tuple[list[Record], list[Record], list[Record]]:
     """Trophies, every cup run and the manager's awards."""
     s, clubs = c.s, c.clubs
     honours = [
@@ -587,7 +610,7 @@ def honours_section(c):
     return honours, cups, awards
 
 
-def event_log(c):
+def event_log(c: Career) -> tuple[dict[tuple, list[tuple[dt.date | None, int]]], list[Record]]:
     """From a human manager's event log: the fees it logged, and the notable matches."""
     logged_fees = {}
     for e in c.events:
@@ -612,7 +635,7 @@ def event_log(c):
     return logged_fees, notable
 
 
-def move_kind(direction, move_type, other):
+def move_kind(direction: str, move_type: str, other: str | None) -> str | None:
     """What a move counts as in totals and summaries: a signing, a sale, a free departure
     to another club, or None (loans, trials, releases, staff and the like)."""
     if direction == "in":
@@ -624,7 +647,9 @@ def move_kind(direction, move_type, other):
     return None
 
 
-def transfers_section(c, logged_fees):
+def transfers_section(
+    c: Career, logged_fees: dict[tuple, list[tuple[dt.date | None, int]]]
+) -> tuple[list[Record], set[int], set[int]]:
     """Every move in and out during the manager's spells, with fees, plus who moved
     (current player uids and the references of people who are gone) for the statistics."""
     s, players = c.s, c.players
@@ -666,7 +691,8 @@ def transfers_section(c, logged_fees):
                 continue
             cands = [m for m in moves if m["_key"] == key and m["fee"] is None]
             if cands and when:
-                min(cands, key=lambda m: abs((dt.date.fromisoformat(m["date"]) - when).days))["fee"] = amount
+                day = when
+                min(cands, key=lambda m: abs((dt.date.fromisoformat(m["date"]) - day).days))["fee"] = amount
     for m in moves:
         m.pop("_key")
         if m["staff"] and m["player"].startswith("Unknown player"):
@@ -675,12 +701,14 @@ def transfers_section(c, logged_fees):
     return moves, mover_uids, gone_refs
 
 
-def statistics_section(c, mover_uids, gone_refs):
+def statistics_section(
+    c: Career, mover_uids: set[int], gone_refs: set[int]
+) -> tuple[dict[str, list[Record]], dict[str, list[Record]]]:
     """Each season's best eleven and full squad statistics at the manager's clubs."""
     s, clubs = c.s, c.clubs
     history_rows = list(s.player_season_history(sorted(mover_uids)))
     history_rows += list(s.history_person_season_history(sorted(gone_refs)))
-    team_club = {
+    team_club: dict[int | None, int] = {
         t.team_id: st["club_uid"]
         for st in c.stints
         if st["club_uid"] in clubs
@@ -717,7 +745,9 @@ def statistics_section(c, mover_uids, gone_refs):
     return best_eleven, squad_stats
 
 
-def _best_eleven(c, history_rows, team_club):
+def _best_eleven(
+    c: Career, history_rows: list[fmsave.PlayerHistoryStats], team_club: dict[int | None, int]
+) -> dict[str, list[Record]]:
     """Best eleven: the save's list whose players had rows at the club's first team."""
     by_list = collections.defaultdict(list)
     for r in c.s.career_best_eleven():
@@ -732,7 +762,7 @@ def _best_eleven(c, history_rows, team_club):
         score = {
             idx: sum(1 for r in rows if (r.player_reference, r.season_year) in seen) for idx, rows in by_list.items()
         }
-        idx = max(score, key=score.get, default=None)
+        idx = max(score, key=lambda i: score[i], default=None)
         if idx is None or score[idx] < 6:
             continue
         for r in by_list[idx]:
@@ -755,7 +785,9 @@ def _best_eleven(c, history_rows, team_club):
     return best_eleven
 
 
-def _squad_stats(c, history_rows, team_club):
+def _squad_stats(
+    c: Career, history_rows: list[fmsave.PlayerHistoryStats], team_club: dict[int | None, int]
+) -> dict[str, list[Record]]:
     """Full squad statistics per season: competitive rows for the club's first team."""
     squads = collections.defaultdict(dict)
     seen_rows = set()
@@ -806,13 +838,13 @@ def _squad_stats(c, history_rows, team_club):
     return squad_stats
 
 
-def career_record(c):
+def career_record(c: Career) -> Record | None:
     """The game's own managerial record (games, money, record signing and sale), or None."""
     record = c.record
     if record is None:
         return None
 
-    def fee(f):
+    def fee(f: fmsave.ManagerFee | None) -> Record | None:
         if f is None:
             return None
         return dict(
@@ -845,7 +877,7 @@ def career_record(c):
     )
 
 
-def _label(coded):
+def _label(coded: object) -> str | None:
     """A CodedValue's label as words, or None for an unknown code."""
     if coded is None:
         return None
@@ -855,7 +887,14 @@ def _label(coded):
     return label.name.replace("_", " ").capitalize()
 
 
-def club_now(s, clubs, club_uid, players, comp_name, comp_db):
+def club_now(
+    s: Save,
+    clubs: dict[int, fmsave.Club],
+    club_uid: int,
+    players: dict[int, fmsave.Player],
+    comp_name: dict[int | None, str | None],
+    comp_db: dict[int | None, int | None],
+) -> Record:
     """The current club as the save has it today: ground, money, tactics, squad, table."""
     club = clubs[club_uid]
     team_ids = {t.team_id for t in club.teams if not t.is_affiliate}
@@ -929,7 +968,7 @@ def club_now(s, clubs, club_uid, players, comp_name, comp_db):
             for g in s.affiliates()
             if club_uid in g.club_uids
             for uid, name in zip(g.club_uids, g.club_names, strict=False)
-            if uid != club_uid
+            if uid != club_uid and name
         }
     )
     return dict(

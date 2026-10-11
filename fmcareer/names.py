@@ -23,7 +23,7 @@ import sys
 from fmcareer.gamedb import english_names
 
 
-def current_versions(folders):
+def current_versions(folders: list[str]) -> list[str]:
     """The newest game's database versions, ascending (2600, 2620 for FM26).
 
     Installs also carry older games' databases (23xx in an older container format, 24xx);
@@ -36,8 +36,8 @@ def current_versions(folders):
     return [v for v in versions if v[:2] == newest]
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("install")
     ap.add_argument("out")
     ap.add_argument(

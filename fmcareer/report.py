@@ -17,8 +17,8 @@ from fmcareer.render import render
 SHOW_WORDS = {"Loan": "loans", "Trial": "trials", "Youth intake": "youth", "Released": "released", "staff": "staff"}
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def main() -> None:
+    ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("save")
     ap.add_argument("manager")
     ap.add_argument("names")

@@ -171,6 +171,7 @@ release. A local build: `pip install ".[images,build]"` then `python packaging/b
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/pyright
 ```
 
 The tests use a small made-up career, so they need no save or game install. The page

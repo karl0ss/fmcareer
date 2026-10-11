@@ -9,16 +9,17 @@ import html
 import json
 
 from fmcareer import web
+from fmcareer._types import Record
 
 
-def footer():
+def footer() -> str:
     """fmcareer's version, linked to its repository."""
     from fmcareer import __version__
 
     return f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(__version__)}'
 
 
-def render(data):
+def render(data: Record) -> str:
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     title = html.escape(f"{data['manager']['name']} — Career History")
     return web.page("report", TITLE=title, FOOTER=footer(), DATA=payload)

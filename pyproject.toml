@@ -13,7 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 images = ["UnityPy>=1.20"]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
 build = ["pyinstaller>=6.10"]
 
 [project.scripts]
@@ -47,3 +47,8 @@ ignore = [
     "RUF002",
     "RUF003",
 ]
+
+[tool.pyright]
+include = ["fmcareer"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"

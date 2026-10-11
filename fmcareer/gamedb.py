@@ -69,7 +69,7 @@ def read_sections(path: str, wanted: set[str]) -> dict[str, bytes]:
     return found
 
 
-def _parse(b, trailing):
+def _parse(b: bytes, trailing: bool) -> tuple[dict[int, list[str]], int]:
     count = struct.unpack_from("<I", b, 8)[0]
     o, out = 12, {}
     for _ in range(count):
@@ -92,7 +92,7 @@ def _parse(b, trailing):
     return out, o
 
 
-def parse_names(b):
+def parse_names(b: bytes) -> dict[int, list[str]]:
     """{database id: [names]} from one language table, which must parse to its last byte."""
     if b[:6] != b"\x03\x01tad.":
         raise ValueError("not a name table")

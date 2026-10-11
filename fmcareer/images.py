@@ -28,18 +28,22 @@ import base64
 import io
 import os
 import re
+from collections.abc import Iterable
+from typing import Any
+
+from fmcareer._types import ImageKey, Record
 
 KINDS = {"club": "club-", "person": "players-", "comp": "comp-"}
 _ADDRESS = re.compile(rb"([a-z_]+?)_(\d+)\x20\x00\x00\x00([0-9a-f]{32})")
 _SIZE = {"club": 96, "person": 96, "comp": 64}
 
 
-def _folders(install):
+def _folders(install: str) -> list[str]:
     root = os.path.join(install, "fm_Data", "StreamingAssets", "LicensedData")
     return [os.path.join(root, f) for f in ("Core", "Extra") if os.path.isdir(os.path.join(root, f))]
 
 
-def catalog(install):
+def catalog(install: str) -> dict[ImageKey, tuple[str, str]]:
     """{(kind, id): (folder, hash)} for every image kind fmcareer uses."""
     found = {}
     for folder in _folders(install):
@@ -55,7 +59,7 @@ def catalog(install):
     return found
 
 
-def load(install, wanted):
+def load(install: str, wanted: Iterable[ImageKey]) -> dict[str, str]:
     """Data URIs for the wanted (kind, id) pairs the install has: {"kind:id": uri}.
 
     Only the bundles of the wanted kinds are opened, and only matching textures are
@@ -83,7 +87,8 @@ def load(install, wanted):
                 key = by_hash.get((folder, path))
                 if key is None or obj.type.name != "Texture2D":
                     continue
-                out[f"{key[0]}:{key[1]}"] = _encode(obj.read().image, key[0])
+                texture: Any = obj.read()  # a Texture2D (UnityPy's typing doesn't say)
+                out[f"{key[0]}:{key[1]}"] = _encode(texture.image, key[0])
     return out
 
 
@@ -109,22 +114,22 @@ _KIND_DIRS = {"clubs": "club", "club": "club", "competitions": "comp", "faces": 
 _ROLE_RANK = {"logo": 0, "portrait": 0, "icon": 1}  # full-size pictures before small icons
 
 
-def _image_file(folder, name):
+def _image_file(folder: str, name: str) -> str | None:
     path = os.path.join(folder, name)
     if os.path.splitext(name)[1].lower() in _IMAGE_EXT:
         return path if os.path.isfile(path) else None
     return next((path + ext for ext in _IMAGE_EXT if os.path.isfile(path + ext)), None)
 
 
-def pack_images(graphics, wanted):
+def pack_images(graphics: str, wanted: set[ImageKey]) -> dict[ImageKey, str]:
     """{(kind, id): image path} from the graphics packs, for the wanted pairs they have."""
     found = {}  # key -> (rank, path)
 
-    def offer(key, rank, path):
+    def offer(key: ImageKey, rank: int, path: str) -> None:
         if key in wanted and (key not in found or rank < found[key][0]):
             found[key] = (rank, path)
 
-    def walk(folder, kind):
+    def walk(folder: str, kind: str | None) -> None:
         try:
             names = os.listdir(folder)
         except OSError:
@@ -161,7 +166,7 @@ def pack_images(graphics, wanted):
     return {key: path for key, (_rank, path) in found.items()}
 
 
-def _encode(image, kind):
+def _encode(image: Any, kind: str) -> str:  # a PIL image
     size = _SIZE[kind]
     image.thumbnail((size, size))
     buf = io.BytesIO()
@@ -169,7 +174,7 @@ def _encode(image, kind):
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def load_pack(graphics, wanted):
+def load_pack(graphics: str, wanted: set[ImageKey]) -> dict[str, str]:
     """Data URIs for the wanted (kind, id) pairs the graphics packs have: {"kind:id": uri}."""
     from PIL import Image
 
@@ -183,7 +188,7 @@ def load_pack(graphics, wanted):
     return out
 
 
-def guess_graphics(saves_dir):
+def guess_graphics(saves_dir: str) -> str:
     """The game's graphics folder, which sits next to the saves folder (`games`)."""
     if not saves_dir:
         return ""
@@ -191,7 +196,7 @@ def guess_graphics(saves_dir):
     return path if os.path.isdir(path) else ""
 
 
-def wanted_images(data):
+def wanted_images(data: Record) -> set[ImageKey]:
     """Every (kind, id) a collected career can show."""
     want = set()
     for st in data.get("stints", []):

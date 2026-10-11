@@ -18,9 +18,14 @@ import time
 import traceback
 import uuid
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+from fmsave import Save
 
 from fmcareer import __version__, web
+from fmcareer._types import Record
 from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
 from fmcareer.render import footer, render
 
@@ -48,7 +53,7 @@ INSTALL_GUESSES = [
 # ---- settings
 
 
-def load_settings():
+def load_settings() -> Record:
     settings = {
         "saves_dir": "",
         "install": "",
@@ -71,26 +76,26 @@ def load_settings():
     return settings
 
 
-def public_settings(settings):
+def public_settings(settings: Record) -> Record:
     """Settings for the page: the AI token never leaves the app, only whether one is saved."""
     shown = {k: v for k, v in settings.items() if k != "ai_token"}
     shown["ai_token_set"] = bool(settings.get("ai_token"))
     return shown
 
 
-def ai_config(settings):
+def ai_config(settings: Record) -> dict[str, str] | None:
     """The AI writer's endpoint, token and model when it is switched on and set up, else None."""
     if settings.get("ai_enabled") and settings.get("ai_endpoint") and settings.get("ai_model"):
         return dict(endpoint=settings["ai_endpoint"], token=settings.get("ai_token", ""), model=settings["ai_model"])
     return None
 
 
-def store_settings(settings):
+def store_settings(settings: Record) -> None:
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(settings, indent=1), encoding="utf-8")
 
 
-def names_dir():
+def names_dir() -> str | None:
     return str(NAMES) if (NAMES / "competition_names.csv").exists() else None
 
 
@@ -99,7 +104,7 @@ def names_dir():
 # that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
 
 
-def code_version():
+def code_version() -> str:
     """fmcareer's and fmsave's versions, plus a hash of the reading code when it is on disk
     (a development checkout changes without a new version; the exe has no source files)."""
     import hashlib
@@ -112,15 +117,17 @@ def code_version():
         fmsave_version = "unknown"
     digest = hashlib.sha256()
     for name in ("fmcareer.collect", "fmcareer.images"):
-        with contextlib.suppress(OSError, TypeError):
-            digest.update(Path(importlib.util.find_spec(name).origin).read_bytes())
+        spec = importlib.util.find_spec(name)
+        if spec and spec.origin:
+            with contextlib.suppress(OSError):
+                digest.update(Path(spec.origin).read_bytes())
     return f"{__version__}-{fmsave_version}-{digest.hexdigest()[:12]}"
 
 
 CODE = code_version()
 
 
-def cache_key(path, *parts):
+def cache_key(path: str, *parts: object) -> str:
     import hashlib
 
     st = os.stat(path)
@@ -129,7 +136,7 @@ def cache_key(path, *parts):
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
-def images_key(install):
+def images_key(install: str) -> str:
     """Badges and photos depend only on the install, so every save and manager shares them."""
     from fmcareer.images import _folders
 
@@ -137,14 +144,14 @@ def images_key(install):
     return cache_key(next((c for c in catalogs if os.path.exists(c)), install), "images")
 
 
-def cache_read(key):
+def cache_read(key: str) -> Any:
     try:
         return json.loads((DATA / f"{key}.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
 
-def cache_write(key, value, keep=40):
+def cache_write(key: str, value: object, keep: int = 40) -> None:
     DATA.mkdir(parents=True, exist_ok=True)
     tmp = DATA / f"{key}.tmp"
     tmp.write_text(json.dumps(value), encoding="utf-8")
@@ -153,7 +160,7 @@ def cache_write(key, value, keep=40):
         old.unlink(missing_ok=True)
 
 
-def images_available():
+def images_available() -> bool:
     try:
         import UnityPy  # noqa: F401
 
@@ -162,7 +169,7 @@ def images_available():
         return False
 
 
-def list_saves(folder):
+def list_saves(folder: str) -> list[Record]:
     out = []
     if folder and os.path.isdir(folder):
         for entry in os.scandir(folder):
@@ -173,7 +180,7 @@ def list_saves(folder):
     return out
 
 
-def list_reports():
+def list_reports() -> list[Record]:
     out = []
     if REPORTS.is_dir():
         for entry in os.scandir(REPORTS):
@@ -185,30 +192,39 @@ def list_reports():
 
 # ---- background jobs (one heavy job at a time; the last opened save is kept)
 
-JOBS = {}
+JOBS: dict[str, Record] = {}
 KEEP_JOBS = 50  # finished jobs kept for the page to read; older ones are dropped
 WORK = threading.Lock()
-OPEN = {"key": None, "save": None}
+OPEN: Record = {"key": None, "save": None}
 
 
-def start_job(fn, *args):
+class Progress:
+    """A job's progress, as the page shows it: call it with each step as it starts; `plan`
+    says how many steps there will be, `more` adds (or takes away) steps found on the way."""
+
+    def __init__(self, job: Record) -> None:
+        self.job = job
+
+    def __call__(self, text: str) -> None:
+        self.job["steps"].append(dict(text=text, at=round(time.time() - self.job["started"], 1)))
+
+    def plan(self, total: int) -> None:
+        self.job["total"] = total
+
+    def more(self, n: int) -> None:
+        self.job["total"] = (self.job["total"] or 0) + n
+
+
+def start_job(fn: Callable[..., Any], *args: Any) -> str:
+    """Run `fn(progress, *args)` in the background, one job at a time; returns the job's id."""
     job_id = uuid.uuid4().hex[:12]
     for old in [k for k, j in JOBS.items() if j["status"] in ("done", "error")][:-KEEP_JOBS]:
         del JOBS[old]
-    job = JOBS[job_id] = dict(status="queued", steps=[], total=None, result=None, error=None, started=time.time())
+    job: Record = dict(status="queued", steps=[], total=None, result=None, error=None, started=time.time())
+    JOBS[job_id] = job
+    step = Progress(job)
 
-    def step(text):
-        job["steps"].append(dict(text=text, at=round(time.time() - job["started"], 1)))
-
-    def plan(total):  # how many steps the job will report, for the page's progress bar
-        job["total"] = total
-
-    def more(n):  # steps found to be needed (or no longer needed) once the job is under way
-        job["total"] = (job["total"] or 0) + n
-
-    step.plan, step.more = plan, more
-
-    def run():
+    def run() -> None:
         with WORK:
             job["status"] = "running"
             try:
@@ -225,11 +241,11 @@ def start_job(fn, *args):
     return job_id
 
 
-def save_key(path):
+def save_key(path: str) -> tuple[str, float, str | None]:
     return (path, os.path.getmtime(path), names_dir())
 
 
-def get_save(step, path):
+def get_save(step: Progress, path: str) -> Save:
     key = save_key(path)
     if OPEN["key"] != key:
         OPEN.update(key=None, save=None)
@@ -240,7 +256,7 @@ def get_save(step, path):
     return OPEN["save"]
 
 
-def job_names(step, install):
+def job_names(step: Progress, install: str) -> Record:
     from fmcareer.names import main as build_names
 
     step.plan(1)
@@ -249,7 +265,7 @@ def job_names(step, install):
     return dict(names=names_dir())
 
 
-def job_managers(step, path, everyone, fresh=False):
+def job_managers(step: Progress, path: str, everyone: bool, fresh: bool = False) -> Record:
     key = cache_key(path, "managers", everyone)
     managers = None if fresh else cache_read(key)
     if managers is not None:
@@ -263,7 +279,7 @@ def job_managers(step, path, everyone, fresh=False):
     return dict(managers=managers)
 
 
-def report_images(step, data, install, graphics, fresh):
+def report_images(step: Progress, data: Record, install: str, graphics: str, fresh: bool) -> dict[str, str]:
     """Badges and photos for a career: graphics packs first (as in the game), then the
     install's own, which are kept between runs. One progress step."""
     from fmcareer.images import load, load_pack, wanted_images
@@ -290,7 +306,7 @@ def report_images(step, data, install, graphics, fresh):
 AI_TEXTS = CACHE / "ai" / "texts.json"
 
 
-def ai_write(step, data, ai):
+def ai_write(step: Progress, data: Record, ai: dict[str, str]) -> Record:
     """The AI writer's text for a career ({"model", "overview", "seasons"}), or None.
 
     Text written before for the same facts, model and endpoint is reused. A failure stops
@@ -306,7 +322,7 @@ def ai_write(step, data, ai):
     step.more(total)
     done = 0
 
-    def counted(text):
+    def counted(text: str) -> None:
         nonlocal done
         done += 1
         step(text)
@@ -323,7 +339,7 @@ def ai_write(step, data, ai):
         AI_TEXTS.write_text(json.dumps(keep), encoding="utf-8")
 
 
-def job_ai_test(step, endpoint, token, model):
+def job_ai_test(step: Progress, endpoint: str, token: str, model: str) -> Record:
     from fmcareer import writer
 
     step.plan(2 if model else 1)
@@ -356,7 +372,17 @@ def job_ai_test(step, endpoint, token, model):
     return dict(models=models, reply=reply)
 
 
-def job_report(step, path, staff_uid, options, images, install, fresh=False, graphics="", ai=None):
+def job_report(
+    step: Progress,
+    path: str,
+    staff_uid: int,
+    options: Record,
+    images: bool,
+    install: str,
+    fresh: bool = False,
+    graphics: str = "",
+    ai: dict[str, str] | None = None,
+) -> Record:
     key = cache_key(path, "career", staff_uid)
     data = None if fresh else cache_read(key)
     images = bool(images and (install or graphics))
@@ -399,10 +425,10 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False, gra
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):  # keep the terminal quiet
+    def log_message(self, format: str, *args: Any) -> None:  # keep the terminal quiet
         pass
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code: int, body: object, ctype: str = "application/json") -> None:
         data = (
             body
             if isinstance(body, bytes)
@@ -417,11 +443,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def body(self):
+    def body(self) -> Any:
         length = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(length) or b"{}")
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         if self.path in ("/", "/index.html"):
             return self.send(200, web.page("app", VERSION=__version__, FOOTER=footer()), "text/html")
         if self.path == "/api/state":
@@ -450,7 +476,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(200, target.read_bytes(), "text/html")
         return self.send(404, {"error": "not found"})
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         try:
             req = self.body()
         except ValueError:
@@ -517,8 +543,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.send(404, {"error": "not found"})
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     ap.add_argument("--version", action="version", version=f"fmcareer {__version__}")
