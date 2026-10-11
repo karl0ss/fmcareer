@@ -90,16 +90,12 @@ def award_phrase(a):
     return f"{a['placing'].lower()} for {a['name']} (did not win it)"
 
 
-_SIGNING = {"Transfer", "Free", "Signing"}
-
-
 def season_facts(data):
     """[(season, facts)] for every league season, in order."""
     league, manager = data.get("league", []), data.get("manager", {}).get("name")
     out = []
     for i, r in enumerate(league):
-        prev, nxt = (league[i - 1] if i else None), (league[i + 1] if i + 1 < len(league) else None)
-        same = nxt is not None and nxt["club_uid"] == r["club_uid"]
+        prev = league[i - 1] if i else None
         season = r["season"]
         facts = {
             "season": season, "manager": manager, "club": r["club"],
@@ -108,10 +104,8 @@ def season_facts(data):
             "league_finish": ordinal(r["position"]), "teams": r["teams"],
             "played": r["played"], "won": r["won"], "drawn": r["drawn"], "lost": r["lost"],
             "goals_for": r["goals_for"], "goals_against": r["goals_against"], "points": r["points"],
-            "champions": r["position"] == 1,
-            "promoted": bool(same and nxt.get("tier") and r.get("tier") and nxt["tier"] < r["tier"]),
-            "relegated": bool(same and nxt.get("tier") and r.get("tier") and nxt["tier"] > r["tier"]),
-            "manager_left_for_another_club_after": bool(nxt and not same),
+            "champions": r["champion"], "promoted": r["promoted"], "relegated": r["relegated"],
+            "manager_left_for_another_club_after": r["moved"],
         }
         if prev:
             facts["previous_season"] = {"club": prev["club"], "competition": prev["competition"],
@@ -147,8 +141,8 @@ def season_facts(data):
                 star = max(rated, key=lambda p: p["rating"])
                 facts["best_average_rating"] = {"name": star["name"], "rating": round(star["rating"], 2)}
         moves = [t for t in data.get("transfers", []) if t["season"] == season and not t.get("staff")]
-        ins = [t for t in moves if t["direction"] == "in" and t["type"] in _SIGNING]
-        outs = [t for t in moves if t["direction"] == "out" and t["type"] in ("Transfer", "Free") and t.get("other")]
+        ins = [t for t in moves if t["kind"] == "signing"]
+        outs = [t for t in moves if t["kind"] in ("sale", "free_departure")]
         if ins or outs:
             market = {"signings": len(ins), "departures_to_other_clubs": len(outs)}
             spent = sum(t["fee"] or 0 for t in moves if t["direction"] == "in")
@@ -191,10 +185,8 @@ def overview_facts(data):
             best = min(tiers, key=lambda r: r["rank"])
             facts["best_league_finish"] = {"season": best["season"], "club": best["club"],
                                            "competition": best["competition"], "league_finish": ordinal(best["position"])}
-        promoted = sum(1 for a, b in zip(league, league[1:])
-                       if a["club_uid"] == b["club_uid"] and a.get("tier") and b.get("tier") and b["tier"] < a["tier"])
-        facts["promotions"] = promoted
-        facts["league_titles"] = [f"{r['competition']} ({r['season']})" for r in league if r["position"] == 1]
+        facts["promotions"] = sum(1 for r in league if r["promoted"])
+        facts["league_titles"] = [f"{r['competition']} ({r['season']})" for r in league if r["champion"]]
     cups_won = [f"{c['competition']} ({c['season']})" for c in data.get("cups", []) if c.get("won") and not c.get("youth")]
     if cups_won:
         facts["cups_won"] = cups_won

@@ -247,7 +247,8 @@ def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
     data = {"manager": {"name": "Alex"}, "league": [
         {"season": s, "club": "Example Town", "club_uid": 1, "competition": "Example League", "tier": 1, "rank": 5,
          "position": 5, "teams": 20, "played": 38, "won": 15, "drawn": 10, "lost": 13, "goals_for": 50,
-         "goals_against": 45, "points": 55} for s in ("2030/31", "2031/32", "2032/33")]}
+         "goals_against": 45, "points": 55, "champion": False, "promoted": False, "relegated": False,
+         "moved": False} for s in ("2030/31", "2031/32", "2032/33")]}
     calls = []
 
     def fake_chat(endpoint, token, model, system, facts, max_tokens=None):

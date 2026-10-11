@@ -12,6 +12,7 @@ from fmcareer.collect import (
     collect,
     list_managers,
     manager_steps,
+    move_kind,
     _norm,
     find_manager,
     league_levels,
@@ -194,3 +195,13 @@ def test_step_counts_match_the_progress_calls():
         seen = []
         list_managers(Empty(), seen.append, everyone=everyone)
         assert len(seen) == manager_steps(everyone)
+
+
+def test_move_kinds():
+    assert move_kind("in", "Transfer", "Big City") == "signing"
+    assert move_kind("in", "Free", None) == "signing"
+    assert move_kind("in", "Loan", "Big City") is None
+    assert move_kind("out", "Transfer", "Big City") == "sale"
+    assert move_kind("out", "Free", "Big City") == "free_departure"
+    assert move_kind("out", "Free", None) is None                  # released with no club to go to
+    assert move_kind("out", "Released", None) is None

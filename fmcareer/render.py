@@ -189,22 +189,15 @@ const pyramid = r => r.rank;
 const by = (arr, key) => arr.reduce((m, x) => ((m[x[key]] ||= []).push(x), m), {});
 const honoursBy = by(D.honours, 'season'), awardsBy = by(D.awards, 'season'),
       cupsBy = by(D.cups, 'season'), movesBy = by(D.transfers, 'season');
-L.forEach((r, i) => {
-  const prev = L[i - 1], next = L[i + 1];
-  r.champion = r.position === 1;
-  const same = next && next.club_uid === r.club_uid;
-  r.promotedAfter = !!(same && next.tier && r.tier && next.tier < r.tier);
-  r.relegatedAfter = !!(same && next.tier && r.tier && next.tier > r.tier);
-  r.moved = !!(next && next.club_uid !== r.club_uid);
-  r.prev = prev ? prev.season : null; r.next = next ? next.season : null;
-});
+// champion / promoted / relegated / moved come with each season from collect
+L.forEach((r, i) => { r.prev = i ? L[i - 1].season : null; r.next = i + 1 < L.length ? L[i + 1].season : null; });
 const seasonRow = s => L.find(r => r.season === s);
 const totals = L.reduce((a, r) => (['played','won','drawn','lost','goals_for','goals_against','points'].forEach(k => a[k] += r[k]), a),
   {played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0});
-const promotions = L.filter(r => r.promotedAfter).length, titles = L.filter(r => r.champion).length;
+const promotions = L.filter(r => r.promoted).length, titles = L.filter(r => r.champion).length;
 const best = L.reduce((b, r) => (r.tier && (!b || pyramid(r) < pyramid(b)) ? r : b), null);
 const awardWins = D.awards.filter(a => a.placing === 'Winner');
-const SIGN = t => t.direction === 'in' && ['Transfer','Free','Signing'].includes(t.type);
+const SIGN = t => t.kind === 'signing';  // what each move counts as comes from collect
 // which kinds of move the lists show: report defaults, then the viewer's own choice (kept in this browser)
 const TOGGLES = [['Loan', 'Loans'], ['Trial', 'Trials'], ['Youth intake', 'Youth intake'], ['Released', 'Released'], ['staff', 'Staff moves']];
 let SHOW = {...{Loan: false, Trial: false, 'Youth intake': false, Released: true, staff: false}, ...(OPT.show || {})};
@@ -218,8 +211,8 @@ document.addEventListener('change', e => {
   try { localStorage.setItem('fmcareer-show', JSON.stringify(SHOW)); } catch (err) {}
   const y = window.scrollY; route(); window.scrollTo(0, y);
 });
-const SOLD = t => t.direction === 'out' && t.type === 'Transfer';
-const FREE_OUT = t => t.direction === 'out' && t.type === 'Free' && t.other;
+const SOLD = t => t.kind === 'sale';
+const FREE_OUT = t => t.kind === 'free_departure';
 const extraBadges = r => (honoursBy[r.season] || []).filter(h => h.name !== r.competition)
   .map(h => `<span class="badge gold">${esc(short(h.name))}</span>`).join('');
 
@@ -241,8 +234,8 @@ function seasonStory(r) {
   const push = (g, text) => groups[g].push(text);
   if (r.champion) push(0, `${esc(r.club)} were crowned champions of ${where}, finishing on ${r.points} points from ${r.played} games (W${r.won} D${r.drawn} L${r.lost}).`);
   else push(0, `A ${ord(r.position)}-placed finish in ${where}, with ${r.points} points from ${r.played} games (W${r.won} D${r.drawn} L${r.lost}).`);
-  if (r.promotedAfter) push(0, r.champion ? 'Promotion followed.' : 'That was enough for promotion.');
-  if (r.relegatedAfter) push(0, 'The season ended in relegation.');
+  if (r.promoted) push(0, r.champion ? 'Promotion followed.' : 'That was enough for promotion.');
+  if (r.relegated) push(0, 'The season ended in relegation.');
   const gd = r.goals_for - r.goals_against;
   push(0, `The side scored ${r.goals_for} and conceded ${r.goals_against} (${gd >= 0 ? '+' : ''}${gd}).`);
   const cups = (cupsBy[r.season] || []).filter(c => !c.youth).map(cupPhrase).filter(Boolean);
@@ -399,7 +392,7 @@ function pageMe() {
     <h2>Season by season</h2>
     <div class="card scroll"><table><thead><tr><th>Season</th><th>League</th><th class="n">Pos</th><th class="n">Pts</th><th>Highlights</th></tr></thead><tbody>
       ${L.map(r => `<tr class="click" data-href="season/${slug(r.season)}"><td><a href="#season/${slug(r.season)}">${r.season}</a></td><td>${esc(r.competition)}</td><td class="n">${ord(r.position)}</td><td class="n">${r.points}</td>
-        <td>${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promotedAfter ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).filter(a => a.placing === 'Winner').map(() => '<span class="badge accent">Manager award</span>').join('')}</td></tr>`).join('')}
+        <td>${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promoted ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).filter(a => a.placing === 'Winner').map(() => '<span class="badge accent">Manager award</span>').join('')}</td></tr>`).join('')}
     </tbody></table></div>`;
   chart.wire(document.getElementById('climb'));
 }
@@ -411,7 +404,7 @@ function pageSeasons() {
       <a class="card scard" href="#season/${slug(r.season)}">
         <div class="yr">${r.season}</div>
         <div class="fin">${(D.stints || []).length > 1 ? esc(r.club) + ' · ' : ''}${ord(r.position)} · ${esc(r.competition)} · ${r.points} pts</div>
-        <div class="row">${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promotedAfter ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).map(a => `<span class="badge accent">${a.placing === 'Winner' ? 'Manager award' : 'Award ' + a.placing.toLowerCase()}</span>`).join('')}</div>
+        <div class="row">${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promoted ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).map(a => `<span class="badge accent">${a.placing === 'Winner' ? 'Manager award' : 'Award ' + a.placing.toLowerCase()}</span>`).join('')}</div>
       </a>`).join('')}</div>`;
 }
 
@@ -434,7 +427,7 @@ function pageSeason(arg) {
   view.innerHTML = `
     <div class="pager"><span>${r.prev ? `<a href="#season/${slug(r.prev)}">← ${r.prev}</a>` : ''}</span><a href="#seasons">All seasons</a><span>${r.next ? `<a href="#season/${slug(r.next)}">${r.next} →</a>` : ''}</span></div>
     <h1>${crest(r.club_uid, r.club, 'md')}${season} season review</h1>
-    <p class="lede">${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}${r.champion ? ' · Champions' : ''}${r.promotedAfter ? ' · Promoted' : ''}${r.relegatedAfter ? ' · Relegated' : ''}${r.moved ? ' · Left for a new club' : ''}</p>
+    <p class="lede">${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}${r.champion ? ' · Champions' : ''}${r.promoted ? ' · Promoted' : ''}${r.relegated ? ' · Relegated' : ''}${r.moved ? ' · Left for a new club' : ''}</p>
     <h2>Summary</h2>
     <div class="card story">${(aiOn() && AI.seasons[season] ? aiParas(AI.seasons[season]) : seasonStory(r)).map(p => `<p>${p}</p>`).join('')}</div>
     ${aiSwitch(AI && AI.seasons[season])}
