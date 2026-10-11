@@ -53,8 +53,11 @@ opens a page in your browser (served only on your own machine, at
 5. generate: progress shows as it goes, and the report opens in a new tab. Reports are
    kept in `~/.cache/fmcareer/reports`.
 
-Settings live in `~/.config/fmcareer/settings.json`. The save stays open between steps,
-so a second report from the same save is much quicker.
+Settings live in `~/.config/fmcareer/settings.json`. What the app reads from a save
+(its managers, each manager's career, and badges and photos from the install) is kept in
+`~/.cache/fmcareer/data`, so the same save opens in a moment next time, even after a
+restart, and changing pages or toggles never rereads it. A save that has changed, new
+names files or a new fmcareer/fmsave are read afresh; tick "Read the save again" to force it.
 
 ## Command line
 

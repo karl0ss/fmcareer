@@ -16,6 +16,7 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "CONFIG_FILE", tmp_path / "config" / "settings.json")
     monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
     monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "DATA", tmp_path / "data")
     monkeypatch.setattr(app, "SAVE_DIR_GUESSES", [])
     monkeypatch.setattr(app, "INSTALL_GUESSES", [])
     httpd = app.http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
@@ -117,27 +118,81 @@ def test_report_and_manager_jobs_plan_the_steps_they_report(monkeypatch, tmp_pat
     """The bar's step counts match what the jobs actually report."""
     save = tmp_path / "a.fm"
     save.write_bytes(b"x")
-    monkeypatch.setattr(app, "OPEN", {"key": None, "save": None, "managers": {}})
-    monkeypatch.setattr(app, "open_save", lambda path, names: object())
-    monkeypatch.setattr(app, "NAMES", tmp_path / "names")
-    monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
+    fake_app(monkeypatch, tmp_path)
 
-    def fake_collect(*a, progress, **k):
-        for i in range(app.COLLECT_STEPS):
-            progress(f"part {i}")
-        return {"manager": {"name": "Alex"}, "league": [], "stints": []}
-
-    def fake_list(s, progress, everyone):
-        for i in range(app.manager_steps(everyone)):
-            progress(f"part {i}")
-        return []
-
-    monkeypatch.setattr(app, "collect", fake_collect)
-    monkeypatch.setattr(app, "list_managers", fake_list)
-    monkeypatch.setattr(app, "render", lambda data: "<p>report</p>")
+    options = {"sections": ["me"], "show": {}}
     for job_id in (app.start_job(app.job_managers, str(save), True),
                    app.start_job(app.job_managers, str(save), True),     # cached the second time
-                   app.start_job(app.job_report, str(save), 1, {}, False, None)):
+                   app.start_job(app.job_report, str(save), 1, options, False, None),
+                   app.start_job(app.job_report, str(save), 1, options, False, None)):
         job = wait(job_id)
         assert job["status"] == "done", job["error"]
         assert len(job["steps"]) - 1 == job["total"]  # every planned step, then Finished
+
+
+def fake_app(monkeypatch, tmp_path):
+    """Jobs over a fake save: counts how often the slow readers run."""
+    calls = {"open": 0, "collect": 0, "list": 0, "render": []}
+    monkeypatch.setattr(app, "OPEN", {"key": None, "save": None})
+    monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
+    monkeypatch.setattr(app, "DATA", tmp_path / "data")
+
+    def fake_open(path, names):
+        calls["open"] += 1
+        return object()
+
+    def fake_collect(*a, progress, options=None, **k):
+        calls["collect"] += 1
+        assert options is None  # always every section; options are applied afterwards
+        for i in range(app.COLLECT_STEPS):
+            progress(f"part {i}")
+        return {"manager": {"name": "Alex"}, "league": [], "stints": [], "club_today": {"club": "X"}}
+
+    def fake_list(s, progress, everyone):
+        calls["list"] += 1
+        for i in range(app.manager_steps(everyone)):
+            progress(f"part {i}")
+        return [{"staff_uid": 1, "name": "Alex"}]
+
+    monkeypatch.setattr(app, "open_save", fake_open)
+    monkeypatch.setattr(app, "collect", fake_collect)
+    monkeypatch.setattr(app, "list_managers", fake_list)
+    monkeypatch.setattr(app, "render", lambda data: calls["render"].append(data) or "<p>report</p>")
+    return calls
+
+
+def test_what_was_read_is_kept_until_the_save_changes(monkeypatch, tmp_path):
+    calls = fake_app(monkeypatch, tmp_path)
+    save = tmp_path / "a.fm"
+    save.write_bytes(b"x")
+    with_club = {"sections": ["me", "club"], "show": {"Trial": True}}
+    without = {"sections": ["me"], "show": {}}
+    run = lambda *a: wait(app.start_job(*a))
+    run(app.job_report, str(save), 1, with_club, False, None)
+    monkeypatch.setattr(app, "OPEN", {"key": None, "save": None})  # as if the app restarted
+    job = run(app.job_report, str(save), 1, without, False, None)
+    assert calls["collect"] == 1 and calls["open"] == 1
+    assert job["steps"][0]["text"] == "Using the career read earlier from this save"
+    first, second = calls["render"]
+    assert first["club_today"] == {"club": "X"} and first["options"] == with_club
+    assert second["club_today"] is None and second["options"] == without   # options still apply
+    run(app.job_report, str(save), 2, without, False, None)                  # another manager
+    assert calls["collect"] == 2
+    run(app.job_report, str(save), 1, without, False, None, True)            # read again on request
+    assert calls["collect"] == 3
+    save.write_bytes(b"xy")                                                  # the save changed
+    run(app.job_report, str(save), 1, without, False, None)
+    assert calls["collect"] == 4
+    run(app.job_managers, str(save), False)
+    run(app.job_managers, str(save), False)
+    assert calls["list"] == 1
+
+
+def test_cache_keeps_only_the_newest_entries(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, "DATA", tmp_path / "data")
+    for i in range(5):
+        app.cache_write(f"k{i}", i, keep=3)
+        time.sleep(0.01)
+    assert sorted(f.stem for f in app.DATA.glob("*.json")) == ["k2", "k3", "k4"]
+    assert app.cache_read("k4") == 4 and app.cache_read("k0") is None

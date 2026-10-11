@@ -26,6 +26,7 @@ CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "fmcar
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "fmcareer"
 REPORTS = CACHE / "reports"
 NAMES = CACHE / "names"
+DATA = CACHE / "data"
 
 SAVE_DIR_GUESSES = [
     HOME / "Documents" / "Sports Interactive" / "Football Manager 26" / "games",
@@ -65,6 +66,54 @@ def names_dir():
     return str(NAMES) if (NAMES / "competition_names.csv").exists() else None
 
 
+# ---- what was read from a save, kept on disk so the same save opens fast next time.
+# Keys cover the save file (path, size, modified time), the names files and the code
+# that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
+
+def code_version():
+    import hashlib
+    import importlib.util
+    from importlib.metadata import version
+    digest = hashlib.sha256()
+    for name in ("fmcareer.collect", "fmcareer.images"):
+        digest.update(Path(importlib.util.find_spec(name).origin).read_bytes())
+    return f"{version('fmsave')}-{digest.hexdigest()[:12]}"
+
+
+CODE = code_version()
+
+
+def cache_key(path, *parts):
+    import hashlib
+    st = os.stat(path)
+    names = [(f.name, f.stat().st_mtime_ns) for f in sorted(NAMES.glob("*.csv"))] if NAMES.is_dir() else []
+    raw = json.dumps([os.path.abspath(path), st.st_size, st.st_mtime_ns, names, CODE, *parts], default=str)
+    return hashlib.sha256(raw.encode()).hexdigest()[:24]
+
+
+def images_key(install):
+    """Badges and photos depend only on the install, so every save and manager shares them."""
+    from fmcareer.images import _folders
+    catalogs = [os.path.join(f, "catalog_info.bin") for f in _folders(install)]
+    return cache_key(next((c for c in catalogs if os.path.exists(c)), install), "images")
+
+
+def cache_read(key):
+    try:
+        return json.loads((DATA / f"{key}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def cache_write(key, value, keep=40):
+    DATA.mkdir(parents=True, exist_ok=True)
+    tmp = DATA / f"{key}.tmp"
+    tmp.write_text(json.dumps(value), encoding="utf-8")
+    tmp.replace(DATA / f"{key}.json")
+    for old in sorted(DATA.glob("*.json"), key=lambda f: f.stat().st_mtime)[:-keep]:  # oldest go first
+        old.unlink(missing_ok=True)
+
+
 def images_available():
     try:
         import UnityPy  # noqa: F401
@@ -98,7 +147,7 @@ def list_reports():
 
 JOBS = {}
 WORK = threading.Lock()
-OPEN = {"key": None, "save": None, "managers": {}}
+OPEN = {"key": None, "save": None}
 
 
 def start_job(fn, *args):
@@ -137,7 +186,7 @@ def save_key(path):
 def get_save(step, path):
     key = save_key(path)
     if OPEN["key"] != key:
-        OPEN.update(key=None, save=None, managers={})
+        OPEN.update(key=None, save=None)
         step("Opening the save")
         OPEN.update(key=key, save=open_save(path, names_dir()))
     else:
@@ -153,23 +202,48 @@ def job_names(step, install):
     return dict(names=names_dir())
 
 
-def job_managers(step, path, everyone):
-    cached = OPEN["key"] == save_key(path) and everyone in OPEN["managers"]
-    step.plan(1 if cached else 1 + manager_steps(everyone))
+def job_managers(step, path, everyone, fresh=False):
+    key = cache_key(path, "managers", everyone)
+    managers = None if fresh else cache_read(key)
+    if managers is not None:
+        step.plan(1)
+        step("Using the managers read earlier from this save")
+        return dict(managers=managers)
+    step.plan(1 + manager_steps(everyone))
     s = get_save(step, path)
-    if everyone not in OPEN["managers"]:
-        OPEN["managers"][everyone] = list_managers(s, step, everyone=everyone)
-    return dict(managers=OPEN["managers"][everyone])
+    managers = list_managers(s, step, everyone=everyone)
+    cache_write(key, managers)
+    return dict(managers=managers)
 
 
-def job_report(step, path, staff_uid, options, images, install):
-    step.plan(1 + COLLECT_STEPS + bool(images and install) + 1)  # save, collect, images, writing
-    s = get_save(step, path)
-    data = collect(path, None, names_dir(), staff_uid=staff_uid, save=s, options=options, progress=step)
-    if images and install:
+def job_report(step, path, staff_uid, options, images, install, fresh=False):
+    key = cache_key(path, "career", staff_uid)
+    data = None if fresh else cache_read(key)
+    images = bool(images and install)
+    step.plan((1 if data is not None else 1 + COLLECT_STEPS) + images + 1)  # read, images, writing
+    if data is not None:
+        step("Using the career read earlier from this save")
+    else:
+        s = get_save(step, path)
+        data = collect(path, None, names_dir(), staff_uid=staff_uid, save=s, progress=step)  # every section
+        cache_write(key, data)
+    # options only choose what the page shows, so one read serves every choice of options
+    data = dict(data, options=options, club_today=data["club_today"] if "club" in options["sections"] else None)
+    if images:
         from fmcareer.images import load, wanted_images
-        step("Embedding badges and photos from the game")
-        data["images"] = load(install, wanted_images(data))
+        want = wanted_images(data)
+        ikey = images_key(install)
+        known = ({} if fresh else cache_read(ikey)) or {}
+        missing = {k for k in want if f"{k[0]}:{k[1]}" not in known.get("pics", {}) and list(k) not in known.get("absent", [])}
+        if missing:
+            step("Embedding badges and photos from the game")
+            found = load(install, missing)
+            known = dict(pics={**known.get("pics", {}), **found},
+                         absent=known.get("absent", []) + [list(k) for k in missing if f"{k[0]}:{k[1]}" not in found])
+            cache_write(ikey, known)
+        else:
+            step("Using the badges and photos read earlier")
+        data["images"] = {f"{k[0]}:{k[1]}": known["pics"][f"{k[0]}:{k[1]}"] for k in want if f"{k[0]}:{k[1]}" in known["pics"]}
     step("Writing the report")
     REPORTS.mkdir(parents=True, exist_ok=True)
     stem, name = Path(path).stem, data["manager"]["name"]
@@ -239,7 +313,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ("/api/managers", "/api/report") and not os.path.isfile(save):
             return self.send(400, {"error": "Pick a save file first."})
         if self.path == "/api/managers":
-            return self.send(200, {"job": start_job(job_managers, save, bool(req.get("everyone")))})
+            return self.send(200, {"job": start_job(job_managers, save, bool(req.get("everyone")), bool(req.get("fresh")))})
         if self.path == "/api/report":
             try:
                 staff_uid = int(req["staff_uid"])
@@ -250,7 +324,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                        "show": {k: bool(v) for k, v in (req.get("show") or {}).items()
                                 if k in DEFAULT_OPTIONS["show"]}}
             return self.send(200, {"job": start_job(job_report, save, staff_uid, options,
-                                                    bool(req.get("images")), settings["install"])})
+                                                    bool(req.get("images")), settings["install"],
+                                                    bool(req.get("fresh")))})
         return self.send(404, {"error": "not found"})
 
 
@@ -346,6 +421,7 @@ button:disabled { opacity: .45; cursor: default; }
     <div class="actions"><button id="loadManagers" disabled>Load managers</button>
       <label class="muted"><input type="checkbox" id="everyone"> Show all managers, not just human ones (slower)</label>
       <span id="saveChosen" class="muted"></span></div>
+    <p class="muted" style="font-size:13px;margin:8px 0 0">What fmcareer reads from a save is kept, so the same save opens quickly next time; a changed save is read again.</p>
     <div class="log" id="managersLog"></div>
   </div>
 
@@ -364,7 +440,9 @@ button:disabled { opacity: .45; cursor: default; }
 
   <h2><span class="n">5</span>Report</h2>
   <div class="card">
-    <div class="actions"><button id="generate" disabled>Generate report</button><span id="genState" class="muted"></span></div>
+    <div class="actions"><button id="generate" disabled>Generate report</button>
+      <label class="muted"><input type="checkbox" id="fresh"> Read the save again instead of using what was read before</label>
+      <span id="genState" class="muted"></span></div>
     <div class="log" id="genLog"></div>
     <div id="reports" style="margin-top:14px"></div>
   </div>
@@ -454,7 +532,7 @@ $('buildNames').onclick = async () => {
 };
 $('loadManagers').onclick = async () => {
   $('loadManagers').disabled = true;
-  try { const {job} = await api('/api/managers', {save: chosenSave, everyone: $('everyone').checked}); const r = await follow(job, $('managersLog'));
+  try { const {job} = await api('/api/managers', {save: chosenSave, everyone: $('everyone').checked, fresh: $('fresh').checked}); const r = await follow(job, $('managersLog'));
     managers = r.managers; const human = managers.find(m => m.human); chosenManager = human ? human.staff_uid : null;
     $('managerFilter').disabled = false; drawManagers();
     $('managersLog').innerHTML += `<div class="ok">${managers.length === 1 ? '1 manager' : managers.length + ' managers'}.</div>`;
@@ -471,7 +549,7 @@ $('generate').onclick = async () => {
     const {job} = await api('/api/report', {save: chosenSave, staff_uid: chosenManager,
       sections: [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec),
       show: Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])),
-      images: $('images').checked});
+      images: $('images').checked, fresh: $('fresh').checked});
     const r = await follow(job, $('genLog'));
     $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
