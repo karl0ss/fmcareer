@@ -1,5 +1,6 @@
 # generated: never commit save-derived output or names built from a game install
 *.html
+!fmcareer/web/*.html
 *.json
 names/
 *.fm

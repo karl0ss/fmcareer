@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fmcareer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+__STYLE__
+</style>
+</head>
+<body>
+<div class="bar"><div class="in"><span class="brand">fmcareer</span><span class="brand"><span>career history reports from Football Manager 26 saves · v__VERSION__</span></span></div></div>
+<div class="wrap">
+  <h2><span class="n">1</span>Folders</h2>
+  <div class="card">
+    <div class="row">
+      <div><label class="f">Saves folder (where your .fm files are)</label><input type="text" id="savesDir"></div>
+      <div><label class="f">Football Manager 26 install folder (for names, badges and photos)</label><input type="text" id="install"></div>
+      <div><label class="f">Graphics folder (logo and face packs; optional)</label><input type="text" id="graphics"></div>
+      <button class="ghost" id="saveSettings">Save folders</button>
+    </div>
+    <div class="actions"><span id="namesState" class="muted"></span><button class="ghost" id="buildNames">Read names from the game</button></div>
+    <div class="log" id="namesLog"></div>
+  </div>
+
+  <h2><span class="n">2</span>Save</h2>
+  <div class="card">
+    <input type="search" id="saveFilter" placeholder="Filter saves">
+    <div class="list" id="saves"></div>
+    <div class="actions"><button id="loadManagers" disabled>Load managers</button>
+      <label class="muted"><input type="checkbox" id="everyone"> Show all managers, not just human ones (slower)</label>
+      <span id="saveChosen" class="muted"></span></div>
+    <p class="muted" style="font-size:13px;margin:8px 0 0">What fmcareer reads from a save is kept, so the same save opens quickly next time; a changed save is read again.</p>
+    <div class="log" id="managersLog"></div>
+  </div>
+
+  <h2><span class="n">3</span>Manager</h2>
+  <div class="card">
+    <input type="search" id="managerFilter" placeholder="Search managers by name or club" disabled>
+    <div class="list" id="managers"><div class="item muted">Load a save's managers first.</div></div>
+  </div>
+
+  <h2><span class="n">4</span>What to include</h2>
+  <div class="card opts">
+    <div><b>Pages</b><div id="sections"></div></div>
+    <div><b>Transfer lists show at first</b><div id="show"></div><p class="muted" style="font-size:13px">Viewers can switch these on and off in the report.</p></div>
+    <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your graphics packs and the game</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
+  </div>
+
+  <h2><span class="n">5</span>Options</h2>
+  <div class="card">
+    <b class="group">AI writing</b>
+    <label><input type="checkbox" id="aiOn"> Write the season summaries and career introduction with an AI model</label>
+    <div class="row" style="margin-top:12px">
+      <div><label class="f">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
+      <div><label class="f">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off"></div>
+      <div><label class="f">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist></div>
+      <div class="actions" style="margin:0"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">Off, or if the model fails, the report uses its plain summaries. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
+    <div class="log" id="aiLog"></div>
+  </div>
+
+  <h2><span class="n">6</span>Report</h2>
+  <div class="card">
+    <div class="actions"><button id="generate" disabled>Generate report</button>
+      <label class="muted"><input type="checkbox" id="fresh"> Read the save again instead of using what was read before</label>
+      <span id="genState" class="muted"></span></div>
+    <div class="log" id="genLog"></div>
+    <div id="reports" style="margin-top:14px"></div>
+  </div>
+  <footer>__FOOTER__</footer>
+</div>
+<script>
+__SCRIPT__
+</script>
+</body>
+</html>
