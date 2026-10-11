@@ -50,7 +50,18 @@ Object.values(PL).forEach(P => {
   P.sold = P.moves.filter(t => t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0);
 });
 const PLIST = Object.values(PL);
-const plink = p => PL[pkey(p)] ? `<a href="#player/${encodeURIComponent(pkey(p))}">${esc(p.name)}</a>` : esc(p.name);
+const plink = p => PL[pkey(p)] ? `<a href="#player/${encodeURIComponent(pkey(p))}">${esc(p.name)}</a>` : byName(p.name);
+// players known only by name (best-eleven lists, article text): linked when the name is unambiguous
+const NAMED = {};
+PLIST.forEach(P => { NAMED[P.name] = NAMED[P.name] === undefined ? P : null; });
+const byName = name => NAMED[name] ? `<a href="#player/${encodeURIComponent(NAMED[name].key)}">${esc(name)}</a>` : esc(name);
+// article text (already escaped): seasons link to their review, players to their page
+const reEsc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const LINKABLE = Object.keys(NAMED).filter(n => NAMED[n] && n.length >= 4).sort((a, b) => b.length - a.length);
+const LINKS = new RegExp(`(?<![\\w])(?:((?:19|20)\\d\\d/\\d\\d)${LINKABLE.length ? '|(' + LINKABLE.map(n => reEsc(esc(n))).join('|') + ')' : ''})(?![\\w-])`, 'g');
+const linkText = html => html.replace(LINKS, (m, season, name) => season
+  ? (seasonRow(season) ? `<a href="#season/${slug(season)}">${season}</a>` : season)
+  : `<a href="#player/${encodeURIComponent(NAMED[Object.keys(NAMED).find(n => esc(n) === name)].key)}">${name}</a>`);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const short = name => name.replace(/^English /, '');
 
@@ -266,7 +277,7 @@ function pageReport(arg) {
   const c = careerFeature();
   view.innerHTML = `<h1>The ${esc(M.name)} report</h1>
     ${byline(c.model)}
-    <article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${p}</p>`).join('')}</article>
+    <article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>
     <h2>Season by season</h2>
     <ol class="timeline">${L.map(s => {
       const a = seasonArticle(s);
@@ -282,7 +293,7 @@ function reportSeason(r) {
     <div class="pager"><span>${prev ? `<a href="#report/${slug(prev.season)}">← ${prev.season}</a>` : '<a href="#report">← The career</a>'}</span><a href="#report">The career</a><span>${next ? `<a href="#report/${slug(next.season)}">${next.season} →</a>` : ''}</span></div>
     <article class="card story news">
       <div class="kicker">${r.season} · ${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}</div>
-      <h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${p}</p>`).join('')}
+      <h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}
       ${byline(a.model)}
     </article>
     <div class="tiles" style="margin-top:12px">
@@ -348,9 +359,9 @@ function pageMe() {
     <h2>Club legends of the era</h2>
     <div class="grid2">
       <div class="card scroll"><b>Most appearances</b><table><thead><tr><th>Player</th><th class="n">Seasons</th><th class="n">Apps</th></tr></thead><tbody>
-        ${legends.map(p => `<tr><td>${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>
+        ${legends.map(p => `<tr><td>${byName(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>
       <div class="card scroll"><b>Top scorers</b><table><thead><tr><th>Player</th><th class="n">Seasons</th><th class="n">Goals</th></tr></thead><tbody>
-        ${scorers.map(p => `<tr><td>${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.goals}</td></tr>`).join('')}</tbody></table></div>
+        ${scorers.map(p => `<tr><td>${byName(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.goals}</td></tr>`).join('')}</tbody></table></div>
     </div>
     <p class="note">Counted from each season's best-18 table, so seasons a player spent outside the 18 most-used aren't included.</p>
     <details class="card fold" style="margin-top:30px"><summary><b>Season by season</b><span class="muted">${plural(L.length, 'season')}</span></summary>
@@ -397,7 +408,7 @@ function pageSeason(arg, tab = 'summary') {
   const summary = () => {
     const nm = (D.notable_matches || []).filter(m => m.season === season);
     return `
-    ${(() => { const a = seasonArticle(r); return `<article class="card story news" style="margin-top:0"><h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${p}</p>`).join('')}</article>${byline(a.model)}`; })()}
+    ${(() => { const a = seasonArticle(r); return `<article class="card story news" style="margin-top:0"><h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>${byline(a.model)}`; })()}
     <h2>The numbers</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams}</div></div>
@@ -408,7 +419,7 @@ function pageSeason(arg, tab = 'summary') {
       <div class="card tile"><div class="v">${moneyShort(moves.filter(t => t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0))}</div><div class="k">Spent</div><div class="s">${moneyShort(moves.filter(t => t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0))} received</div></div>
     </div>
     <div class="grid2" style="margin-top:12px">
-      <div><h2>Cups</h2><div class="card"><ul class="list">${cups.map(c => `<li><span>${pic('comp', c.competition_db)}${esc(c.competition)}</span><span>${cupOutcome(c)}</span></li>`).join('') || '<li class="muted">No cup entries recorded</li>'}</ul></div></div>
+      <div><h2>Cups</h2><div class="card"><ul class="list">${cups.map(c => `<li><span>${pic('comp', c.competition_db)}<a href="#honours">${esc(c.competition)}</a></span><span>${cupOutcome(c)}</span></li>`).join('') || '<li class="muted">No cup entries recorded</li>'}</ul></div></div>
       <div><h2>Honours & awards</h2><div class="card"><ul class="list">
         ${hon.map(h => `<li><span>${esc(h.name)}</span><span class="badge gold">Trophy</span></li>`).join('')}
         ${aw.map(a => `<li><span>${esc(a.name)}</span><span class="badge ${a.placing === 'Winner' ? 'gold' : ''}">${a.placing}</span></li>`).join('')}
@@ -537,7 +548,7 @@ function squadTabs(T, team, money) {
   if (!cur) return '<p class="muted">No players.</p>';
   return `${groups.length > 1 ? tabBar('club/squad', groups.map(g => [teamSlug(g.name), `${esc(g.name)} <span class="count">${g.players.length}</span>`]), teamSlug(cur.name)).replace('class="tabs"', 'class="tabs sub"') : ''}
     <div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n o">Potential</th><th class="n">Value</th><th class="n o">Wage p/w</th><th class="o">Contract</th><th class="o">Status</th></tr></thead><tbody>
-      ${cur.players.map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
+      ${cur.players.map(p => `<tr><td>${face(p.person_id)}${plink(p)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
         <td class="n">${num(p.ability)}</td><td class="n o">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n o">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td class="o">${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted o">${esc(p.status || '')}</td></tr>`).join('')}
     </tbody></table></div>
     <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save. Teams are named from the competitions they play in.</p>`;

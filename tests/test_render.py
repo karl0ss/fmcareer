@@ -169,7 +169,7 @@ def test_season_summary_opens_with_the_article_and_the_overview_keeps_its_own_te
 
 @needs_chrome
 def test_without_a_model_the_report_writes_its_own_articles(tmp_path, sample):
-    view = view_of(dom(tmp_path, render(sample), "report"))
+    view = re.sub(r"</?a[^>]*>", "", view_of(dom(tmp_path, render(sample), "report")))  # the text, links aside
     assert "Alex Example: 3 seasons, 1 promotion and 1 title" in view
     assert "Promotion came in 2031/32 (Second Division)." in view
     assert "Written by" not in view and "Example Town finish 12th in the First Division" in view
@@ -247,3 +247,13 @@ def test_squad_is_split_by_team(tmp_path, sample):
     assert "Gary Keeper" in first and "Young Prospect" not in first
     youth = view_of(dom(tmp_path, render(sample), "club/squad/under-18s"))
     assert "Young Prospect" in youth and "Gary Keeper" not in youth
+
+
+@needs_chrome
+def test_names_and_seasons_in_articles_click_through(tmp_path, sample):
+    sample["ai"] = AI_TEXT
+    sample["ai"]["seasons"]["2032/33"]["paragraphs"] = ["Sam Striker scored again, as in 2031/32."]
+    view = view_of(dom(tmp_path, render(sample), "report/2032-33"))
+    assert '<a href="#player/p202">Sam Striker</a>' in view and '<a href="#season/2031-32">2031/32</a>' in view
+    squad = view_of(dom(tmp_path, render(sample), "club/squad"))
+    assert '<a href="#player/p201">Gary Keeper</a>' in squad
