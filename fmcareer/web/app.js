@@ -61,6 +61,16 @@ function drawOptions() {
   $('images').checked = !$('images').disabled && recall('images', true);
   $('imagesNote').textContent = !state.images ? 'Needs the images extra: pip install "fmcareer[images]".' : !sources.length ? 'Set the install or graphics folder first.' : 'From ' + sources.join(' and ') + (state.settings.graphics ? '; packs win, as in the game.' : '.');
 }
+// the report's colour theme: a swatch per theme, the choice kept in this browser
+function drawThemes() {
+  const cur = recall('theme', 'fm26');
+  $('themes').innerHTML = Object.entries(state.themes || {}).map(([id, t]) => {
+    const [page, card, accent] = t.swatch;
+    return `<label class="theme ${id === cur ? 'on' : ''}"><input type="radio" name="theme" value="${esc(id)}" ${id === cur ? 'checked' : ''}>
+      <span class="swatch" style="background:${page}"><i style="background:${card}"></i><b style="background:${accent}"></b></span>${esc(t.name)}</label>`;
+  }).join('');
+}
+$('themes').onchange = e => { remember('theme', e.target.value); drawThemes(); };
 function drawAI() {
   const st = state.settings;
   $('aiOn').checked = !!st.ai_enabled; $('aiEndpoint').value = st.ai_endpoint || ''; $('aiModel').value = st.ai_model || '';
@@ -81,7 +91,7 @@ async function refresh() {
   $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install; $('graphics').value = state.settings.graphics;
   chosenSave = chosenSave || recall('save', null);
   if (chosenSave && !state.saves.some(s => s.path === chosenSave)) chosenSave = null;
-  drawSaves(); drawOptions(); drawReports(); drawNames(); drawAI();
+  drawSaves(); drawOptions(); drawReports(); drawNames(); drawThemes(); drawAI();
 }
 $('saves').onclick = e => { const it = e.target.closest('[data-path]'); if (!it) return; chosenSave = it.dataset.path; remember('save', chosenSave);
   managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers(); };
@@ -129,7 +139,7 @@ $('generate').onclick = async () => {
     const {job} = await api('/api/report', {save: chosenSave, staff_uid: chosenManager,
       sections: [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec),
       show: Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])),
-      images: $('images').checked, fresh: $('fresh').checked});
+      images: $('images').checked, fresh: $('fresh').checked, theme: recall('theme', 'fm26')});
     const r = await follow(job, $('genLog'));
     const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} articles.`
       : ` AI wrote ${r.ai.written} of ${r.ai.pieces} articles; the report wrote the rest (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;

@@ -11,6 +11,16 @@ import json
 from fmcareer import web
 from fmcareer._types import Record
 
+# the report's colour themes (fmcareer/web/report.css): id -> (name, swatch: page, card, accent)
+THEMES = {
+    "fm26": ("FM26", ("#0c0d24", "#171936", "#c77dff")),
+    "midnight": ("Midnight", ("#07111f", "#0f1e33", "#5cc8ff")),
+    "pitch": ("Pitch", ("#07150e", "#0e2318", "#8ee67c")),
+    "crimson": ("Crimson", ("#120b0d", "#1e1416", "#ff7a7a")),
+    "club": ("Club colours", ("#0e0f14", "#181a22", "linear-gradient(90deg, #6b4bd6, #e0b04f)")),
+    "light": ("Matchday light", ("#f4f5fa", "#ffffff", "#5b2fd6")),
+}
+
 
 def footer() -> str:
     """fmcareer's version, linked to its repository."""
@@ -22,4 +32,5 @@ def footer() -> str:
 def render(data: Record) -> str:
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     title = html.escape(f"{data['manager']['name']} — Career History")
-    return web.page("report", TITLE=title, FOOTER=footer(), DATA=payload)
+    theme = (data.get("options") or {}).get("theme")
+    return web.page("report", THEME=theme if theme in THEMES else "fm26", TITLE=title, FOOTER=footer(), DATA=payload)

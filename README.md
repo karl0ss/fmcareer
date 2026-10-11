@@ -70,7 +70,8 @@ opens a page in your browser (served only on your own machine, at
    for every manager in the save, searchable by name or club);
 4. tick the pages to include, which kinds of move the transfer lists show at first
    (loans, trials, youth intake, released players, staff), and whether to embed images;
-5. set options, for now AI-written articles for the Report page (below);
+5. set options: the report's colour theme (FM26, Midnight, Pitch, Crimson, Club colours
+   from the club's badge, or Matchday light) and AI-written articles for the Report page (below);
 6. generate: a progress bar counts the steps, and the report opens in a new tab with a
    Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
 
@@ -100,6 +101,7 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
 - `--sections me,seasons,players,records,honours,transfers,club` picks the pages (default:
   all). `--show loans,trials,youth,released,staff` picks which kinds of move the transfer
   lists show at first (default: released); viewers can switch them in the report.
+- `--theme midnight` picks the colour theme (fm26, midnight, pitch, crimson, club, light).
 - `--json career_data.json` also writes the collected data.
 - AI-written articles are set up in the app; the command line uses the report's own.
 - A large save takes a few minutes and about 3 GB of memory.

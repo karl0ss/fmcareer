@@ -147,10 +147,18 @@ document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? cres
 (() => { const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
   const im = new Image(); im.onload = () => { try {
     const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 24, 24);
-    const px = g.getImageData(0, 0, 24, 24).data; let r = 0, gg = 0, b = 0, n = 0;
-    for (let i = 0; i < px.length; i += 4) { const s = Math.max(px[i], px[i+1], px[i+2]) - Math.min(px[i], px[i+1], px[i+2]);
-      if (px[i+3] > 200 && s > 40) { r += px[i]; gg += px[i+1]; b += px[i+2]; n++; } }
-    if (n) document.documentElement.style.setProperty('--club', `rgb(${r/n|0},${gg/n|0},${b/n|0})`);
+    // the badge's dominant colour: its coloured pixels grouped by hue, the biggest group averaged
+    // (averaging every pixel would turn a yellow-and-blue badge grey)
+    const px = g.getImageData(0, 0, 24, 24).data, groups = {};
+    for (let i = 0; i < px.length; i += 4) {
+      const [r, gg, b] = [px[i], px[i + 1], px[i + 2]], hi = Math.max(r, gg, b), lo = Math.min(r, gg, b);
+      if (px[i + 3] < 200 || hi - lo < 40) continue;
+      const h = hi === r ? (gg - b) / (hi - lo) : hi === gg ? 2 + (b - r) / (hi - lo) : 4 + (r - gg) / (hi - lo);
+      const k = Math.round(((h + 6) % 6) * 2) % 12, grp = groups[k] ||= [0, 0, 0, 0];
+      grp[0] += r; grp[1] += gg; grp[2] += b; grp[3]++;
+    }
+    const best = Object.values(groups).sort((x, y) => y[3] - x[3])[0];
+    if (best) document.documentElement.style.setProperty('--club', `rgb(${best[0] / best[3] | 0},${best[1] / best[3] | 0},${best[2] / best[3] | 0})`);
   } catch (e) {} }; im.src = src; })();
 document.getElementById('asof').textContent = M.game_date ? 'As of ' + fmtDate(M.game_date) : '';
 document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#${id}" data-nav="${id}">${label}</a>`).join('');

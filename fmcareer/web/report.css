@@ -6,21 +6,59 @@
   --accent: #c77dff; --accent-soft: #33275e; --accent-2: #e04fd0;
   --gold: #f4c54d; --gold-soft: #3b3220; --up: #8be04e; --up-soft: #23391f;
   --down: #ff6b7a; --down-soft: #3e1d2c; --band: #1c1e40; --club: #6b4bd6;
+  --accent-3: #7b3cff; --bar-1: #14163a; --bar-2: #0f1130; --crest-end: #2a1f63;
   --head: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+}
+/* themes, chosen when the report is made (<html data-theme="...">); FM26 is the default above */
+:root[data-theme="midnight"] {
+  --bg: #07111f; --surface: #0f1e33; --surface-2: #162a45; --line: #23395a;
+  --text: #eef4fb; --text-2: #a9bdd6; --text-3: #8199b8;
+  --accent: #5cc8ff; --accent-soft: #12324a; --accent-2: #2f7fff; --accent-3: #1f6fe0;
+  --band: #0d1a2d; --bar-1: #0d1b30; --bar-2: #081426; --crest-end: #12325a;
+}
+:root[data-theme="pitch"] {
+  --bg: #07150e; --surface: #0e2318; --surface-2: #153222; --line: #21452f;
+  --text: #eefaf2; --text-2: #a9cdb6; --text-3: #82aa92;
+  --accent: #8ee67c; --accent-soft: #1c3a20; --accent-2: #2fbf71; --accent-3: #1f9e5c;
+  --up: #5ee0b0; --up-soft: #15382d;
+  --band: #0b1d13; --bar-1: #0d2418; --bar-2: #08180f; --crest-end: #14402a;
+}
+:root[data-theme="crimson"] {
+  --bg: #120b0d; --surface: #1e1416; --surface-2: #2a1c1f; --line: #3b2a2d;
+  --text: #f8f1f2; --text-2: #d1b9bd; --text-3: #a88d91;
+  --accent: #ff7a7a; --accent-soft: #3d1d22; --accent-2: #e8364f; --accent-3: #c41e3a;
+  --down: #ffa94d; --down-soft: #3d2a17;
+  --band: #1a1113; --bar-1: #22161a; --bar-2: #150d10; --crest-end: #4a1820;
+}
+:root[data-theme="club"] {
+  --bg: #0e0f14; --surface: #181a22; --surface-2: #22252f; --line: #30343f;
+  --text: #f2f3f7; --text-2: #b7bccb; --text-3: #8d93a5;
+  /* accents from the club's badge colour (the page reads it from the badge) */
+  --accent: color-mix(in srgb, var(--club) 50%, white); --accent-soft: color-mix(in srgb, var(--club) 28%, #181a22);
+  --accent-2: var(--club); --accent-3: color-mix(in srgb, var(--club) 75%, black);
+  --band: #15171e; --bar-1: #171a22; --bar-2: #0e1016; --crest-end: #222533;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f5fa; --surface: #ffffff; --surface-2: #eef0f7; --line: #dde1ee;
+  --text: #161a33; --text-2: #474d6b; --text-3: #61677f;
+  --accent: #5b2fd6; --accent-soft: #ece6fd; --accent-2: #c0269e; --accent-3: #6a3cf0;
+  --gold: #8a5f00; --gold-soft: #fbf1d6; --up: #2a7d1b; --up-soft: #e3f4dc; --down: #c02436; --down-soft: #fbe3e6;
+  --band: #eceef7; --bar-1: #ffffff; --bar-2: #f4f5fa; --crest-end: #4b3aa0;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.55 "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.bar { background: linear-gradient(180deg, #14163a, #0f1130); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.bar { background: linear-gradient(180deg, var(--bar-1), var(--bar-2)); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
 .bar .in { max-width: 1160px; margin: 0 auto; padding: 10px 16px 0; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; font: 700 22px/1.1 var(--head); color: var(--text); }
 .brand span { color: var(--text-3); font-weight: 500; font-size: 17px; }
 .brand img { width: 34px; height: 34px; object-fit: contain; }
 .asof { font: 600 14px var(--head); color: #fff; padding: 5px 14px; border-radius: 6px;
-  background: linear-gradient(90deg, #7b3cff, var(--accent-2)); }
+  background: linear-gradient(90deg, var(--accent-3), var(--accent-2)); }
 nav { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
 nav a { font: 600 18px var(--head); color: var(--text-2); padding: 8px 12px 10px; border-bottom: 3px solid transparent; white-space: nowrap; }
 nav a:hover { text-decoration: none; color: var(--text); }
@@ -38,7 +76,7 @@ h2 { font: 600 20px var(--head); color: var(--accent); margin: 30px 0 10px; }
   border-radius: 6px 6px 11px 11px; background: var(--surface-2); color: var(--text-2); font: 700 10px var(--head); }
 .crest.md { width: 40px; height: 44px; font-size: 14px; border-radius: 8px 8px 20px 20px; vertical-align: middle; }
 .crest.lg { width: 92px; height: 104px; font-size: 30px; margin: 0; border-radius: 14px 14px 46px 46px;
-  background: linear-gradient(160deg, var(--club), #2a1f63); color: #fff; }
+  background: linear-gradient(160deg, var(--club), var(--crest-end)); color: #fff; }
 .heroband { background: linear-gradient(100deg, color-mix(in srgb, var(--club) 55%, transparent), transparent 70%);
   border-radius: 12px; padding: 18px; display: flex; gap: 18px; align-items: center; }
 .lede { color: var(--text-2); font-size: 16px; margin: 6px 0 0; max-width: 70ch; }
@@ -113,7 +151,7 @@ footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 .timeline b { display: block; font: 600 18px/1.3 var(--head); margin-top: 2px; }
 .timeline .row { display: block; margin-top: 4px; }
 a.button { display: inline-block; font: 600 16px var(--head); color: #fff; padding: 9px 16px; border-radius: 8px;
-  background: linear-gradient(90deg, #7b3cff, var(--accent-2)); margin: 12px 8px 0 0; }
+  background: linear-gradient(90deg, var(--accent-3), var(--accent-2)); margin: 12px 8px 0 0; }
 a.button.ghost { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 a.button:hover { text-decoration: none; filter: brightness(1.1); }
 /* a page's own sections, one at a time */

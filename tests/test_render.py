@@ -257,3 +257,22 @@ def test_names_and_seasons_in_articles_click_through(tmp_path, sample):
     assert '<a href="#player/p202">Sam Striker</a>' in view and '<a href="#season/2031-32">2031/32</a>' in view
     squad = view_of(dom(tmp_path, render(sample), "club/squad"))
     assert '<a href="#player/p201">Gary Keeper</a>' in squad
+
+
+def test_the_chosen_theme_is_set_before_the_page_draws(sample):
+    from fmcareer.render import THEMES
+
+    assert '<html lang="en" data-theme="fm26">' in render(sample)  # the default
+    for theme in THEMES:
+        sample["options"]["theme"] = theme
+        assert f'data-theme="{theme}"' in render(sample)
+    sample["options"]["theme"] = "<script>"  # anything else falls back to the default
+    assert '<html lang="en" data-theme="fm26">' in render(sample)
+
+
+def test_every_theme_has_its_styles():
+    from fmcareer import web
+    from fmcareer.render import THEMES
+
+    css = web.read("report.css")
+    assert all(f':root[data-theme="{t}"]' in css for t in THEMES if t != "fm26")

@@ -27,7 +27,7 @@ from fmsave import Save
 from fmcareer import __version__, web
 from fmcareer._types import Record
 from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
-from fmcareer.render import footer, render
+from fmcareer.render import THEMES, footer, render
 
 HOME = Path.home()
 CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "fmcareer" / "settings.json"
@@ -461,6 +461,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     reports_dir=str(REPORTS),
                     names=names_dir(),
                     images=images_available(),
+                    themes={k: {"name": n, "swatch": sw} for k, (n, sw) in THEMES.items()},
                     defaults=DEFAULT_OPTIONS,
                 ),
             )
@@ -523,6 +524,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "sections": [s for s in req.get("sections", []) if s in DEFAULT_OPTIONS["sections"]]
                 or DEFAULT_OPTIONS["sections"],
                 "show": {k: bool(v) for k, v in (req.get("show") or {}).items() if k in DEFAULT_OPTIONS["show"]},
+                "theme": req.get("theme") if req.get("theme") in THEMES else DEFAULT_OPTIONS["theme"],
             }
             return self.send(
                 200,

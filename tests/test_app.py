@@ -52,7 +52,8 @@ def test_page_and_state(server):
         "ai_token_set": False,
     }
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
-    assert "sections" in state["defaults"]
+    assert "sections" in state["defaults"] and state["defaults"]["theme"] == "fm26"
+    assert state["themes"]["light"]["name"] == "Matchday light" and len(state["themes"]["pitch"]["swatch"]) == 3
 
 
 def test_settings_persist_and_list_saves(server):

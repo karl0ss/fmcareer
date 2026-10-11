@@ -12,7 +12,7 @@ import json
 import time
 
 from fmcareer.collect import collect
-from fmcareer.render import render
+from fmcareer.render import THEMES, render
 
 SHOW_WORDS = {"Loan": "loans", "Trial": "trials", "Youth intake": "youth", "Released": "released", "staff": "staff"}
 
@@ -34,6 +34,7 @@ def main() -> None:
         help="move types transfer lists show at first, comma-separated, from: "
         "loans,trials,youth,released,staff (default: released)",
     )
+    ap.add_argument("--theme", choices=sorted(THEMES), help="the report's colour theme (default: fm26)")
     ap.add_argument(
         "--install",
         help="FM26 install folder: embed club badges, player photos, "
@@ -47,6 +48,8 @@ def main() -> None:
     a = ap.parse_args()
     t = time.time()
     options = {}
+    if a.theme:
+        options["theme"] = a.theme
     if a.sections:
         options["sections"] = [x.strip() for x in a.sections.split(",") if x.strip()]
     if a.show is not None:
