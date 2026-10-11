@@ -137,8 +137,8 @@ function seasonStory(r) {
 }
 
 // ---- navigation and routing
-const SECTIONS = OPT.sections || ['me', 'report', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
-const NAV = [['me', 'Career overview'], ['report', 'Report'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
+const SECTIONS = OPT.sections || ['me', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
+const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
   .filter(([id]) => SECTIONS.includes(id) && (id !== 'club' || D.club_today));
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 // the manager's face where a face pack or the game has one, else the current club's badge
@@ -170,17 +170,17 @@ let lastBase = null;
 const TALL_ROWS = 15;  // tables longer than this get a scrolling box
 function route() {
   let [page, arg, sub] = (location.hash.slice(1) || SECTIONS[0] || 'me').split('/');
-  const owner = {season: 'seasons', player: 'players'}[page] || page;  // report/<season> belongs to report
+  const owner = {season: 'seasons', player: 'players'}[page] || page;
   if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
-  ({me: pageMe, report: () => pageReport(arg), seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg, sub), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
+  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg, sub), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
   // long tables scroll inside their own box (headings stay put), so pages stay short
   view.querySelectorAll('.scroll').forEach(box => {
     const rows = box.querySelectorAll('tbody tr').length;
     box.classList.toggle('tall', rows > TALL_ROWS);
   });
   // a new page starts at the top; another tab of the same page keeps its tabs in view
-  const base = page === 'season' || page === 'report' ? page + '/' + arg : page, tabs = view.querySelector('.tabs');
+  const base = page === 'season' ? page + '/' + arg : page, tabs = view.querySelector('.tabs');
   if (base !== lastBase || !tabs) window.scrollTo(0, 0);
   else if (tabs.getBoundingClientRect().top < 0) tabs.scrollIntoView();
   lastBase = base;
@@ -277,42 +277,6 @@ const byline = written => AI
 const outcome = r => [r.champion && '<span class="badge gold">Champions</span>', r.promoted && '<span class="badge up">Promoted</span>',
   r.relegated && '<span class="badge down">Relegated</span>'].filter(Boolean).join('').replace('class="badge', 'class="badge first');
 
-// ---- page: the report. First the career from start to finish with a timeline of its
-// seasons; then one page per season, read in order with previous / next.
-function pageReport(arg) {
-  const r = arg ? seasonRow(arg.replace('-', '/')) : null;
-  if (r) return reportSeason(r);
-  const c = careerFeature();
-  view.innerHTML = `<h1>The ${esc(M.name)} report</h1>
-    ${byline(c.model)}
-    <article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>
-    <h2>Season by season</h2>
-    <ol class="timeline">${L.map(s => {
-      const a = seasonArticle(s);
-      return `<li class="${s.champion ? 'gold' : s.promoted ? 'up' : s.relegated ? 'down' : ''}"><a href="#report/${slug(s.season)}">
-        <span class="kicker">${s.season} · ${esc(s.club)} · ${esc(s.competition)} · ${ord(s.position)}</span>
-        <b>${a.headline}</b>${outcome(s) ? `<span class="row">${outcome(s)}</span>` : ''}</a></li>`;
-    }).join('')}</ol>
-    ${L.length ? `<p><a class="button" href="#report/${slug(L[0].season)}">Start reading: ${L[0].season} →</a></p>` : ''}`;
-}
-function reportSeason(r) {
-  const a = seasonArticle(r), i = L.indexOf(r), prev = L[i - 1], next = L[i + 1];
-  view.innerHTML = `
-    <div class="pager"><span>${prev ? `<a href="#report/${slug(prev.season)}">← ${prev.season}</a>` : '<a href="#report">← The career</a>'}</span><a href="#report">The career</a><span>${next ? `<a href="#report/${slug(next.season)}">${next.season} →</a>` : ''}</span></div>
-    <article class="card story news">
-      <div class="kicker">${r.season} · ${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}</div>
-      <h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}
-      ${byline(a.model)}
-    </article>
-    <div class="tiles" style="margin-top:12px">
-      <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams} · ${outcome(r) || esc(r.competition)}</div></div>
-      <div class="card tile"><div class="v">${r.points}</div><div class="k">Points</div><div class="s">W${r.won} D${r.drawn} L${r.lost}</div></div>
-      <div class="card tile"><div class="v">${r.goals_for}–${r.goals_against}</div><div class="k">Goals</div><div class="s">for and against</div></div>
-    </div>
-    <p class="actions"><a class="button" href="#season/${slug(r.season)}">Full ${r.season} season review</a>
-      ${next ? `<a class="button ghost" href="#report/${slug(next.season)}">Next: ${next.season} →</a>` : ''}</p>`;
-}
-
 // ---- page: career overview
 function pageMe() {
   const winRate = Math.round(100 * totals.won / Math.max(1, totals.played));
@@ -327,7 +291,6 @@ function pageMe() {
         ${face(M.person_id, 'lg') || (CUR ? crest(CUR.club_uid, CUR.club, 'lg') : '')}
         <div>
         <h1>${esc(M.name)}</h1>
-        <p class="lede">${careerLede()}</p>
         </div>
       </div>
       <div class="facts">
@@ -338,6 +301,7 @@ function pageMe() {
         ${M.contract_end ? `<span>Contract</span><b>${M.wage ? money(M.wage) + ' p/w, ' : ''}until ${fmtDate(M.contract_end)}</b>` : ''}
       </div>
     </div>
+    ${(() => { const c = careerFeature(); return `<article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>${byline(c.model)}`; })()}
     <h2>League record</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${L.length}</div><div class="k">Seasons completed</div><div class="s">${totals.played} league games</div></div>
@@ -382,13 +346,13 @@ function pageMe() {
 
 // ---- page: seasons grid
 function pageSeasons() {
-  view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge. Open one for the full review.</p>
-    <div class="seasons" style="margin-top:20px">${L.map(r => `
-      <a class="card scard" href="#season/${slug(r.season)}">
-        <div class="yr">${r.season}</div>
-        <div class="fin">${(D.stints || []).length > 1 ? esc(r.club) + ' · ' : ''}${ord(r.position)} · ${esc(r.competition)} · ${r.points} pts</div>
-        <div class="row">${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promoted ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).map(a => `<span class="badge accent">${a.placing === 'Winner' ? 'Manager award' : 'Award ' + a.placing.toLowerCase()}</span>`).join('')}</div>
-      </a>`).join('')}</div>`;
+  view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge, earliest first. Open one for the full review.</p>
+    <ol class="timeline" style="margin-top:20px">${L.map(s => {
+      const a = seasonArticle(s);
+      return `<li class="${s.champion ? 'gold' : s.promoted ? 'up' : s.relegated ? 'down' : ''}"><a href="#season/${slug(s.season)}">
+        <span class="kicker">${s.season} · ${esc(s.club)} · ${esc(s.competition)} · ${ord(s.position)} of ${s.teams} · ${s.points} pts</span>
+        <b>${a.headline}</b>${outcome(s) || extraBadges(s) ? `<span class="row">${outcome(s)}${extraBadges(s)}</span>` : ''}</a></li>`;
+    }).join('')}</ol>`;
 }
 
 // ---- page: season review (tabs: summary, final table, squad, transfers)

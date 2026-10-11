@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SECTION_NAMES = {me: 'Career overview', report: 'Report (career and season articles)', seasons: 'Seasons', players: 'Players', records: 'Records', honours: 'Honours & cups', transfers: 'Transfers', club: 'Club today'};
+const SECTION_NAMES = {me: 'Career overview', seasons: 'Seasons', players: 'Players', records: 'Records', honours: 'Honours & cups', transfers: 'Transfers', club: 'Club today'};
 const SHOW_NAMES = {Loan: 'Loans', Trial: 'Trials', 'Youth intake': 'Youth intake', Released: 'Released', staff: 'Staff moves'};
 let state = null, chosenSave = null, managers = [], chosenManager = null;
 const remember = (k, v) => { try { localStorage.setItem('fmcareer-app-' + k, JSON.stringify(v)); } catch (e) {} };

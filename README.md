@@ -3,11 +3,11 @@
 A manager's career history from a Football Manager 26 save: point it at a save and a
 manager's name, and it builds one self-contained HTML page with:
 
-- **Report**: a feature on the whole career with a timeline, then an article per season.
-- **Career overview**: profile, league record, the game's own managerial stats (games,
+- **Career overview**: a newspaper-style feature on the whole career, profile, league record, the game's own managerial stats (games,
   money spent, record signing and sale), the climb through the league pyramid, trophy
   cabinet, manager awards and the club legends of the era.
-- **A review of every season**: written summary, the final league table, cup runs,
+- **Seasons**: a timeline of every season, earliest first, each with its headline.
+- **A review of every season**: a news-style article, the final league table, cup runs,
   honours and awards, full squad statistics, the season's best 18, transfers with fees
   and notable results.
 - **Players** and **Records**: everyone who played under the manager, with a page per
@@ -15,7 +15,7 @@ manager's name, and it builds one self-contained HTML page with:
 - **Honours & cups**, **Transfers** and **Club today** (finances, squad, tactics and the
   live league table).
 
-A Report page tells the career as newspaper articles, written from the data or optionally by an AI model you choose.
+The career feature and season articles are written from the data, or optionally by an AI model you choose.
 Club badges, faces and competition logos come from the game and from any logo or face
 packs you've installed.
 
@@ -71,7 +71,7 @@ opens a page in your browser (served only on your own machine, at
 4. tick the pages to include, which kinds of move the transfer lists show at first
    (loans, trials, youth intake, released players, staff), and whether to embed images;
 5. set options: the report's colour theme (FM26, Midnight, Pitch, Crimson, Club colours
-   from the club's badge, or Matchday light) and AI-written articles for the Report page (below);
+   from the club's badge, or Matchday light) and AI-written articles (below);
 6. generate: a progress bar counts the steps, and the report opens in a new tab with a
    Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
 
@@ -106,12 +106,11 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
 - AI-written articles are set up in the app; the command line uses the report's own.
 - A large save takes a few minutes and about 3 GB of memory.
 
-## The Report page and AI-written articles (optional)
+## The articles, and AI writing (optional)
 
-The Report page reads like a newspaper: it opens with a feature on the manager's whole
-career and a timeline of every season, then one article per season, read in order with
-previous and next (each season's review also opens with its article). The report writes
-these articles itself from the data. Under "AI writing" in the app's Options step you can
+The Career overview opens with a newspaper-style feature on the manager's whole career, and
+each season's review opens with an article on that season; the Seasons page lists every
+season's headline on a timeline. The report writes these articles itself from the data. Under "AI writing" in the app's Options step you can
 have a language model write them instead, as news reports: tick the box, give an
 OpenAI-compatible endpoint (OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually
 ending in `/v1`), a token if it needs one and a model, and press Test.
@@ -125,8 +124,8 @@ models are asked to think briefly (`reasoning_effort: low`, dropped for endpoint
 refuse it). Articles already written for the same facts and model are reused, so
 regenerating is quick. Readers can switch between the AI-written and the report's own
 articles. The facts, including names from your save, are sent to the endpoint you choose;
-the token stays in your local settings and is never shown again. The Career overview and
-the rest of the report always use the report's own text.
+the token stays in your local settings and is never shown again. The rest of the report always
+uses the report's own text.
 
 ## Images
 

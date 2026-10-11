@@ -138,43 +138,40 @@ AI_TEXT = {
 
 
 @needs_chrome
-def test_report_opens_with_the_career_and_a_timeline_of_seasons(tmp_path, sample):
+def test_the_overview_opens_with_the_career_feature(tmp_path, sample):
     sample["ai"] = AI_TEXT
-    view = view_of(dom(tmp_path, render(sample), "report"))
+    view = view_of(dom(tmp_path, render(sample), "me"))
     assert "An invented-for-tests feature." in view and "Written by test-model" in view
-    assert "Town hold on" in view  # the model's headline on the timeline
-    assert "Example Town crowned Second Division champions" in view  # the report's own where the model wrote none
-    assert view.find("An invented-for-tests") < view.find("2029/30 · Old Rovers") < view.find("2032/33 · Example Town")
-    assert 'href="#report/2029-30"' in view
+    assert view.find("An invented-for-tests") < view.find("League record")
+    own = re.sub(r"</?a[^>]*>", "", view_of(dom(tmp_path, render(dict(sample, ai=None)), "me")))
+    assert "Alex Example: 3 seasons, 1 promotion and 1 title" in own and "2 clubs so far" in own
+    assert "Promotion came in 2031/32 (Second Division)." in own and "Written by" not in own
 
 
 @needs_chrome
-def test_each_season_has_its_own_report_page_read_in_order(tmp_path, sample):
+def test_seasons_is_a_timeline_earliest_first_opening_each_review(tmp_path, sample):
     sample["ai"] = AI_TEXT
-    view = view_of(dom(tmp_path, render(sample), "report/2032-33"))
-    assert "Town hold on" in view and "A model-written report." in view and "Second." in view
-    assert 'href="#report/2031-32"' in view and "Full 2032/33 season review" in view
-    first = view_of(dom(tmp_path, render(sample), "report/2029-30"))
-    assert "← The career" in first and 'href="#report/2031-32"' in first
+    view = view_of(dom(tmp_path, render(sample), "seasons"))
+    assert "Town hold on" in view  # the model's headline
+    assert "Example Town crowned Second Division champions" in view  # the report's own where the model wrote none
+    assert view.find("2029/30 · Old Rovers") < view.find("2032/33 · Example Town")
+    assert 'href="#season/2029-30"' in view and "#report" not in view
 
 
 @needs_chrome
-def test_season_summary_opens_with_the_article_and_the_overview_keeps_its_own_text(tmp_path, sample):
+def test_season_summary_opens_with_its_article(tmp_path, sample):
     sample["ai"] = AI_TEXT
     season = view_of(dom(tmp_path, render(sample), "season/2032-33"))
     assert "Town hold on" in season and "A model-written report." in season and "The numbers" in season
-    me = view_of(dom(tmp_path, render(sample), "me"))
-    assert "An invented-for-tests feature." not in me and "2 clubs so far" in me
+    own = view_of(dom(tmp_path, render(dict(sample, ai=None)), "season/2032-33"))
+    assert "Example Town finish 12th in the First Division" in own and "12th-placed finish" in own
 
 
 @needs_chrome
-def test_without_a_model_the_report_writes_its_own_articles(tmp_path, sample):
-    view = re.sub(r"</?a[^>]*>", "", view_of(dom(tmp_path, render(sample), "report")))  # the text, links aside
-    assert "Alex Example: 3 seasons, 1 promotion and 1 title" in view
-    assert "Promotion came in 2031/32 (Second Division)." in view
-    assert "Written by" not in view and "Example Town finish 12th in the First Division" in view
-    season = view_of(dom(tmp_path, render(sample), "report/2032-33"))
-    assert "12th-placed finish" in season
+def test_there_is_no_report_page_any_more(tmp_path, sample):
+    text = dom(tmp_path, render(sample), "report")
+    nav = text[text.find('id="nav"') : text.find("</nav>")]
+    assert "Report" not in nav and "League record" in view_of(text)  # falls back to the overview
 
 
 @needs_chrome
@@ -253,7 +250,7 @@ def test_squad_is_split_by_team(tmp_path, sample):
 def test_names_and_seasons_in_articles_click_through(tmp_path, sample):
     sample["ai"] = AI_TEXT
     sample["ai"]["seasons"]["2032/33"]["paragraphs"] = ["Sam Striker scored again, as in 2031/32."]
-    view = view_of(dom(tmp_path, render(sample), "report/2032-33"))
+    view = view_of(dom(tmp_path, render(sample), "season/2032-33"))
     assert '<a href="#player/p202">Sam Striker</a>' in view and '<a href="#season/2031-32">2031/32</a>' in view
     squad = view_of(dom(tmp_path, render(sample), "club/squad"))
     assert '<a href="#player/p201">Gary Keeper</a>' in squad

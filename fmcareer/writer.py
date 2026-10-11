@@ -1,5 +1,6 @@
-"""The Report page's articles written by a language model: a feature on the manager's
-career, then one news-style article per season.
+"""The report's articles written by a language model: the feature on the manager's career
+(Career overview) and a news-style article per season (each season review, and its
+headline on the Seasons timeline).
 
 Optional: the report writes its own articles from the same facts, and shows those when no
 model is set or a piece fails. Any OpenAI-compatible chat endpoint works (OpenAI,

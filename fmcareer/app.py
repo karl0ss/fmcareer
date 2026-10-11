@@ -309,7 +309,8 @@ AI_TEXTS = CACHE / "ai" / "texts.json"
 
 
 def ai_write(step: Progress, data: Record, ai: dict[str, str]) -> Record:
-    """The AI writer's articles for the Report page ({"model", "career", "seasons", ...}).
+    """The AI writer's articles ({"model", "career", "seasons", ...}): the career feature and
+    one article per season.
 
     Text written before for the same facts, model and endpoint is reused. A failure stops
     the writing and leaves the templated summaries in place, with a step saying why.
