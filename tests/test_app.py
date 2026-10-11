@@ -223,10 +223,32 @@ def test_version_flag_and_page_show_the_version(server, capsys):
     assert f"v{fmcareer.__version__}".encode() in page and b"fmsave" not in page
 
 
-def test_a_second_start_hands_over_to_the_running_app(server, capsys):
+def test_a_second_start_of_the_same_version_hands_over(server, capsys):
     port = server[0].rsplit(":", 1)[1]
-    app.main(["--no-browser", "--port", port])  # returns instead of failing on the busy port
-    assert "in use" in capsys.readouterr().out
+    app.main(["--no-browser", "--port", port])  # returns instead of starting a second copy
+    assert "already running" in capsys.readouterr().out
+
+
+def test_a_different_version_running_does_not_capture_the_new_one(server, monkeypatch, capsys):
+    port = int(server[0].rsplit(":", 1)[1])
+    monkeypatch.setattr(app, "running_version", lambda p: "0.0.3")
+    started = {}
+
+    class Fake:
+        def serve_forever(self):
+            started["ok"] = True
+
+    monkeypatch.setattr(app, "serve_on_free_port", lambda first: (Fake(), first))
+    app.main(["--no-browser", "--port", str(port)])
+    out = capsys.readouterr().out
+    assert "fmcareer 0.0.3 is still running" in out and f"127.0.0.1:{port + 1}/" in out and started["ok"]
+
+
+def test_the_version_endpoint(server):
+    import fmcareer
+
+    assert json.loads(call(server[0] + "/api/version")[1]) == {"app": "fmcareer", "version": fmcareer.__version__}
+    assert app.running_version(int(server[0].rsplit(":", 1)[1])) == fmcareer.__version__
 
 
 def test_pack_images_win_over_the_games(monkeypatch, tmp_path):

@@ -16,6 +16,8 @@ import re
 import threading
 import time
 import traceback
+import urllib.error
+import urllib.request
 import uuid
 import webbrowser
 from collections.abc import Callable
@@ -450,6 +452,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path in ("/", "/index.html"):
             return self.send(200, web.page("app", VERSION=__version__, FOOTER=footer()), "text/html")
+        if self.path == "/api/version":
+            return self.send(200, {"app": "fmcareer", "version": __version__})
         if self.path == "/api/state":
             settings = load_settings()
             return self.send(
@@ -545,20 +549,57 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.send(404, {"error": "not found"})
 
 
+def running_version(port: int) -> str | None:
+    """The version of fmcareer answering on a port: "unknown" for one too old to say, None
+    when what answers isn't fmcareer (or nothing does)."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/version", timeout=2) as r:
+            info = json.loads(r.read())
+            return info.get("version") if info.get("app") == "fmcareer" else None
+    except urllib.error.HTTPError:  # versions before 0.0.6 have no /api/version
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=2) as r:
+                return "unknown" if "defaults" in json.loads(r.read()) else None
+        except (OSError, ValueError):
+            return None
+    except (OSError, ValueError):
+        return None
+
+
+def serve_on_free_port(first: int, tries: int = 20) -> tuple[http.server.ThreadingHTTPServer | None, int]:
+    for port in range(first, first + tries):
+        try:
+            return http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler), port
+        except OSError:
+            continue
+    return None, first
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     ap.add_argument("--version", action="version", version=f"fmcareer {__version__}")
     a = ap.parse_args(argv)
-    url = f"http://127.0.0.1:{a.port}/"
+    port = a.port
     try:
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
-    except OSError:  # most likely fmcareer is already running: show that one
-        print(f"Port {a.port} is in use; opening {url} (start with --port to use another).")
-        if not a.no_browser:
-            webbrowser.open(url)
-        return
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError:  # the port is taken: by this same version (show it), or by something else
+        running = running_version(port)
+        if running == __version__:
+            print(f"fmcareer {__version__} is already running; opening it.")
+            if not a.no_browser:
+                webbrowser.open(f"http://127.0.0.1:{port}/")
+            return
+        if running:
+            which = "An older fmcareer" if running == "unknown" else f"fmcareer {running}"
+            print(
+                f"{which} is still running at port {port}; close its window when you can. Starting this one alongside."
+            )
+        server, port = serve_on_free_port(port + 1)
+        if server is None:
+            raise SystemExit(f"No free port from {a.port} on; start with --port to choose one.") from None
+    url = f"http://127.0.0.1:{port}/"
     print(f"fmcareer {__version__} is running at {url}")
     print("Leave this window open while you use it; close it (or press Ctrl+C) to stop.")
     if not a.no_browser:
