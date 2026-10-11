@@ -21,6 +21,8 @@ from fmcareer.collect import (
     read_names,
     season_end_of,
     season_label,
+    team_competitions,
+    team_names,
 )
 
 
@@ -239,3 +241,38 @@ def test_move_kinds():
     assert move_kind("out", "Free", "Big City") == "free_departure"
     assert move_kind("out", "Free", None) is None  # released with no club to go to
     assert move_kind("out", "Released", None) is None
+
+
+def test_teams_are_named_by_what_they_play():
+    club = NS(
+        teams=[NS(team_id=t, slot=i, is_affiliate=False) for i, t in enumerate([10, 11, 12, 13, 14])]
+        + [NS(team_id=99, slot=5, is_affiliate=True)]
+    )
+    fixtures = [
+        NS(competition_id=1, competition_name=None, home_team_id=10, away_team_id=50),
+        NS(competition_id=5, competition_name=None, home_team_id=11, away_team_id=54),
+        NS(competition_id=2, competition_name=None, home_team_id=12, away_team_id=51),
+        NS(competition_id=3, competition_name=None, home_team_id=52, away_team_id=13),
+        NS(competition_id=4, competition_name=None, home_team_id=14, away_team_id=53),
+    ]
+    names = {
+        1: "Example League",
+        5: "Example Reserve League",
+        2: "Example Pro League u21",
+        3: "Example FA Youth Cup",
+        4: "Friendly",
+    }
+    teams = team_names(club, team_competitions(NS(fixtures=lambda: fixtures), names))
+    assert teams == {
+        10: (0, "First team"),
+        11: (1, "Reserves"),
+        12: (2, "Under-21s"),
+        13: (3, "Youth team"),
+        14: (4, "Team 5"),
+    }  # friendlies don't name a team
+
+
+def test_age_groups_come_from_any_u_number_oldest_first():
+    club = NS(teams=[NS(team_id=1, slot=0, is_affiliate=False), NS(team_id=2, slot=1, is_affiliate=False)])
+    plays = {2: {"Example U20 Division A", "Example U18 Cup"}}
+    assert team_names(club, plays)[2] == (1, "Under-20s")

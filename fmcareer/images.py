@@ -221,7 +221,7 @@ def wanted_images(data: Record) -> set[ImageKey]:
     if m.get("person_id"):
         want.add(("person", m["person_id"]))
     today = data.get("club_today") or {}
-    want.update(("person", p["person_id"]) for p in today.get("squad", []))
+    want.update(("person", p["person_id"]) for p in today.get("squad", []) if p.get("person_id") is not None)
     live = today.get("live_table") or {}
     want.update(("club", r["club_uid"]) for r in live.get("rows", []) if r.get("club_uid") is not None)
     if live.get("competition_db"):

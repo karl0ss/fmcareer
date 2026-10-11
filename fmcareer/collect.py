@@ -11,6 +11,7 @@ import collections
 import csv
 import datetime as dt
 import os
+import re
 import unicodedata
 import warnings
 
@@ -877,6 +878,47 @@ def career_record(c: Career) -> Record | None:
     )
 
 
+FRIENDLIES = ("Friendly", "Testimonial")
+
+
+def team_competitions(s: Save, comp_name: dict[int | None, str | None]) -> dict[int, set[str]]:
+    """{team id: names of the competitive competitions its fixtures are in} for every team."""
+    plays: dict[int, set[str]] = collections.defaultdict(set)
+    for f in s.fixtures():
+        name = comp_name.get(f.competition_id) or f.competition_name or ""
+        if name and not any(w in name for w in FRIENDLIES):
+            plays[f.home_team_id].add(name)
+            plays[f.away_team_id].add(name)
+    return plays
+
+
+def team_names(club: fmsave.Club, plays: dict[int, set[str]]) -> dict[int, tuple[int, str]]:
+    """{team id: (slot, name)} for a club's own teams, named by what they play.
+
+    The save numbers a club's teams but doesn't say which is the reserve or youth side, so
+    each team is named from the competitions it plays (`team_competitions`): slot 0 is the
+    first team; an age-group competition (U18, U19, U21, U23, any case) names it after the
+    oldest group it plays in, a youth competition without an age makes it the youth team,
+    and other competitive football the reserves. A team with no competitive
+    fixtures is the reserves when it is the second slot, else just "Team <n>".
+    """
+
+    def name_of(slot: int, comps: set[str]) -> str:
+        text = " ".join(comps)
+        if slot == 0:
+            return "First team"
+        ages = [int(n) for n in re.findall(r"\bU-?(\d{2})\b", text, re.IGNORECASE) if 14 <= int(n) <= 23]
+        if ages:  # the oldest age group it plays in (an under-19 side may enter an under-18 cup)
+            return f"Under-{max(ages)}s"
+        if "youth" in text.lower():
+            return "Youth team"
+        if comps or slot == 1:
+            return "Reserves"
+        return f"Team {slot + 1}"
+
+    return {t.team_id: (t.slot, name_of(t.slot, plays.get(t.team_id, set()))) for t in club.teams if not t.is_affiliate}
+
+
 def _label(coded: object) -> str | None:
     """A CodedValue's label as words, or None for an unknown code."""
     if coded is None:
@@ -912,6 +954,7 @@ def club_now(
         if x.club_uid == club_uid and x.team_id == first_team
     ]
     contracts = {c.player_uid: c for c in s.contracts() if c.club_uid == club_uid}
+    teams = team_names(club, team_competitions(s, comp_name))
     squad = []
     for uid, p in players.items():
         if p.club_uid != club_uid:
@@ -932,9 +975,12 @@ def club_now(
                 joined=p.club_join_date.isoformat() if p.club_join_date else None,
                 on_loan=bool(p.on_loan),
                 first_team=p.team_id == first_team,
+                # the team at this club he plays for; players out on loan elsewhere get their own group
+                team=teams[p.team_id][1] if p.team_id in teams else "Out on loan",
+                team_order=teams[p.team_id][0] if p.team_id in teams else 99,
             )
         )
-    squad.sort(key=lambda x: (not x["first_team"], -(x["ability"] or 0)))
+    squad.sort(key=lambda x: (x["team_order"], -(x["ability"] or 0)))
     # the live table of the league the first team plays in
     table = None
     for lt in s.league_tables():

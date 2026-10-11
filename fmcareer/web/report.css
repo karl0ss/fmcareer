@@ -122,6 +122,9 @@ a.button:hover { text-decoration: none; filter: brightness(1.1); }
   margin-bottom: -1px; white-space: nowrap; }
 .tabs a:hover { text-decoration: none; color: var(--text); }
 .tabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs.sub { border-bottom: 0; margin: 12px 0 10px; gap: 6px; }
+.tabs.sub a { font-size: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; margin: 0; }
+.tabs.sub a.on { background: var(--accent-soft); border-color: var(--accent); }
 .count { font: 500 12px "Barlow", system-ui, sans-serif; color: var(--text-3); background: var(--surface-2);
   border-radius: 999px; padding: 1px 7px; margin-left: 4px; vertical-align: 2px; }
 /* folding sections (transfers by season) */

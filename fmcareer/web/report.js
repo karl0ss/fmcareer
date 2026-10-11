@@ -154,7 +154,7 @@ function route() {
   const owner = {season: 'seasons', player: 'players'}[page] || page;  // report/<season> belongs to report
   if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
-  ({me: pageMe, report: () => pageReport(arg), seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
+  ({me: pageMe, report: () => pageReport(arg), seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg, sub), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
   // long tables scroll inside their own box (headings stay put), so pages stay short
   view.querySelectorAll('.scroll').forEach(box => {
     const rows = box.querySelectorAll('tbody tr').length;
@@ -522,7 +522,27 @@ function balanceChart(H) {
   s += `<polyline points="${H.map((h, i) => x(i) + ',' + y(h.balance)).join(' ')}" fill="none" stroke="var(--up)" stroke-width="2"/>`;
   return s + '</svg>';
 }
-function pageClub(tab = 'overview') {
+// the club's squad, one sub-tab per team (first team, reserves, under-21s, youth, out on loan)
+const teamSlug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+function squadTabs(T, team, money) {
+  const groups = [];
+  T.squad.forEach(p => {
+    const name = p.team || 'Squad';
+    let g = groups.find(x => x.name === name);
+    if (!g) groups.push(g = {name, order: p.team_order ?? 0, players: []});
+    g.players.push(p);
+  });
+  groups.sort((a, b) => a.order - b.order);
+  const cur = groups.find(g => teamSlug(g.name) === team) || groups[0];
+  if (!cur) return '<p class="muted">No players.</p>';
+  return `${groups.length > 1 ? tabBar('club/squad', groups.map(g => [teamSlug(g.name), `${esc(g.name)} <span class="count">${g.players.length}</span>`]), teamSlug(cur.name)).replace('class="tabs"', 'class="tabs sub"') : ''}
+    <div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n o">Potential</th><th class="n">Value</th><th class="n o">Wage p/w</th><th class="o">Contract</th><th class="o">Status</th></tr></thead><tbody>
+      ${cur.players.map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
+        <td class="n">${num(p.ability)}</td><td class="n o">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n o">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td class="o">${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted o">${esc(p.status || '')}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save. Teams are named from the competitions they play in.</p>`;
+}
+function pageClub(tab = 'overview', team) {
   const T = D.club_today; if (!T) { pageMe(); return; }
   const F = T.finances, live = T.live_table;
   const money = n => n == null ? '–' : moneyShort(n);
@@ -549,11 +569,7 @@ function pageClub(tab = 'overview') {
     <div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n o">GF</th><th class="n o">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
       ${live.rows.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${crest(t.club_uid, t.club)}${esc(t.club || '?')}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n o">${t.goals_for}</td><td class="n o">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
     </tbody></table></div>` : ''}
-    ${tab === 'squad' ? `<div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n o">Potential</th><th class="n">Value</th><th class="n o">Wage p/w</th><th class="o">Contract</th><th class="o">Status</th></tr></thead><tbody>
-      ${T.squad.map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}${p.first_team ? '' : '<span class="badge">Other team</span>'}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
-        <td class="n">${num(p.ability)}</td><td class="n o">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n o">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td class="o">${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted o">${esc(p.status || '')}</td></tr>`).join('')}
-    </tbody></table></div>
-    <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save.</p>` : ''}`;
+    ${tab === 'squad' ? squadTabs(T, team, money) : ''}`;
 }
 
 // ---- page: all players

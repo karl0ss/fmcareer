@@ -92,7 +92,8 @@ PAGES = {
     "transfers": ["Every move", "Show:", "Sam Striker"],
     "club": ["Example Park", "−£250k", "Balanced 4-4-2", "League table"],
     "club/table": ["live table", "Big City", "Example Town"],
-    "club/squad": ["Gary Keeper", "Regular starter"],
+    "club/squad": ["Gary Keeper", "Regular starter", "First team", "Under-18s"],
+    "club/squad/under-18s": ["Young Prospect", "Youngster"],
 }
 
 
@@ -238,3 +239,11 @@ def test_long_tables_scroll_in_their_own_box(tmp_path, sample):
     sample["squad_stats"]["2032/33"] = [dict(row, name=f"Player {i}", person_id=None) for i in range(20)]
     long = view_of(dom(tmp_path, render(sample), "season/2032-33/squad"))
     assert 'class="card scroll tall"' in long
+
+
+@needs_chrome
+def test_squad_is_split_by_team(tmp_path, sample):
+    first = view_of(dom(tmp_path, render(sample), "club/squad"))
+    assert "Gary Keeper" in first and "Young Prospect" not in first
+    youth = view_of(dom(tmp_path, render(sample), "club/squad/under-18s"))
+    assert "Young Prospect" in youth and "Gary Keeper" not in youth
