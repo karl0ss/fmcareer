@@ -519,6 +519,7 @@ button:disabled { opacity: .45; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .prog.run { animation: none; } }
 .err { color: var(--down); margin-top: 8px; } .ok { color: var(--up); }
 .muted { color: var(--text-3); } a { color: var(--accent); }
+.group { display: block; font: 600 17px var(--head); margin-bottom: 6px; }
 footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
 @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
@@ -563,8 +564,9 @@ footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
     <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your graphics packs and the game</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
   </div>
 
-  <h2><span class="n">5</span>AI writing <span class="muted" style="font: 500 15px var(--head)">optional</span></h2>
+  <h2><span class="n">5</span>Options</h2>
   <div class="card">
+    <b class="group">AI writing</b>
     <label><input type="checkbox" id="aiOn"> Write the season summaries and career introduction with an AI model</label>
     <div class="row" style="margin-top:12px">
       <div><label class="f">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
