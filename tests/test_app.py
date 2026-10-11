@@ -196,3 +196,17 @@ def test_cache_keeps_only_the_newest_entries(monkeypatch, tmp_path):
         time.sleep(0.01)
     assert sorted(f.stem for f in app.DATA.glob("*.json")) == ["k2", "k3", "k4"]
     assert app.cache_read("k4") == 4 and app.cache_read("k0") is None
+
+
+def test_version_flag_and_page_show_the_version(server, capsys):
+    import fmcareer
+    with pytest.raises(SystemExit):
+        app.main(["--version"])
+    assert capsys.readouterr().out.strip() == f"fmcareer {fmcareer.__version__}"
+    assert f"v{fmcareer.__version__}".encode() in call(server[0] + "/")[1]
+
+
+def test_a_second_start_hands_over_to_the_running_app(server, capsys):
+    port = server[0].rsplit(":", 1)[1]
+    app.main(["--no-browser", "--port", port])  # returns instead of failing on the busy port
+    assert "in use" in capsys.readouterr().out

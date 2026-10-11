@@ -1,0 +1,86 @@
+name: Release
+
+# Push a tag matching the version in fmcareer/__init__.py to publish a release:
+#   git tag v0.0.2 && git push origin v0.0.2
+# Run it by hand (Actions > Release > Run workflow) to build the exe without releasing.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ".[images,dev]"
+      - run: python -m pytest -q
+
+  windows-exe:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ".[images,build]"
+      - name: Version matches the tag
+        id: version
+        shell: bash
+        run: |
+          version=$(python -c "import fmcareer; print(fmcareer.__version__)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match fmcareer.__version__ $version"; exit 1
+          fi
+      - run: python packaging/build.py
+      - name: Smoke test (the exe starts and serves the app)
+        shell: pwsh
+        run: |
+          & dist\fmcareer.exe --version
+          $p = Start-Process dist\fmcareer.exe -ArgumentList '--no-browser','--port','8765' -PassThru
+          $ok = $false
+          foreach ($i in 1..60) {
+            Start-Sleep -Seconds 2
+            try {
+              $page = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8765/
+              if ($page.Content -match 'v${{ steps.version.outputs.version }}') { $ok = $true; break }
+            } catch {}
+          }
+          $state = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8765/api/state
+          Stop-Process -Id $p.Id -Force
+          if (-not $ok) { throw 'the app did not answer' }
+          if (($state.Content | ConvertFrom-Json).images -ne $true) { throw 'image support is missing from the exe' }
+      - name: Name the exe after the version
+        shell: bash
+        run: mv dist/fmcareer.exe "dist/fmcareer-${{ steps.version.outputs.version }}-windows.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fmcareer-windows
+          path: dist/*.exe
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: windows-exe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fmcareer-windows
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "*.exe"
+          generate_release_notes: true
+          body: |
+            Download `fmcareer-*-windows.exe` and double-click it: the app opens in your browser.
+            Leave the black window open while you use it; close it to stop.
+            Windows may warn about an unrecognised app the first time (the exe isn't code-signed):
+            choose "More info" then "Run anyway".

@@ -18,6 +18,7 @@ import uuid
 import webbrowser
 from pathlib import Path
 
+from fmcareer import __version__
 from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
 from fmcareer.render import render
 
@@ -71,13 +72,22 @@ def names_dir():
 # that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
 
 def code_version():
+    """fmcareer's and fmsave's versions, plus a hash of the reading code when it is on disk
+    (a development checkout changes without a new version; the exe has no source files)."""
     import hashlib
     import importlib.util
-    from importlib.metadata import version
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        fmsave_version = version("fmsave")
+    except PackageNotFoundError:
+        fmsave_version = "unknown"
     digest = hashlib.sha256()
     for name in ("fmcareer.collect", "fmcareer.images"):
-        digest.update(Path(importlib.util.find_spec(name).origin).read_bytes())
-    return f"{version('fmsave')}-{digest.hexdigest()[:12]}"
+        try:
+            digest.update(Path(importlib.util.find_spec(name).origin).read_bytes())
+        except (OSError, TypeError):
+            pass
+    return f"{__version__}-{fmsave_version}-{digest.hexdigest()[:12]}"
 
 
 CODE = code_version()
@@ -277,11 +287,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            return self.send(200, PAGE, "text/html")
+            return self.send(200, PAGE.replace("__VERSION__", __version__), "text/html")
         if self.path == "/api/state":
             settings = load_settings()
             return self.send(200, dict(settings=settings, saves=list_saves(settings["saves_dir"]),
-                                       reports=list_reports(), names=names_dir(),
+                                       reports=list_reports(), reports_dir=str(REPORTS), names=names_dir(),
                                        images=images_available(), defaults=DEFAULT_OPTIONS))
         if self.path.startswith("/api/job/"):
             job = JOBS.get(self.path.rsplit("/", 1)[-1])
@@ -333,10 +343,18 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    ap.add_argument("--version", action="version", version=f"fmcareer {__version__}")
     a = ap.parse_args(argv)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
     url = f"http://127.0.0.1:{a.port}/"
-    print(f"fmcareer is running at {url}  (Ctrl+C to stop)")
+    try:
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+    except OSError:  # most likely fmcareer is already running: show that one
+        print(f"Port {a.port} is in use; opening {url} (start with --port to use another).")
+        if not a.no_browser:
+            webbrowser.open(url)
+        return
+    print(f"fmcareer {__version__} is running at {url}")
+    print("Leave this window open while you use it; close it (or press Ctrl+C) to stop.")
     if not a.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
@@ -401,7 +419,7 @@ button:disabled { opacity: .45; cursor: default; }
 </style>
 </head>
 <body>
-<div class="bar"><div class="in"><span class="brand">fmcareer</span><span class="brand"><span>career history reports from Football Manager 26 saves</span></span></div></div>
+<div class="bar"><div class="in"><span class="brand">fmcareer</span><span class="brand"><span>career history reports from Football Manager 26 saves · v__VERSION__</span></span></div></div>
 <div class="wrap">
   <h2><span class="n">1</span>Folders</h2>
   <div class="card">
@@ -507,7 +525,8 @@ function drawOptions() {
   $('imagesNote').textContent = !state.images ? 'Needs the images extra: pip install "fmcareer[images]".' : !state.settings.install ? 'Set the install folder first.' : '';
 }
 function drawReports() {
-  $('reports').innerHTML = state.reports.length ? '<b class="muted">Reports</b>' + state.reports.map(r => `<div class="item"><a href="/reports/${encodeURIComponent(r.file)}" target="_blank">${esc(r.file.replace(/\.html$/, '').replace(/-/g, ' '))}</a><span class="m">${fmtTime(r.modified)} · ${fmtSize(r.size)}</span></div>`).join('') : '';
+  $('reports').innerHTML = state.reports.length ? '<b class="muted">Reports</b>' + state.reports.map(r => `<div class="item"><a href="/reports/${encodeURIComponent(r.file)}" target="_blank">${esc(r.file.replace(/\.html$/, '').replace(/-/g, ' '))}</a><span class="m">${fmtTime(r.modified)} · ${fmtSize(r.size)} · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a></span></div>`).join('')
+    + `<p class="muted" style="font-size:13px">Each report is one file with its images inside: it opens in any browser, offline, so you can keep it, copy it or send it. They are saved in ${esc(state.reports_dir)}.</p>` : '';
 }
 function drawNames() {
   $('namesState').innerHTML = state.names ? '<span class="ok">Competition and award names are ready.</span>' : 'Names not read yet: competitions and awards will show as numbers.';
@@ -551,7 +570,7 @@ $('generate').onclick = async () => {
       show: Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])),
       images: $('images').checked, fresh: $('fresh').checked});
     const r = await follow(job, $('genLog'));
-    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a>`;
+    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
   } catch (e) { $('genState').innerHTML = `<span class="err">${esc(e.message)}</span>`; } finally { $('generate').disabled = chosenManager == null; }

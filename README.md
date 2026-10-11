@@ -15,7 +15,18 @@ Everything is read from the save itself through
 [fmsave](https://github.com/karl0ss/fmsave) (branch `history-decoders`, which adds the
 history decoders this tool needs). Nothing is scraped from screenshots or the game UI.
 
-## Setup
+## Download (Windows)
+
+Get `fmcareer-<version>-windows.exe` from the
+[latest release](https://github.com/karl0ss/fmcareer/releases/latest) and double-click it.
+The app opens in your browser; leave the black window open while you use it and close it
+to stop. Nothing to install. Windows may warn about an unrecognised app the first time
+(the exe isn't code-signed): choose "More info", then "Run anyway".
+
+Reports are single HTML files with their images inside, so they open in any browser,
+offline, and can be kept, copied or sent on. The app has a Download link for each.
+
+## Install with Python (any system)
 
 Python 3.12 or newer.
 
@@ -101,6 +112,18 @@ scaled down, in the HTML. Nothing from the game is stored in this repository.
   *Partial*.
 - **Transfer fees**: from each player's statistics history, plus the human manager's
   event log.
+
+## Releases
+
+The version lives in `fmcareer/__init__.py`. To publish one, bump it, commit, then tag:
+
+```sh
+git tag v0.0.2 && git push origin v0.0.2
+```
+
+GitHub Actions runs the tests, builds the exe on Windows with PyInstaller
+(`packaging/build.py`), checks that it starts and serves the app, and attaches it to a
+release. A local build: `pip install ".[images,build]"` then `python packaging/build.py`.
 
 ## Tests
 
