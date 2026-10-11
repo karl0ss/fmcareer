@@ -9,7 +9,14 @@ manager's name, and it builds one self-contained HTML page with:
 - **A review of every season**: written summary, the final league table, cup runs,
   honours and awards, full squad statistics, the season's best 18, transfers with fees
   and notable results.
-- **Honours & cups** and **Transfers** pages covering the whole career.
+- **Players** and **Records**: everyone who played under the manager, with a page per
+  player, and the best and biggest of the era.
+- **Honours & cups**, **Transfers** and **Club today** (finances, squad, tactics and the
+  live league table).
+
+Season summaries are written from the data, or optionally by an AI model you choose.
+Club badges, faces and competition logos come from the game and from any logo or face
+packs you've installed.
 
 Everything is read from the save itself through
 [fmsave](https://github.com/karl0ss/fmsave) (branch `history-decoders`, which adds the
@@ -54,15 +61,21 @@ This writes `names/competition_names.csv` and `names/award_names.csv`.
 opens a page in your browser (served only on your own machine, at
 `http://127.0.0.1:8765/`) where you:
 
-1. set your saves folder and FM26 install folder (it guesses the usual Steam and
-   Documents locations) and read the competition/award names from the game once;
+1. set your saves folder, FM26 install folder and graphics folder (it finds the usual
+   Steam and Documents locations, and the graphics folder next to the saves) and read
+   the competition/award names from the game once;
 2. pick a save;
 3. load its managers and pick one: the save's human managers (tick "Show all managers"
    for every manager in the save, searchable by name or club);
 4. tick the pages to include, which kinds of move the transfer lists show at first
-   (loans, trials, youth intake, released players, staff), and whether to embed images;
-5. generate: progress shows as it goes, and the report opens in a new tab. Reports are
-   kept in `~/.cache/fmcareer/reports`.
+   (loans, trials, youth intake, released players, staff), whether to embed images, and
+   optionally set up AI-written summaries (below);
+5. generate: a progress bar counts the steps, and the report opens in a new tab with a
+   Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
+
+The Windows exe is this same app. On Windows `~` is your user folder
+(`C:\Users\<you>`), so settings are in `C:\Users\<you>\.config\fmcareer` and reports in
+`C:\Users\<you>\.cache\fmcareer\reports`.
 
 Settings live in `~/.config/fmcareer/settings.json`. What the app reads from a save
 (its managers, each manager's career, and badges and photos from the install) is kept in
@@ -79,14 +92,15 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
 - The manager is matched by full, first + last, or common name, ignoring case and
   accents. Any manager in the save works, not only the human one.
 - `--install "/path/to/Football Manager 26"` embeds club badges, real players' photos
-  and competition logos from your own install. It needs the images extra:
+  and competition logos from your own install, and `--graphics "/path/to/graphics"` adds
+  your logo and face packs (they win over the game's images). Both need the images extra:
   `pip install "fmcareer[images] @ git+https://github.com/karl0ss/fmcareer.git"`. Clubs and
-  players without licensed artwork (most non-league clubs, every regen) get a lettered
-  crest or no photo.
+  people with no picture anywhere get a lettered crest or no photo.
 - `--sections me,seasons,players,records,honours,transfers,club` picks the pages (default:
   all). `--show loans,trials,youth,released,staff` picks which kinds of move the transfer
   lists show at first (default: released); viewers can switch them in the report.
 - `--json career_data.json` also writes the collected data.
+- AI-written summaries are set up in the app; the command line uses the plain ones.
 - A large save takes a few minutes and about 3 GB of memory.
 
 ## AI-written summaries (optional)
@@ -140,7 +154,7 @@ retro badge sets and small sizes are skipped.
 The version lives in `fmcareer/__init__.py`. To publish one, bump it, commit, then tag:
 
 ```sh
-git tag v0.0.2 && git push origin v0.0.2
+git tag v0.0.4 && git push origin v0.0.4
 ```
 
 GitHub Actions runs the tests, builds the exe on Windows with PyInstaller
@@ -164,4 +178,9 @@ skipped when no Chromium is found; set `FMCAREER_CHROME` to point at one.
   before the game started) are not stored, so they don't appear.
 - Seasons are July–June. A spell that started mid-season counts that whole season.
 - The event log (fees, notable matches) exists only for human managers.
+- Faces: the game draws its own faces for people without a photo (most generated
+  players, and your manager) and doesn't keep them as pictures, so those show no face
+  unless a face pack covers them. A manager with no face shows the club's badge.
+- AI summaries are only as good as the model; the number check catches invented
+  figures, not every wrong word, and readers can always switch to the plain summary.
 - Checked against one long career save so far. Reports from other saves are welcome.
