@@ -141,7 +141,7 @@ AI_TEXT = {
 def test_the_overview_opens_with_the_career_feature(tmp_path, sample):
     sample["ai"] = AI_TEXT
     view = view_of(dom(tmp_path, render(sample), "me"))
-    assert "An invented-for-tests feature." in view and "Written by test-model" in view
+    assert "An invented-for-tests feature." in view and "Written by" not in view  # no byline or switch
     assert view.find("An invented-for-tests") < view.find("League record")
     own = re.sub(r"</?a[^>]*>", "", view_of(dom(tmp_path, render(dict(sample, ai=None)), "me")))
     assert "Alex Example: 3 seasons, 1 promotion and 1 title" in own and "2 clubs so far" in own

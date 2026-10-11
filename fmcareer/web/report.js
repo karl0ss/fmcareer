@@ -1,18 +1,9 @@
 const D = JSON.parse(document.getElementById('data').textContent);
 const M = D.manager, L = D.league;
 const OPT = D.options || {};
-// the Report page's articles: the model's where the report has them (readers can switch to the
-// report's own), else written here from the same data
+// the articles (career feature, season reviews): the model's where it wrote them, else the
+// report's own, written here from the same data
 const AI = D.ai || null;
-let USE_AI = true;
-try { USE_AI = localStorage.getItem('fmcareer-ai') !== 'off'; } catch (e) {}
-const aiOn = () => AI && USE_AI;
-document.addEventListener('click', e => {
-  if (!e.target.closest || !e.target.closest('[data-ai-toggle]')) return;
-  e.preventDefault(); USE_AI = !USE_AI;
-  try { localStorage.setItem('fmcareer-ai', USE_AI ? 'on' : 'off'); } catch (err) {}
-  const y = window.scrollY; route(); window.scrollTo(0, y);
-});
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ord = n => { const s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 const slug = season => season.replace('/', '-');
@@ -266,14 +257,11 @@ function careerArticle() {
 // the articles: the model's where the report has them and the reader hasn't switched them off,
 // else the report's own (the headline too, when the model's first line wasn't one)
 function articleFrom(ai, own) {
-  if (!(aiOn() && ai)) return {...own(), model: false};
+  if (!(AI && ai)) return {...own(), model: false};
   return {headline: ai.headline ? esc(ai.headline) : own().headline, paragraphs: ai.paragraphs.map(p => esc(p)), model: true};
 }
 const careerFeature = () => articleFrom(AI && AI.career, careerArticle);
 const seasonArticle = r => articleFrom(AI && AI.seasons[r.season], () => ({headline: seasonHeadline(r), paragraphs: seasonStory(r)}));
-const byline = written => AI
-  ? `<p class="note byline">${written ? `Written by ${esc(AI.model)} from the facts in the save.` : 'Written from the facts in the save.'} <a href="#" data-ai-toggle>${aiOn() ? 'Show the report\'s own articles' : 'Show the AI-written articles'}</a></p>`
-  : '<p class="note byline">Written from the facts in the save.</p>';
 const outcome = r => [r.champion && '<span class="badge gold">Champions</span>', r.promoted && '<span class="badge up">Promoted</span>',
   r.relegated && '<span class="badge down">Relegated</span>'].filter(Boolean).join('').replace('class="badge', 'class="badge first');
 
@@ -301,7 +289,7 @@ function pageMe() {
         ${M.contract_end ? `<span>Contract</span><b>${M.wage ? money(M.wage) + ' p/w, ' : ''}until ${fmtDate(M.contract_end)}</b>` : ''}
       </div>
     </div>
-    ${(() => { const c = careerFeature(); return `<article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>${byline(c.model)}`; })()}
+    ${(() => { const c = careerFeature(); return `<article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>`; })()}
     <h2>League record</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${L.length}</div><div class="k">Seasons completed</div><div class="s">${totals.played} league games</div></div>
@@ -380,7 +368,7 @@ function pageSeason(arg, tab = 'summary') {
   const summary = () => {
     const nm = (D.notable_matches || []).filter(m => m.season === season);
     return `
-    ${(() => { const a = seasonArticle(r); return `<article class="card story news" style="margin-top:0"><h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>${byline(a.model)}`; })()}
+    ${(() => { const a = seasonArticle(r); return `<article class="card story news" style="margin-top:0"><h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>`; })()}
     <h2>The numbers</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams}</div></div>

@@ -122,8 +122,7 @@ rest carry on; if the endpoint fails, or the model manages none of the first two
 the report keeps its own articles, and the app says how many the model wrote. Reasoning
 models are asked to think briefly (`reasoning_effort: low`, dropped for endpoints that
 refuse it). Articles already written for the same facts and model are reused, so
-regenerating is quick. Readers can switch between the AI-written and the report's own
-articles. The facts, including names from your save, are sent to the endpoint you choose;
+regenerating is quick. The facts, including names from your save, are sent to the endpoint you choose;
 the token stays in your local settings and is never shown again. The rest of the report always
 uses the report's own text.
 
@@ -194,5 +193,5 @@ skipped when no Chromium is found; set `FMCAREER_CHROME` to point at one.
   players, and your manager) and doesn't keep them as pictures, so those show no face
   unless a face pack covers them. A manager with no face shows the club's badge.
 - AI articles are only as good as the model; the number check catches invented
-  figures, not every wrong word, and readers can always switch to the report's own articles.
+  figures, not every wrong word; a piece that fails it keeps the report's own article.
 - Checked against one long career save so far. Reports from other saves are welcome.
