@@ -171,3 +171,15 @@ def test_pages_are_whole_documents_with_nothing_left_to_fill(sample):
         assert not re.search(
             r"__(STYLE|SCRIPT|TITLE|FOOTER|DATA|VERSION)__", text.replace("Alex __FOOTER__ Example", "")
         )
+
+
+def test_front_end_files_are_committed():
+    """Every page file must be in git (an ignore rule once kept the HTML shells out)."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    if not (root / ".git").exists():
+        pytest.skip("not a git checkout")
+    tracked = subprocess.run(["git", "ls-files", "fmcareer/web"], cwd=root, capture_output=True, text=True).stdout
+    for name in ("report.html", "report.css", "report.js", "app.html", "app.css", "app.js"):
+        assert f"fmcareer/web/{name}" in tracked, f"{name} is not committed"
