@@ -6,6 +6,7 @@ here is specific to one save: the manager is found by name, his clubs from what 
 save keeps about his spells, and league levels are inferred from how clubs move
 between competitions.
 """
+
 import collections
 import csv
 import datetime as dt
@@ -18,8 +19,18 @@ import fmsave
 warnings.simplefilter("ignore")
 
 CUP_METHOD = {1: "", 2: "after extra time", 3: "on penalties", 7: "over two legs"}
-MOVE_TYPE = {1: "Transfer", 3: "Loan", 4: "Free", 5: "Signing", 6: "Staff joined", 7: "Trial",
-             9: "Staff left", 14: "Youth intake", 24: "Released", 37: "Retired"}
+MOVE_TYPE = {
+    1: "Transfer",
+    3: "Loan",
+    4: "Free",
+    5: "Signing",
+    6: "Staff joined",
+    7: "Trial",
+    9: "Staff left",
+    14: "Youth intake",
+    24: "Released",
+    37: "Retired",
+}
 STAFF_TYPES = {6, 9}
 PLACING = {0: "Winner", 1: "Runner-up", 2: "Third"}
 
@@ -46,8 +57,12 @@ def find_manager(s, manager_name):
     want = _norm(manager_name)
     found = []
     for x in s.staff():
-        names = {_norm(x.name), _norm(x.full_name), _norm(x.common_name),
-                 _norm(f"{x.first_name or ''} {x.last_name or ''}")}
+        names = {
+            _norm(x.name),
+            _norm(x.full_name),
+            _norm(x.common_name),
+            _norm(f"{x.first_name or ''} {x.last_name or ''}"),
+        }
         if want in names:
             found.append(x)
     if not found:
@@ -76,8 +91,12 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
             club_uid = club_by_team.get(sp.team_id)
             if club_uid is None:  # a national team, or a team the save does not name
                 continue
-            if stints and stints[-1]["club_uid"] == club_uid and stints[-1]["end"] is not None and (
-                    sp.start_date is None or (sp.start_date - stints[-1]["end"]).days <= 1):
+            if (
+                stints
+                and stints[-1]["club_uid"] == club_uid
+                and stints[-1]["end"] is not None
+                and (sp.start_date is None or (sp.start_date - stints[-1]["end"]).days <= 1)
+            ):
                 stints[-1]["end"] = sp.end_date
                 continue
             stints.append(dict(club_uid=club_uid, start=sp.start_date, end=sp.end_date))
@@ -109,7 +128,7 @@ def manager_stints(s, me, record, events, club_by_team, game_date):
     for club_uid, (start, end) in spans.items():
         is_current = club_uid == current or (end is not None and game_date and end >= game_date)
         stints.append(dict(club_uid=club_uid, start=start, end=None if is_current else end))
-    stints.sort(key=lambda x: (x["start"] or dt.date.max))
+    stints.sort(key=lambda x: x["start"] or dt.date.max)
     return stints
 
 
@@ -147,7 +166,7 @@ def league_levels(rows):
         if comp in seen:  # a cycle the votes did not settle
             return 1
         ups = above.get(comp, ())
-        level[comp] = 1 + max((depth(u, seen + (comp,)) for u in ups), default=0)
+        level[comp] = 1 + max((depth(u, (*seen, comp)) for u in ups), default=0)
         return level[comp]
 
     comps = {r.competition_id for r in rows}
@@ -230,9 +249,21 @@ def list_managers(s, progress=lambda text: None, everyone=False):
             x = by_unique.get(h.unique_id) if h else None
             if x is not None and x.uid not in found:
                 found[x.uid] = (x, rec)
-    out = [dict(staff_uid=x.uid, name=x.name, club=x.club_name, games=rec.games, wins=rec.wins,
-                draws=rec.draws, losses=rec.losses, club_jobs=rec.club_jobs, human=x.is_human_manager)
-           for x, rec in found.values() if x.name and rec.games]
+    out = [
+        dict(
+            staff_uid=x.uid,
+            name=x.name,
+            club=x.club_name,
+            games=rec.games,
+            wins=rec.wins,
+            draws=rec.draws,
+            losses=rec.losses,
+            club_jobs=rec.club_jobs,
+            human=x.is_human_manager,
+        )
+        for x, rec in found.values()
+        if x.name and rec.games
+    ]
     out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
     return out
 
@@ -241,8 +272,7 @@ COLLECT_STEPS = 7  # progress steps collect reports; tests check this against th
 SIGNING_TYPES = ("Transfer", "Free", "Signing")
 
 
-def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, options=None,
-            progress=lambda text: None):
+def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, options=None, progress=lambda text: None):
     """The whole career of one manager, as a JSON-ready dict.
 
     The manager is `staff_uid` when given, else found by `manager_name`. `save` reuses an
@@ -271,15 +301,30 @@ def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, op
         club_today = club_now(s, c.clubs, c.current["club_uid"], c.players, c.comp_name, c.comp_db)
     return dict(
         manager=c.manager_summary(),
-        stints=[dict(club=st["club"], club_uid=st["club_uid"],
-                     start=st["start"].isoformat() if st["start"] else None,
-                     end=st["end"].isoformat() if st["end"] else None) for st in c.stints],
-        tables=tables, career=career, squad_stats=squad_stats, notable_matches=notable,
-        league=league, levels=levels, honours=honours, cups=cups, awards=awards,
-        best_eleven=best_eleven, transfers=moves,
+        stints=[
+            dict(
+                club=st["club"],
+                club_uid=st["club_uid"],
+                start=st["start"].isoformat() if st["start"] else None,
+                end=st["end"].isoformat() if st["end"] else None,
+            )
+            for st in c.stints
+        ],
+        tables=tables,
+        career=career,
+        squad_stats=squad_stats,
+        notable_matches=notable,
+        league=league,
+        levels=levels,
+        honours=honours,
+        cups=cups,
+        awards=awards,
+        best_eleven=best_eleven,
+        transfers=moves,
         players_bought=sum(1 for m in moves if m["kind"] == "signing"),
         squad=c.current_squad(),
-        club_today=club_today if "club" in opts["sections"] else None, options=opts,
+        club_today=club_today if "club" in opts["sections"] else None,
+        options=opts,
     )
 
 
@@ -371,19 +416,31 @@ class Career:
         return self.retired.get(ref) or fallback or f"Unknown player ({ref})"
 
     def current_squad(self):
-        return sorted((dict(name=p.name, age=p.age, person_id=p.unique_id or u + 1)
-                       for u, p in self.players.items() if u in self.current_uids), key=lambda x: x["name"])
+        return sorted(
+            (
+                dict(name=p.name, age=p.age, person_id=p.unique_id or u + 1)
+                for u, p in self.players.items()
+                if u in self.current_uids
+            ),
+            key=lambda x: x["name"],
+        )
 
     def manager_summary(self):
         me, current = self.me, self.current
-        return dict(name=self.manager_name, club=current["club"] if current else None,
-                    spell_start=current["start"].year if current and current["start"] else None,
-                    game_date=self.game_date.isoformat() if self.game_date else "",
-                    birth_date=me.birth_date.isoformat() if me.birth_date else None,
-                    age=me.age, wage=me.wage if current else None,
-                    contract_start=me.contract_start.isoformat() if current and me.contract_start else None,
-                    contract_end=me.contract_end.isoformat() if current and me.contract_end else None,
-                    human=me.is_human_manager, person_id=me.unique_id or self.staff_uid + 1, nation_id=me.nation_id)
+        return dict(
+            name=self.manager_name,
+            club=current["club"] if current else None,
+            spell_start=current["start"].year if current and current["start"] else None,
+            game_date=self.game_date.isoformat() if self.game_date else "",
+            birth_date=me.birth_date.isoformat() if me.birth_date else None,
+            age=me.age,
+            wage=me.wage if current else None,
+            contract_start=me.contract_start.isoformat() if current and me.contract_start else None,
+            contract_end=me.contract_end.isoformat() if current and me.contract_end else None,
+            human=me.is_human_manager,
+            person_id=me.unique_id or self.staff_uid + 1,
+            nation_id=me.nation_id,
+        )
 
 
 def league_section(c):
@@ -403,14 +460,27 @@ def league_section(c):
         for r in history:
             if r.imported or r.games_played == 255 or not c.in_career(club_uid, r.season_year):
                 continue
-            league.append(dict(season=season_label(r.season_year), end_year=r.season_year,
-                               club=st["club"], club_uid=club_uid,
-                               competition=c.comp_name.get(r.competition_id) or f"Competition {r.competition_id}",
-                               competition_id=r.competition_id, competition_db=c.comp_db.get(r.competition_id),
-                               tier=level.get(r.competition_id),
-                               position=r.position + 1, teams=r.total_teams,
-                               played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
-                               goals_for=r.goals_for, goals_against=r.goals_against, points=r.points))
+            league.append(
+                dict(
+                    season=season_label(r.season_year),
+                    end_year=r.season_year,
+                    club=st["club"],
+                    club_uid=club_uid,
+                    competition=c.comp_name.get(r.competition_id) or f"Competition {r.competition_id}",
+                    competition_id=r.competition_id,
+                    competition_db=c.comp_db.get(r.competition_id),
+                    tier=level.get(r.competition_id),
+                    position=r.position + 1,
+                    teams=r.total_teams,
+                    played=r.games_played,
+                    won=r.wins,
+                    drawn=r.draws,
+                    lost=r.losses,
+                    goals_for=r.goals_for,
+                    goals_against=r.goals_against,
+                    points=r.points,
+                )
+            )
     league.sort(key=lambda r: r["end_year"])
     for i, r in enumerate(league):
         nxt = league[i + 1] if i + 1 < len(league) else None
@@ -431,54 +501,89 @@ def league_section(c):
         lr["rank"] = sum(level_size[x] for x in range(1, lv)) + lr["position"] if lv else None
     tables = {}
     for lr in league:
-        rows = [r for r in s.league_history_table(lr["end_year"], lr["competition_id"])
-                if not r.imported and r.games_played != 255]
+        rows = [
+            r
+            for r in s.league_history_table(lr["end_year"], lr["competition_id"])
+            if not r.imported and r.games_played != 255
+        ]
         mine = club_lists.get(lr["club_uid"])
-        tables[lr["season"]] = [dict(
-            position=r.position + 1, club=r.club_name, club_uid=r.club_uid, me=r.history_index == mine,
-            played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
-            goals_for=r.goals_for, goals_against=r.goals_against, points=r.points)
-            for r in sorted(rows, key=lambda r: r.position)]
+        tables[lr["season"]] = [
+            dict(
+                position=r.position + 1,
+                club=r.club_name,
+                club_uid=r.club_uid,
+                me=r.history_index == mine,
+                played=r.games_played,
+                won=r.wins,
+                drawn=r.draws,
+                lost=r.losses,
+                goals_for=r.goals_for,
+                goals_against=r.goals_against,
+                points=r.points,
+            )
+            for r in sorted(rows, key=lambda r: r.position)
+        ]
     # the levels down to the manager's lowest league, named for the chart's bands
     deepest = max((r["tier"] for r in league if r["tier"]), default=0)
     levels = []
     for lv in range(1, deepest + 1):
         names = collections.Counter(r["competition"] for r in league if r["tier"] == lv)
         if not names:  # a level the manager never played: the competitions the save puts there
-            names = collections.Counter(c.comp_name.get(x) for x, n in level.items()
-                                        if n == lv and x in home and c.comp_name.get(x))
-        levels.append(dict(level=lv, name=names.most_common(1)[0][0] if names else f"Level {lv}",
-                           size=level_size[lv]))
+            names = collections.Counter(
+                c.comp_name.get(x) for x, n in level.items() if n == lv and x in home and c.comp_name.get(x)
+            )
+        levels.append(dict(level=lv, name=names.most_common(1)[0][0] if names else f"Level {lv}", size=level_size[lv]))
     return league, tables, levels
 
 
 def honours_section(c):
     """Trophies, every cup run and the manager's awards."""
     s, clubs = c.s, c.clubs
-    honours = [dict(season=season_label(h.season), end_year=h.season, club=clubs[h.club_uid].name,
-                    competition_db=h.competition_id,
-                    name=c.db_names.get(h.competition_id, f"Competition {h.competition_id}"))
-               for h in sorted(s.career_honours(), key=lambda h: h.season)
-               if h.club_uid in clubs and c.in_career(h.club_uid, h.season)]
+    honours = [
+        dict(
+            season=season_label(h.season),
+            end_year=h.season,
+            club=clubs[h.club_uid].name,
+            competition_db=h.competition_id,
+            name=c.db_names.get(h.competition_id, f"Competition {h.competition_id}"),
+        )
+        for h in sorted(s.career_honours(), key=lambda h: h.season)
+        if h.club_uid in clubs and c.in_career(h.club_uid, h.season)
+    ]
     cups = []
     for st in c.stints:
         for cup in s.club_cup_history(st["club_uid"]):
             if not c.in_career(st["club_uid"], cup.end_year):
                 continue
             name = c.comp_name.get(cup.competition_id) or f"Stage {cup.stage_id}"
-            cups.append(dict(season=season_label(cup.end_year), end_year=cup.end_year, club=st["club"],
-                             competition_db=c.comp_db.get(cup.competition_id),
-                             opponent_uid=c.club_by_team.get(cup.opponent_team_id),
-                             competition=name, youth=any(w in name for w in ("U18", "U19", "U21", "U23")),
-                             won=cup.result == 3, league_stage=cup.result == 0 and cup.opponent_team_id is None,
-                             position=cup.position, opponent=c.teams.get(cup.opponent_team_id),
-                             method=CUP_METHOD.get(cup.method, "")))
-    awards = [dict(season=season_label(a.season_year), end_year=a.season_year,
-                   name=c.award_names.get(a.award_id, f"Award {a.award_id}"),
-                   placing=PLACING.get(a.placing, str(a.placing)), age=a.winner_age,
-                   club=clubs[a.club_uid].name if a.club_uid in clubs else None)
-              for a in sorted(s.career_awards(), key=lambda a: (a.season_year, a.placing))
-              if c.manager_ref is not None and a.winner_id == c.manager_ref]
+            cups.append(
+                dict(
+                    season=season_label(cup.end_year),
+                    end_year=cup.end_year,
+                    club=st["club"],
+                    competition_db=c.comp_db.get(cup.competition_id),
+                    opponent_uid=c.club_by_team.get(cup.opponent_team_id),
+                    competition=name,
+                    youth=any(w in name for w in ("U18", "U19", "U21", "U23")),
+                    won=cup.result == 3,
+                    league_stage=cup.result == 0 and cup.opponent_team_id is None,
+                    position=cup.position,
+                    opponent=c.teams.get(cup.opponent_team_id),
+                    method=CUP_METHOD.get(cup.method, ""),
+                )
+            )
+    awards = [
+        dict(
+            season=season_label(a.season_year),
+            end_year=a.season_year,
+            name=c.award_names.get(a.award_id, f"Award {a.award_id}"),
+            placing=PLACING.get(a.placing, str(a.placing)),
+            age=a.winner_age,
+            club=clubs[a.club_uid].name if a.club_uid in clubs else None,
+        )
+        for a in sorted(s.career_awards(), key=lambda a: (a.season_year, a.placing))
+        if c.manager_ref is not None and a.winner_id == c.manager_ref
+    ]
     return honours, cups, awards
 
 
@@ -488,14 +593,21 @@ def event_log(c):
     for e in c.events:
         if e.event_type == 2 and e.fee and e.player_reference is not None:
             logged_fees.setdefault((e.player_reference, e.from_team_id, e.to_team_id), []).append(
-                (e.effective_date or e.event_date, e.fee))
+                (e.effective_date or e.event_date, e.fee)
+            )
     notable = []
     for e in c.events:
         if e.event_type == 8 and e.goals_for is not None and e.event_date:
-            notable.append(dict(date=e.event_date.isoformat(), season=season_label(season_end_of(e.event_date)),
-                                opponent=c.teams.get(e.opponent_team_id), goals_for=e.goals_for,
-                                goals_against=e.goals_against,
-                                competition=c.comp_name.get(e.competition_id) if e.competition_id is not None else None))
+            notable.append(
+                dict(
+                    date=e.event_date.isoformat(),
+                    season=season_label(season_end_of(e.event_date)),
+                    opponent=c.teams.get(e.opponent_team_id),
+                    goals_for=e.goals_for,
+                    goals_against=e.goals_against,
+                    competition=c.comp_name.get(e.competition_id) if e.competition_id is not None else None,
+                )
+            )
     notable.sort(key=lambda x: x["date"])
     return logged_fees, notable
 
@@ -527,14 +639,24 @@ def transfers_section(c, logged_fees):
             move_type = MOVE_TYPE.get(m.record_type, f"Type {m.record_type}")
             other = m.from_club_name if m.direction == "in" else m.to_club_name
             staff = m.record_type in STAFF_TYPES
-            moves.append(dict(date=m.date.isoformat(), season=season_label(end), end_year=end, club=st["club"],
-                              direction=m.direction, type=move_type, staff=staff,
-                              kind=None if staff else move_kind(m.direction, move_type, other),
-                              fee=m.fee if m.fee else None, _key=(m.player_reference, m.from_team_id, m.to_team_id),
-                              player=c.person(m.player_uid, m.player_reference, m.player_name),
-                              person_id=None if staff else c.person_id(m.player_uid, m.player_reference),
-                              other=other,
-                              other_uid=(m.from_club_uid if m.direction == "in" else m.to_club_uid)))
+            moves.append(
+                dict(
+                    date=m.date.isoformat(),
+                    season=season_label(end),
+                    end_year=end,
+                    club=st["club"],
+                    direction=m.direction,
+                    type=move_type,
+                    staff=staff,
+                    kind=None if staff else move_kind(m.direction, move_type, other),
+                    fee=m.fee if m.fee else None,
+                    _key=(m.player_reference, m.from_team_id, m.to_team_id),
+                    player=c.person(m.player_uid, m.player_reference, m.player_name),
+                    person_id=None if staff else c.person_id(m.player_uid, m.player_reference),
+                    other=other,
+                    other_uid=(m.from_club_uid if m.direction == "in" else m.to_club_uid),
+                )
+            )
         mover_uids |= {m.player_uid for m in club_moves if m.player_uid}
         mover_uids |= {u for u, p in players.items() if p.club_uid == club_uid}
         gone_refs |= {m.player_reference for m in club_moves if m.player_uid is None and m.player_reference}
@@ -558,18 +680,38 @@ def statistics_section(c, mover_uids, gone_refs):
     s, clubs = c.s, c.clubs
     history_rows = list(s.player_season_history(sorted(mover_uids)))
     history_rows += list(s.history_person_season_history(sorted(gone_refs)))
-    team_club = {t.team_id: st["club_uid"] for st in c.stints if st["club_uid"] in clubs
-                 for t in clubs[st["club_uid"]].teams if t.slot == 0}
+    team_club = {
+        t.team_id: st["club_uid"]
+        for st in c.stints
+        if st["club_uid"] in clubs
+        for t in clubs[st["club_uid"]].teams
+        if t.slot == 0
+    }
     best_eleven = _best_eleven(c, history_rows, team_club)
     squad_stats = _squad_stats(c, history_rows, team_club)
     # players whose stats rows are gone (retired, cut to a stub) still have their best-eleven line
     for season, xi in best_eleven.items():
         have = {p["name"] for p in squad_stats.get(season, [])}
-        extra = [dict(name=b["name"], current=b["current"], apps=b["apps"], goals=b["goals"], rating=b["rating"],
-                      person_id=b["person_id"],
-                      starts=None, subs=None, assists=None, minutes=None, pom=None, yellow=None, red=None,
-                      partial=True)
-                 for b in xi if b["name"] not in have and b["apps"]]
+        extra = [
+            dict(
+                name=b["name"],
+                current=b["current"],
+                apps=b["apps"],
+                goals=b["goals"],
+                rating=b["rating"],
+                person_id=b["person_id"],
+                starts=None,
+                subs=None,
+                assists=None,
+                minutes=None,
+                pom=None,
+                yellow=None,
+                red=None,
+                partial=True,
+            )
+            for b in xi
+            if b["name"] not in have and b["apps"]
+        ]
         if extra:
             squad_stats[season] = sorted(squad_stats.get(season, []) + extra, key=lambda x: (-x["apps"], x["name"]))
     return best_eleven, squad_stats
@@ -587,8 +729,9 @@ def _best_eleven(c, history_rows, team_club):
             at_club[club].add((r.player_reference, r.season_year))
     best_eleven = {}
     for club_uid, seen in at_club.items():
-        score = {idx: sum(1 for r in rows if (r.player_reference, r.season_year) in seen)
-                 for idx, rows in by_list.items()}
+        score = {
+            idx: sum(1 for r in rows if (r.player_reference, r.season_year) in seen) for idx, rows in by_list.items()
+        }
         idx = max(score, key=score.get, default=None)
         if idx is None or score[idx] < 6:
             continue
@@ -596,11 +739,17 @@ def _best_eleven(c, history_rows, team_club):
             end_year = r.season_year + 1  # best-eleven years are season start years
             if not c.in_career(club_uid, end_year):
                 continue
-            best_eleven.setdefault(season_label(end_year), []).append(dict(
-                slot=r.slot, name=c.person(r.player_uid, r.player_reference, r.player_name),
-                person_id=c.person_id(r.player_uid, r.player_reference),
-                current=r.player_uid in c.current_uids, apps=r.appearances, goals=r.goals,
-                rating=round(r.average_rating, 2) if r.average_rating else None))
+            best_eleven.setdefault(season_label(end_year), []).append(
+                dict(
+                    slot=r.slot,
+                    name=c.person(r.player_uid, r.player_reference, r.player_name),
+                    person_id=c.person_id(r.player_uid, r.player_reference),
+                    current=r.player_uid in c.current_uids,
+                    apps=r.appearances,
+                    goals=r.goals,
+                    rating=round(r.average_rating, 2) if r.average_rating else None,
+                )
+            )
     for rows in best_eleven.values():
         rows.sort(key=lambda x: x["slot"])
     return best_eleven
@@ -619,10 +768,24 @@ def _squad_stats(c, history_rows, team_club):
         if key in seen_rows:  # the section stores some rows twice
             continue
         seen_rows.add(key)
-        p = squads[season_label(r.season_year + 1)].setdefault(who, dict(
-            name=c.person(r.player_uid, r.player_reference), current=r.player_uid in c.current_uids,
-            person_id=c.person_id(r.player_uid, r.player_reference),
-            apps=0, starts=0, subs=0, goals=0, assists=0, minutes=0, rating_total=0, pom=0, yellow=0, red=0))
+        p = squads[season_label(r.season_year + 1)].setdefault(
+            who,
+            dict(
+                name=c.person(r.player_uid, r.player_reference),
+                current=r.player_uid in c.current_uids,
+                person_id=c.person_id(r.player_uid, r.player_reference),
+                apps=0,
+                starts=0,
+                subs=0,
+                goals=0,
+                assists=0,
+                minutes=0,
+                rating_total=0,
+                pom=0,
+                yellow=0,
+                red=0,
+            ),
+        )
         p["apps"] += r.rated_appearances or 0
         p["starts"] += r.starts or 0
         p["subs"] += r.substitute_appearances or 0
@@ -637,8 +800,9 @@ def _squad_stats(c, history_rows, team_club):
     for season, players in squads.items():
         for p in players.values():
             p["rating"] = round(p.pop("rating_total") / p["apps"] / 10, 2) if p["apps"] else None
-        squad_stats[season] = sorted((p for p in players.values() if p["apps"] > 0),
-                                     key=lambda x: (-x["apps"], x["name"]))
+        squad_stats[season] = sorted(
+            (p for p in players.values() if p["apps"] > 0), key=lambda x: (-x["apps"], x["name"])
+        )
     return squad_stats
 
 
@@ -651,18 +815,34 @@ def career_record(c):
     def fee(f):
         if f is None:
             return None
-        return dict(player=c.person(None, f.player_reference), fee=f.fee,
-                    person_id=c.person_id(None, f.player_reference),
-                    date=f.transfer_date.isoformat() if f.transfer_date else None,
-                    from_club=c.teams.get(f.from_team_id), to_club=c.teams.get(f.to_team_id))
+        return dict(
+            player=c.person(None, f.player_reference),
+            fee=f.fee,
+            person_id=c.person_id(None, f.player_reference),
+            date=f.transfer_date.isoformat() if f.transfer_date else None,
+            from_club=c.teams.get(f.from_team_id),
+            to_club=c.teams.get(f.to_team_id),
+        )
 
-    return dict(games=record.games, wins=record.wins, draws=record.draws, losses=record.losses,
-                goals_for=record.goals_for, goals_against=record.goals_against,
-                league_titles=record.league_titles, cups=record.cups, awards=record.awards,
-                players_bought=record.players_bought, players_sold=record.players_sold,
-                players_released=record.players_released, money_spent=record.money_spent,
-                agent_fees=record.agent_fees, club_jobs=record.club_jobs,
-                record_signing=fee(record.highest_fee_paid), record_sale=fee(record.highest_fee_received))
+    return dict(
+        games=record.games,
+        wins=record.wins,
+        draws=record.draws,
+        losses=record.losses,
+        goals_for=record.goals_for,
+        goals_against=record.goals_against,
+        league_titles=record.league_titles,
+        cups=record.cups,
+        awards=record.awards,
+        players_bought=record.players_bought,
+        players_sold=record.players_sold,
+        players_released=record.players_released,
+        money_spent=record.money_spent,
+        agent_fees=record.agent_fees,
+        club_jobs=record.club_jobs,
+        record_signing=fee(record.highest_fee_paid),
+        record_sale=fee(record.highest_fee_received),
+    )
 
 
 def _label(coded):
@@ -687,24 +867,34 @@ def club_now(s, clubs, club_uid, players, comp_name, comp_db):
     latest = months[-1] if months else None
     sponsors = [x for x in s.sponsorships() if x.club_uid == club_uid]
     facilities = next((x for x in s.facilities() if x.club_uid == club_uid), None)
-    tactics = [dict(name=x.name, style=x.style_name, mentality=_label(x.mentality))
-               for x in s.tactics() if x.club_uid == club_uid and x.team_id == first_team]
+    tactics = [
+        dict(name=x.name, style=x.style_name, mentality=_label(x.mentality))
+        for x in s.tactics()
+        if x.club_uid == club_uid and x.team_id == first_team
+    ]
     contracts = {c.player_uid: c for c in s.contracts() if c.club_uid == club_uid}
     squad = []
     for uid, p in players.items():
         if p.club_uid != club_uid:
             continue
         c = contracts.get(uid)
-        squad.append(dict(
-            name=p.name, person_id=p.unique_id or uid + 1, age=p.age,
-            positions=" ".join(str(x) for x in (p.natural_positions or ())) or None,
-            ability=p.ability.current if p.ability else None,
-            potential=p.ability.potential if p.ability else None,
-            value=p.transfer_value, wage=c.wage if c else None,
-            contract_end=c.end.isoformat() if c and c.end else None,
-            status=_label(c.squad_status) if c else None,
-            joined=p.club_join_date.isoformat() if p.club_join_date else None,
-            on_loan=bool(p.on_loan), first_team=p.team_id == first_team))
+        squad.append(
+            dict(
+                name=p.name,
+                person_id=p.unique_id or uid + 1,
+                age=p.age,
+                positions=" ".join(str(x) for x in (p.natural_positions or ())) or None,
+                ability=p.ability.current if p.ability else None,
+                potential=p.ability.potential if p.ability else None,
+                value=p.transfer_value,
+                wage=c.wage if c else None,
+                contract_end=c.end.isoformat() if c and c.end else None,
+                status=_label(c.squad_status) if c else None,
+                joined=p.club_join_date.isoformat() if p.club_join_date else None,
+                on_loan=bool(p.on_loan),
+                first_team=p.team_id == first_team,
+            )
+        )
     squad.sort(key=lambda x: (not x["first_team"], -(x["ability"] or 0)))
     # the live table of the league the first team plays in
     table = None
@@ -713,27 +903,64 @@ def club_now(s, clubs, club_uid, players, comp_name, comp_db):
             table = lt
     live = None
     if table is not None:
-        live = dict(competition=comp_name.get(table.competition_id) or table.competition_name,
-                    competition_db=comp_db.get(table.competition_id), rows=[dict(
-                        position=r.position, club_uid=club_by_team.get(r.team_id),
-                        club=clubs[club_by_team[r.team_id]].name if r.team_id in club_by_team else None,
-                        me=r.team_id in team_ids, played=r.played, won=r.won, drawn=r.drawn, lost=r.lost,
-                        goals_for=r.goals_for, goals_against=r.goals_against, points=r.points)
-                        for r in sorted(table.rows, key=lambda r: r.position)])
-    affiliates = sorted({name for g in s.affiliates() if club_uid in g.club_uids
-                         for uid, name in zip(g.club_uids, g.club_names) if uid != club_uid})
+        live = dict(
+            competition=comp_name.get(table.competition_id) or table.competition_name,
+            competition_db=comp_db.get(table.competition_id),
+            rows=[
+                dict(
+                    position=r.position,
+                    club_uid=club_by_team.get(r.team_id),
+                    club=clubs[club_by_team[r.team_id]].name if r.team_id in club_by_team else None,
+                    me=r.team_id in team_ids,
+                    played=r.played,
+                    won=r.won,
+                    drawn=r.drawn,
+                    lost=r.lost,
+                    goals_for=r.goals_for,
+                    goals_against=r.goals_against,
+                    points=r.points,
+                )
+                for r in sorted(table.rows, key=lambda r: r.position)
+            ],
+        )
+    affiliates = sorted(
+        {
+            name
+            for g in s.affiliates()
+            if club_uid in g.club_uids
+            for uid, name in zip(g.club_uids, g.club_names, strict=False)
+            if uid != club_uid
+        }
+    )
     return dict(
-        club=club.name, club_uid=club_uid,
-        stadium=dict(name=stadium.name, capacity=stadium.all_seater_capacity,
-                     built=stadium.built_date.year if stadium.built_date else None) if stadium else None,
-        finances=dict(month=latest.month.isoformat(), balance=latest.balance,
-                      transfer_budget=latest.transfer_budget_allocated,
-                      transfer_left=latest.transfer_budget_remaining,
-                      wage_budget=latest.wage_budget_weekly, wage_payroll=latest.wage_payroll_weekly) if latest else None,
-        balance_history=[dict(month=f.month.isoformat(), balance=f.balance, income=f.total_income,
-                              spend=f.total_expenditure) for f in months],
+        club=club.name,
+        club_uid=club_uid,
+        stadium=dict(
+            name=stadium.name,
+            capacity=stadium.all_seater_capacity,
+            built=stadium.built_date.year if stadium.built_date else None,
+        )
+        if stadium
+        else None,
+        finances=dict(
+            month=latest.month.isoformat(),
+            balance=latest.balance,
+            transfer_budget=latest.transfer_budget_allocated,
+            transfer_left=latest.transfer_budget_remaining,
+            wage_budget=latest.wage_budget_weekly,
+            wage_payroll=latest.wage_payroll_weekly,
+        )
+        if latest
+        else None,
+        balance_history=[
+            dict(month=f.month.isoformat(), balance=f.balance, income=f.total_income, spend=f.total_expenditure)
+            for f in months
+        ],
         sponsors=dict(count=len(sponsors), annual=sum(x.annual_value or 0 for x in sponsors)),
         corporate_facilities=_label(facilities.corporate_facilities) if facilities else None,
-        tactics=tactics, squad=squad, live_table=live, affiliates=affiliates,
+        tactics=tactics,
+        squad=squad,
+        live_table=live,
+        affiliates=affiliates,
         staff=sum(1 for x in s.staff() if x.club_uid == club_uid),
     )

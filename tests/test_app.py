@@ -26,8 +26,9 @@ def server(tmp_path, monkeypatch):
 
 
 def call(url, body=None):
-    req = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url, data=None if body is None else json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, r.read()
@@ -41,8 +42,15 @@ def test_page_and_state(server):
     assert code == 200 and b"fmcareer" in page
     code, state = call(base + "/api/state")
     state = json.loads(state)
-    assert state["settings"] == {"saves_dir": "", "install": "", "graphics": "", "ai_enabled": False,
-                                 "ai_endpoint": "", "ai_model": "", "ai_token_set": False}
+    assert state["settings"] == {
+        "saves_dir": "",
+        "install": "",
+        "graphics": "",
+        "ai_enabled": False,
+        "ai_endpoint": "",
+        "ai_model": "",
+        "ai_token_set": False,
+    }
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
     assert "sections" in state["defaults"]
 
@@ -64,8 +72,8 @@ def test_requests_need_a_save_a_manager_and_an_install(server):
     assert call(base + "/api/managers", {"save": str(tmp / "missing.fm")})[0] == 400
     save = tmp / "a.fm"
     save.write_bytes(b"x")
-    assert call(base + "/api/report", {"save": str(save)})[0] == 400          # no manager
-    assert call(base + "/api/names", {})[0] == 400                          # no install folder
+    assert call(base + "/api/report", {"save": str(save)})[0] == 400  # no manager
+    assert call(base + "/api/names", {})[0] == 400  # no install folder
     assert call(base + "/api/nope", {})[0] == 404
     assert call(base + "/api/job/nope")[0] == 404
 
@@ -122,10 +130,12 @@ def test_report_and_manager_jobs_plan_the_steps_they_report(monkeypatch, tmp_pat
     fake_app(monkeypatch, tmp_path)
 
     options = {"sections": ["me"], "show": {}}
-    for job_id in (app.start_job(app.job_managers, str(save), True),
-                   app.start_job(app.job_managers, str(save), True),     # cached the second time
-                   app.start_job(app.job_report, str(save), 1, options, False, None),
-                   app.start_job(app.job_report, str(save), 1, options, False, None)):
+    for job_id in (
+        app.start_job(app.job_managers, str(save), True),
+        app.start_job(app.job_managers, str(save), True),  # cached the second time
+        app.start_job(app.job_report, str(save), 1, options, False, None),
+        app.start_job(app.job_report, str(save), 1, options, False, None),
+    ):
         job = wait(job_id)
         assert job["status"] == "done", job["error"]
         assert len(job["steps"]) - 1 == job["total"]  # every planned step, then Finished
@@ -169,7 +179,10 @@ def test_what_was_read_is_kept_until_the_save_changes(monkeypatch, tmp_path):
     save.write_bytes(b"x")
     with_club = {"sections": ["me", "club"], "show": {"Trial": True}}
     without = {"sections": ["me"], "show": {}}
-    run = lambda *a: wait(app.start_job(*a))
+
+    def run(*a):
+        return wait(app.start_job(*a))
+
     run(app.job_report, str(save), 1, with_club, False, None)
     monkeypatch.setattr(app, "OPEN", {"key": None, "save": None})  # as if the app restarted
     job = run(app.job_report, str(save), 1, without, False, None)
@@ -177,12 +190,12 @@ def test_what_was_read_is_kept_until_the_save_changes(monkeypatch, tmp_path):
     assert job["steps"][0]["text"] == "Using the career read earlier from this save"
     first, second = calls["render"]
     assert first["club_today"] == {"club": "X"} and first["options"] == with_club
-    assert second["club_today"] is None and second["options"] == without   # options still apply
-    run(app.job_report, str(save), 2, without, False, None)                  # another manager
+    assert second["club_today"] is None and second["options"] == without  # options still apply
+    run(app.job_report, str(save), 2, without, False, None)  # another manager
     assert calls["collect"] == 2
-    run(app.job_report, str(save), 1, without, False, None, True)            # read again on request
+    run(app.job_report, str(save), 1, without, False, None, True)  # read again on request
     assert calls["collect"] == 3
-    save.write_bytes(b"xy")                                                  # the save changed
+    save.write_bytes(b"xy")  # the save changed
     run(app.job_report, str(save), 1, without, False, None)
     assert calls["collect"] == 4
     run(app.job_managers, str(save), False)
@@ -201,6 +214,7 @@ def test_cache_keeps_only_the_newest_entries(monkeypatch, tmp_path):
 
 def test_version_flag_and_page_show_the_version(server, capsys):
     import fmcareer
+
     with pytest.raises(SystemExit):
         app.main(["--version"])
     assert capsys.readouterr().out.strip() == f"fmcareer {fmcareer.__version__}"
@@ -216,6 +230,7 @@ def test_a_second_start_hands_over_to_the_running_app(server, capsys):
 
 def test_pack_images_win_over_the_games(monkeypatch, tmp_path):
     import fmcareer.images as images
+
     monkeypatch.setattr(app, "DATA", tmp_path / "data")
     monkeypatch.setattr(app, "images_key", lambda install: "imgkey")
     monkeypatch.setattr(images, "wanted_images", lambda data: {("club", 1), ("club", 2), ("club", 3)})
@@ -234,21 +249,48 @@ def test_ai_settings_keep_the_token_out_of_the_page(server):
     code, out = call(base + "/api/settings", body)
     assert code == 200 and b"sekrit" not in out and json.loads(out)["settings"]["ai_token_set"] is True
     assert b"sekrit" not in call(base + "/api/state")[1]
-    call(base + "/api/settings", {"ai_token": ""})                          # blank keeps it
+    call(base + "/api/settings", {"ai_token": ""})  # blank keeps it
     assert app.load_settings()["ai_token"] == "sekrit"
-    assert app.ai_config(app.load_settings()) == {"endpoint": "http://model.example/v1", "token": "sekrit", "model": "m"}
+    assert app.ai_config(app.load_settings()) == {
+        "endpoint": "http://model.example/v1",
+        "token": "sekrit",
+        "model": "m",
+    }
     call(base + "/api/settings", {"ai_enabled": False})
     assert app.ai_config(app.load_settings()) is None
 
 
 def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
     from fmcareer import writer
+
     monkeypatch.setattr(app, "AI_TEXTS", tmp_path / "ai" / "texts.json")
-    data = {"manager": {"name": "Alex"}, "league": [
-        {"season": s, "club": "Example Town", "club_uid": 1, "competition": "Example League", "tier": 1, "rank": 5,
-         "position": 5, "teams": 20, "played": 38, "won": 15, "drawn": 10, "lost": 13, "goals_for": 50,
-         "goals_against": 45, "points": 55, "champion": False, "promoted": False, "relegated": False,
-         "moved": False} for s in ("2030/31", "2031/32", "2032/33")]}
+    data = {
+        "manager": {"name": "Alex"},
+        "league": [
+            {
+                "season": s,
+                "club": "Example Town",
+                "club_uid": 1,
+                "competition": "Example League",
+                "tier": 1,
+                "rank": 5,
+                "position": 5,
+                "teams": 20,
+                "played": 38,
+                "won": 15,
+                "drawn": 10,
+                "lost": 13,
+                "goals_for": 50,
+                "goals_against": 45,
+                "points": 55,
+                "champion": False,
+                "promoted": False,
+                "relegated": False,
+                "moved": False,
+            }
+            for s in ("2030/31", "2031/32", "2032/33")
+        ],
+    }
     calls = []
 
     def fake_chat(endpoint, token, model, system, facts, max_tokens=None):
@@ -276,4 +318,12 @@ def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
     monkeypatch.setattr(writer, "chat", lambda *a: [f"Text for {a[4].get('season', 'the career')}."])
     second = run(job)
     assert second["result"]["seasons"]["2032/33"] == ["Text for 2032/33."]
-    assert any("written before" in s["text"] for s in second["steps"])   # the overview from the first run
+    assert any("written before" in s["text"] for s in second["steps"])  # the overview from the first run
+
+
+def test_finished_jobs_are_dropped_beyond_the_limit(monkeypatch):
+    monkeypatch.setattr(app, "JOBS", {})
+    monkeypatch.setattr(app, "KEEP_JOBS", 3)
+    for _ in range(6):
+        wait(app.start_job(lambda step: None))
+    assert len(app.JOBS) == 4  # the three latest finished jobs, plus the newest

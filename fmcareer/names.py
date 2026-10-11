@@ -16,6 +16,7 @@ the editor database id (the save's `Competition.database_id`); table 0 =
 awards, and a save's `Award.award_id` is the row's position in that table
 (ordered by database id).
 """
+
 import argparse
 import csv
 import os
@@ -24,17 +25,17 @@ import tempfile
 
 from fmcareer.gamedb import english_names
 
-CONTAINER = b'\x02\x01fmf.'
+CONTAINER = b"\x02\x01fmf."
 
 
 def unwrap(src, tmpdir):
     """Copy a game .dat without its wrapper so fmsave's container reader opens it."""
-    dst = os.path.join(tmpdir, os.path.basename(os.path.dirname(src)) + '_' + os.path.basename(src) + '.fm')
-    with open(src, 'rb') as f, open(dst, 'wb') as g:
+    dst = os.path.join(tmpdir, os.path.basename(os.path.dirname(src)) + "_" + os.path.basename(src) + ".fm")
+    with open(src, "rb") as f, open(dst, "wb") as g:
         head = f.read(64)
         start = head.find(CONTAINER)
-        if head[:6] != b'\x03\x01tad.' or start < 0:
-            raise SystemExit(f'{src}: unexpected header')
+        if head[:6] != b"\x03\x01tad." or start < 0:
+            raise SystemExit(f"{src}: unexpected header")
         f.seek(start)
         while chunk := f.read(1 << 20):
             g.write(chunk)
@@ -56,36 +57,41 @@ def current_versions(folders):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument('install'); ap.add_argument('out')
-    ap.add_argument('--db', action='append', help="database versions in load order (default: the newest game's, ascending)")
+    ap.add_argument("install")
+    ap.add_argument("out")
+    ap.add_argument(
+        "--db", action="append", help="database versions in load order (default: the newest game's, ascending)"
+    )
     a = ap.parse_args(argv)
-    root = os.path.join(a.install, 'shared', 'data', 'database', 'db')
+    root = os.path.join(a.install, "shared", "data", "database", "db")
     if not os.path.isdir(root):
-        raise SystemExit(f'{a.install} does not look like the Football Manager 26 install folder '
-                         f'(no shared/data/database/db inside). With Steam it is usually '
-                         r'C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26')
+        raise SystemExit(
+            f"{a.install} does not look like the Football Manager 26 install folder "
+            f"(no shared/data/database/db inside). With Steam it is usually "
+            r"C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26"
+        )
     versions = a.db or current_versions(os.listdir(root))
     os.makedirs(a.out, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         paths = []
         for ver in versions:
-            for fn in ('lang_db.dat', 'lang_update_db.dat'):
-                p = os.path.join(root, ver, f'{ver}_fm', fn)
+            for fn in ("lang_db.dat", "lang_update_db.dat"):
+                p = os.path.join(root, ver, f"{ver}_fm", fn)
                 if os.path.exists(p):
                     paths.append(unwrap(p, tmp))
         comps = english_names(paths, 25)
         awards = english_names(paths, 0)
-    with open(os.path.join(a.out, 'competition_names.csv'), 'w', newline='', encoding='utf-8') as f:
+    with open(os.path.join(a.out, "competition_names.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         for db_id in sorted(comps):
             w.writerow([db_id, comps[db_id][0]])
-    with open(os.path.join(a.out, 'award_names.csv'), 'w', newline='', encoding='utf-8') as f:
+    with open(os.path.join(a.out, "award_names.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(['award_index', 'database_id', 'name'])
+        w.writerow(["award_index", "database_id", "name"])
         for index, db_id in enumerate(sorted(awards)):
             w.writerow([index, db_id, awards[db_id][0]])
-    print(f'{len(comps)} competitions, {len(awards)} awards from {len(paths)} files -> {a.out}')
+    print(f"{len(comps)} competitions, {len(awards)} awards from {len(paths)} files -> {a.out}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1:])

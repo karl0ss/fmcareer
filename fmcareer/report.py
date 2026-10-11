@@ -6,6 +6,7 @@ NAMES_DIR holds competition_names.csv / award_names.csv from fmcareer-names.
 Everything shown is decoded from the save (fmcareer.collect) and rendered by
 fmcareer.render into one self-contained file.
 """
+
 import argparse
 import json
 import time
@@ -18,17 +19,31 @@ SHOW_WORDS = {"Loan": "loans", "Trial": "trials", "Youth intake": "youth", "Rele
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("save"); ap.add_argument("manager"); ap.add_argument("names")
+    ap.add_argument("save")
+    ap.add_argument("manager")
+    ap.add_argument("names")
     ap.add_argument("-o", "--out", default="career_report.html")
     ap.add_argument("--json", help="also write the collected data as JSON")
-    ap.add_argument("--sections", help="pages to include, comma-separated, from: "
-                    "me,seasons,players,records,honours,transfers,club (default: all)")
-    ap.add_argument("--show", help="move types transfer lists show at first, comma-separated, from: "
-                    "loans,trials,youth,released,staff (default: released)")
-    ap.add_argument("--install", help="FM26 install folder: embed club badges, player photos, "
-                    "competition logos and flags from it (needs UnityPy)")
-    ap.add_argument("--graphics", help="the game's graphics folder: logo and face packs there win over "
-                    "the install's images (needs Pillow, part of the images extra)")
+    ap.add_argument(
+        "--sections",
+        help="pages to include, comma-separated, from: "
+        "me,seasons,players,records,honours,transfers,club (default: all)",
+    )
+    ap.add_argument(
+        "--show",
+        help="move types transfer lists show at first, comma-separated, from: "
+        "loans,trials,youth,released,staff (default: released)",
+    )
+    ap.add_argument(
+        "--install",
+        help="FM26 install folder: embed club badges, player photos, "
+        "competition logos and flags from it (needs UnityPy)",
+    )
+    ap.add_argument(
+        "--graphics",
+        help="the game's graphics folder: logo and face packs there win over "
+        "the install's images (needs Pillow, part of the images extra)",
+    )
     a = ap.parse_args()
     t = time.time()
     options = {}
@@ -40,6 +55,7 @@ def main():
     data = collect(a.save, a.manager, a.names, options=options)
     if a.install or a.graphics:
         from fmcareer.images import load, load_pack, wanted_images
+
         want = wanted_images(data)
         pack = load_pack(a.graphics, want) if a.graphics else {}
         game = load(a.install, {k for k in want if f"{k[0]}:{k[1]}" not in pack}) if a.install else {}
@@ -51,9 +67,11 @@ def main():
             json.dump(data, f, ensure_ascii=False, indent=1)
     m = data["manager"]
     clubs = ", ".join(st["club"] for st in data["stints"])
-    print(f"{m['name']} ({clubs}): {len(data['league'])} seasons, {len(data['honours'])} trophies, "
-          f"{len(data['awards'])} awards, {len(data['best_eleven'])} best XIs, {len(data['transfers'])} moves "
-          f"-> {a.out} ({time.time() - t:.0f}s)")
+    print(
+        f"{m['name']} ({clubs}): {len(data['league'])} seasons, {len(data['honours'])} trophies, "
+        f"{len(data['awards'])} awards, {len(data['best_eleven'])} best XIs, {len(data['transfers'])} moves "
+        f"-> {a.out} ({time.time() - t:.0f}s)"
+    )
 
 
 if __name__ == "__main__":

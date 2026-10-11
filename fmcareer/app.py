@@ -6,7 +6,9 @@ and generate it; reports are kept under the user's cache folder and open in a ne
 
 Usage: fmcareer-app [--port 8765] [--no-browser]
 """
+
 import argparse
+import contextlib
 import http.server
 import json
 import os
@@ -45,19 +47,26 @@ INSTALL_GUESSES = [
 
 # ---- settings
 
+
 def load_settings():
-    settings = {"saves_dir": "", "install": "", "graphics": "",
-                "ai_enabled": False, "ai_endpoint": "", "ai_token": "", "ai_model": ""}
-    try:
+    settings = {
+        "saves_dir": "",
+        "install": "",
+        "graphics": "",
+        "ai_enabled": False,
+        "ai_endpoint": "",
+        "ai_token": "",
+        "ai_model": "",
+    }
+    with contextlib.suppress(OSError, ValueError):
         settings.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
-    except (OSError, ValueError):
-        pass
     if not settings["saves_dir"]:
         settings["saves_dir"] = next((str(p) for p in SAVE_DIR_GUESSES if p.is_dir()), "")
     if not settings["install"]:
         settings["install"] = next((str(p) for p in INSTALL_GUESSES if p.is_dir()), "")
     if not settings["graphics"]:
         from fmcareer.images import guess_graphics
+
         settings["graphics"] = guess_graphics(settings["saves_dir"])
     return settings
 
@@ -89,22 +98,22 @@ def names_dir():
 # Keys cover the save file (path, size, modified time), the names files and the code
 # that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
 
+
 def code_version():
     """fmcareer's and fmsave's versions, plus a hash of the reading code when it is on disk
     (a development checkout changes without a new version; the exe has no source files)."""
     import hashlib
     import importlib.util
     from importlib.metadata import PackageNotFoundError, version
+
     try:
         fmsave_version = version("fmsave")
     except PackageNotFoundError:
         fmsave_version = "unknown"
     digest = hashlib.sha256()
     for name in ("fmcareer.collect", "fmcareer.images"):
-        try:
+        with contextlib.suppress(OSError, TypeError):
             digest.update(Path(importlib.util.find_spec(name).origin).read_bytes())
-        except (OSError, TypeError):
-            pass
     return f"{__version__}-{fmsave_version}-{digest.hexdigest()[:12]}"
 
 
@@ -113,6 +122,7 @@ CODE = code_version()
 
 def cache_key(path, *parts):
     import hashlib
+
     st = os.stat(path)
     names = [(f.name, f.stat().st_mtime_ns) for f in sorted(NAMES.glob("*.csv"))] if NAMES.is_dir() else []
     raw = json.dumps([os.path.abspath(path), st.st_size, st.st_mtime_ns, names, CODE, *parts], default=str)
@@ -122,6 +132,7 @@ def cache_key(path, *parts):
 def images_key(install):
     """Badges and photos depend only on the install, so every save and manager shares them."""
     from fmcareer.images import _folders
+
     catalogs = [os.path.join(f, "catalog_info.bin") for f in _folders(install)]
     return cache_key(next((c for c in catalogs if os.path.exists(c)), install), "images")
 
@@ -145,6 +156,7 @@ def cache_write(key, value, keep=40):
 def images_available():
     try:
         import UnityPy  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -174,12 +186,15 @@ def list_reports():
 # ---- background jobs (one heavy job at a time; the last opened save is kept)
 
 JOBS = {}
+KEEP_JOBS = 50  # finished jobs kept for the page to read; older ones are dropped
 WORK = threading.Lock()
 OPEN = {"key": None, "save": None}
 
 
 def start_job(fn, *args):
     job_id = uuid.uuid4().hex[:12]
+    for old in [k for k, j in JOBS.items() if j["status"] in ("done", "error")][:-KEEP_JOBS]:
+        del JOBS[old]
     job = JOBS[job_id] = dict(status="queued", steps=[], total=None, result=None, error=None, started=time.time())
 
     def step(text):
@@ -227,6 +242,7 @@ def get_save(step, path):
 
 def job_names(step, install):
     from fmcareer.names import main as build_names
+
     step.plan(1)
     step("Reading competition and award names from the game")
     build_names([install, str(NAMES)])
@@ -251,6 +267,7 @@ def report_images(step, data, install, graphics, fresh):
     """Badges and photos for a career: graphics packs first (as in the game), then the
     install's own, which are kept between runs. One progress step."""
     from fmcareer.images import load, load_pack, wanted_images
+
     want = wanted_images(data)
     sources = [name for name, folder in (("your graphics packs", graphics), ("the game", install)) if folder]
     step("Embedding badges and photos from " + " and ".join(sources))
@@ -280,6 +297,7 @@ def ai_write(step, data, ai):
     the writing and leaves the templated summaries in place, with a step saying why.
     """
     from fmcareer import writer
+
     try:
         known = json.loads(AI_TEXTS.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -307,6 +325,7 @@ def ai_write(step, data, ai):
 
 def job_ai_test(step, endpoint, token, model):
     from fmcareer import writer
+
     step.plan(2 if model else 1)
     step("Asking the endpoint for its models")
     try:
@@ -317,13 +336,21 @@ def job_ai_test(step, endpoint, token, model):
     if model:
         step(f"Asking {model} for one sentence")
         try:
-            reply = " ".join(writer.chat(endpoint, token, model, "Reply in one short sentence.",
-                                         {"question": "Say hello to a Football Manager player."}))
+            reply = " ".join(
+                writer.chat(
+                    endpoint,
+                    token,
+                    model,
+                    "Reply in one short sentence.",
+                    {"question": "Say hello to a Football Manager player."},
+                )
+            )
         except writer.WriterError as e:
             raise SystemExit(str(e)) from None  # shown to the user as it is
         except writer.UnusableAnswer as e:
-            raise SystemExit(f"{model} answered but {e}. A reasoning model may need more room, "
-                             "or try another model.") from None
+            raise SystemExit(
+                f"{model} answered but {e}. A reasoning model may need more room, or try another model."
+            ) from None
     elif not models:
         raise SystemExit("The endpoint listed no models; check the address (it usually ends in /v1).")
     return dict(models=models, reply=reply)
@@ -353,25 +380,38 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False, gra
     step("Writing the report")
     REPORTS.mkdir(parents=True, exist_ok=True)
     stem, name = Path(path).stem, data["manager"]["name"]
-    title = stem if stem.lower().startswith(name.lower()) else f"{name} {stem}"  # saves are often named after the manager
+    title = (
+        stem if stem.lower().startswith(name.lower()) else f"{name} {stem}"
+    )  # saves are often named after the manager
     slug = re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-")[:90]
     out = REPORTS / f"{slug}.html"
     out.write_text(render(data), encoding="utf-8")
-    return dict(file=out.name, manager=data["manager"]["name"], seasons=len(data["league"]),
-                clubs=[st["club"] for st in data["stints"]], ai=ai_note)
+    return dict(
+        file=out.name,
+        manager=data["manager"]["name"],
+        seasons=len(data["league"]),
+        clubs=[st["club"] for st in data["stints"]],
+        ai=ai_note,
+    )
 
 
 # ---- HTTP
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # keep the terminal quiet
         pass
 
     def send(self, code, body, ctype="application/json"):
-        data = body if isinstance(body, bytes) else (
-            body.encode("utf-8") if isinstance(body, str) else json.dumps(body).encode("utf-8"))
+        data = (
+            body
+            if isinstance(body, bytes)
+            else (body.encode("utf-8") if isinstance(body, str) else json.dumps(body).encode("utf-8"))
+        )
         self.send_response(code)
-        self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text", "application/json")) else ""))
+        self.send_header(
+            "Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text", "application/json")) else "")
+        )
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -386,16 +426,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, web.page("app", VERSION=__version__, FOOTER=footer()), "text/html")
         if self.path == "/api/state":
             settings = load_settings()
-            return self.send(200, dict(settings=public_settings(settings), saves=list_saves(settings["saves_dir"]),
-                                       reports=list_reports(), reports_dir=str(REPORTS), names=names_dir(),
-                                       images=images_available(), defaults=DEFAULT_OPTIONS))
+            return self.send(
+                200,
+                dict(
+                    settings=public_settings(settings),
+                    saves=list_saves(settings["saves_dir"]),
+                    reports=list_reports(),
+                    reports_dir=str(REPORTS),
+                    names=names_dir(),
+                    images=images_available(),
+                    defaults=DEFAULT_OPTIONS,
+                ),
+            )
         if self.path.startswith("/api/job/"):
             job = JOBS.get(self.path.rsplit("/", 1)[-1])
             if not job:
                 return self.send(404, {"error": "no such job"})
             return self.send(200, dict(job, elapsed=round(time.time() - job["started"], 1)))
         if self.path.startswith("/reports/"):
-            name = os.path.basename(self.path[len("/reports/"):].split("?")[0])
+            name = os.path.basename(self.path[len("/reports/") :].split("?")[0])
             target = REPORTS / name
             if name.endswith(".html") and target.is_file():
                 return self.send(200, target.read_bytes(), "text/html")
@@ -408,8 +457,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "bad JSON"})
         settings = load_settings()
         if self.path == "/api/settings":
-            settings.update({k: str(req.get(k, settings[k])).strip()
-                             for k in ("saves_dir", "install", "graphics", "ai_endpoint", "ai_model")})
+            settings.update(
+                {
+                    k: str(req.get(k, settings[k])).strip()
+                    for k in ("saves_dir", "install", "graphics", "ai_endpoint", "ai_model")
+                }
+            )
             if "ai_enabled" in req:
                 settings["ai_enabled"] = bool(req["ai_enabled"])
             if req.get("ai_token"):  # a blank field keeps the saved token
@@ -432,20 +485,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ("/api/managers", "/api/report") and not os.path.isfile(save):
             return self.send(400, {"error": "Pick a save file first."})
         if self.path == "/api/managers":
-            return self.send(200, {"job": start_job(job_managers, save, bool(req.get("everyone")), bool(req.get("fresh")))})
+            return self.send(
+                200, {"job": start_job(job_managers, save, bool(req.get("everyone")), bool(req.get("fresh")))}
+            )
         if self.path == "/api/report":
             try:
                 staff_uid = int(req["staff_uid"])
             except (KeyError, TypeError, ValueError):
                 return self.send(400, {"error": "Pick a manager first."})
-            options = {"sections": [s for s in req.get("sections", []) if s in DEFAULT_OPTIONS["sections"]]
-                       or DEFAULT_OPTIONS["sections"],
-                       "show": {k: bool(v) for k, v in (req.get("show") or {}).items()
-                                if k in DEFAULT_OPTIONS["show"]}}
-            return self.send(200, {"job": start_job(job_report, save, staff_uid, options,
-                                                    bool(req.get("images")), settings["install"],
-                                                    bool(req.get("fresh")), settings["graphics"],
-                                                    ai_config(settings))})
+            options = {
+                "sections": [s for s in req.get("sections", []) if s in DEFAULT_OPTIONS["sections"]]
+                or DEFAULT_OPTIONS["sections"],
+                "show": {k: bool(v) for k, v in (req.get("show") or {}).items() if k in DEFAULT_OPTIONS["show"]},
+            }
+            return self.send(
+                200,
+                {
+                    "job": start_job(
+                        job_report,
+                        save,
+                        staff_uid,
+                        options,
+                        bool(req.get("images")),
+                        settings["install"],
+                        bool(req.get("fresh")),
+                        settings["graphics"],
+                        ai_config(settings),
+                    )
+                },
+            )
         return self.send(404, {"error": "not found"})
 
 
@@ -467,10 +535,8 @@ def main(argv=None):
     print("Leave this window open while you use it; close it (or press Ctrl+C) to stop.")
     if not a.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

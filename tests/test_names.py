@@ -12,8 +12,13 @@ def test_reads_only_the_newest_games_databases():
     assert current_versions([]) == []
 
 
-@pytest.mark.parametrize("wrapper", [b"\x03\x01tad.\xb2\x0d",                  # 8 bytes, older versions
-                                     b"\x03\x01tad.\xa0\x0f\x8d\x0e\x07\x00"])  # 12 bytes, newer
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        b"\x03\x01tad.\xb2\x0d",  # 8 bytes, older versions
+        b"\x03\x01tad.\xa0\x0f\x8d\x0e\x07\x00",
+    ],
+)  # 12 bytes, newer
 def test_unwrap_strips_either_wrapper(tmp_path, wrapper):
     body = CONTAINER + b"rest of the container"
     src = tmp_path / "2600" / "lang_db.dat"
@@ -21,7 +26,8 @@ def test_unwrap_strips_either_wrapper(tmp_path, wrapper):
     src.write_bytes(wrapper + body)
     out = tmp_path / "out"
     out.mkdir()
-    assert open(unwrap(str(src), str(out)), "rb").read() == body
+    with open(unwrap(str(src), str(out)), "rb") as f:
+        assert f.read() == body
 
 
 def test_unwrap_rejects_other_files(tmp_path):
@@ -41,6 +47,7 @@ def test_fmsave_still_has_the_container_readers_gamedb_uses():
     import inspect
 
     from fmcareer import gamedb
+
     assert gamedb.read_index is not None and gamedb.read_section is not None
     assert list(inspect.signature(gamedb.read_section).parameters)[:2] == ["container_index", "name"]
 

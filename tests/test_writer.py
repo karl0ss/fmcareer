@@ -15,8 +15,9 @@ def test_season_facts_follow_the_report(sample):
     assert title["transfers"]["biggest_signing"] == {"player": "Sam Striker", "fee": "£1.50M", "from": "Big City"}
     later = facts["2032/33"]
     assert later["previous_season"]["league_finish"] == "1st" and not later["champions"]
-    assert later["cups"] == [{"competition": "National Cup", "result": "knocked out",
-                              "knocked_out_by": "Big City", "how": "on penalties"}]
+    assert later["cups"] == [
+        {"competition": "National Cup", "result": "knocked out", "knocked_out_by": "Big City", "how": "on penalties"}
+    ]
     assert later["top_scorer"] == {"name": "Sam Striker", "goals": 21}
 
 
@@ -34,7 +35,10 @@ def test_numbers_the_facts_do_not_have_are_caught():
 
 
 def test_tidy_drops_thinking_and_markdown():
-    assert writer.tidy("<think>plan</think>## Title\n**Bold** start.\n\n\nNext  para.") == ["Title Bold start.", "Next para."]
+    assert writer.tidy("<think>plan</think>## Title\n**Bold** start.\n\n\nNext  para.") == [
+        "Title Bold start.",
+        "Next para.",
+    ]
 
 
 class FakeEndpoint:
@@ -82,7 +86,7 @@ def test_a_reasoning_model_out_of_tokens_gets_more_room(monkeypatch):
 
 
 def test_one_unusable_piece_keeps_its_plain_summary_and_the_rest_go_on(monkeypatch, sample):
-    answers = iter(["Intro.", "", "", "Season.", "Season."])           # 2029/30 fails twice
+    answers = iter(["Intro.", "", "", "Season.", "Season."])  # 2029/30 fails twice
     monkeypatch.setattr(writer, "_request", lambda *a, **k: {"choices": [{"message": {"content": next(answers)}}]})
     out = writer.write(sample, "http://x/v1", "", "m", lambda t: None, {})
     assert out["written"] == 3 and out["pieces"] == 4 and "2029/30" not in out["seasons"]
@@ -91,10 +95,12 @@ def test_one_unusable_piece_keeps_its_plain_summary_and_the_rest_go_on(monkeypat
 
 def test_a_model_that_writes_nothing_stops_early(monkeypatch, sample):
     calls = []
-    monkeypatch.setattr(writer, "_request", lambda *a, **k: calls.append(1) or {"choices": [{"message": {"content": ""}}]})
+    monkeypatch.setattr(
+        writer, "_request", lambda *a, **k: calls.append(1) or {"choices": [{"message": {"content": ""}}]}
+    )
     with pytest.raises(writer.WriterError, match="first two pieces"):
         writer.write(sample, "http://x/v1", "", "m", lambda t: None, {})
-    assert len(calls) == 4                                               # two pieces, two tries each
+    assert len(calls) == 4  # two pieces, two tries each
 
 
 def test_write_reuses_known_text(monkeypatch, sample):
@@ -106,7 +112,7 @@ def test_write_reuses_known_text(monkeypatch, sample):
     assert len(steps) == writer.pieces(sample) == 4
     before = len(fake.sent)
     again = writer.write(sample, "http://x/v1", "", "m", steps.append, known)
-    assert again == out and len(fake.sent) == before                    # nothing asked twice
+    assert again == out and len(fake.sent) == before  # nothing asked twice
 
 
 def test_an_empty_answer_is_unusable(monkeypatch):
@@ -117,8 +123,10 @@ def test_an_empty_answer_is_unusable(monkeypatch):
 
 def test_comparison_is_spelt_out():
     a = {"club": "X", "competition": "L", "tier": 1, "position": 12, "points": 50}
-    assert writer.comparison(a, dict(a, position=11, points=45)) == \
-        "finished higher in the same division than the previous season, with fewer points"
+    assert (
+        writer.comparison(a, dict(a, position=11, points=45))
+        == "finished higher in the same division than the previous season, with fewer points"
+    )
     assert writer.comparison(a, dict(a, competition="M", tier=2)) == "played a division lower than the previous season"
     assert writer.comparison(a, dict(a, club="Y")) == "a different club from the previous season"
 
@@ -137,5 +145,5 @@ def test_reasoning_effort_is_sent_and_dropped_where_refused(monkeypatch):
     assert sent[-1]["reasoning_effort"] == "low"
     assert writer.chat("http://strict/v1", "", "m", "s", {}) == ["Fine."]
     assert "reasoning_effort" not in sent[-1]
-    writer.chat("http://strict/v1", "", "m", "s", {})                 # remembered: asked once, without it
+    writer.chat("http://strict/v1", "", "m", "s", {})  # remembered: asked once, without it
     assert "reasoning_effort" not in sent[-1] and len(sent) == 4

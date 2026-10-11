@@ -21,6 +21,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ".[images,dev]"
+      - run: ruff check . && ruff format --check .
+      - run: for f in fmcareer/web/*.js; do node --check "$f"; done
       - run: python -m pytest -q
 
   windows-exe:

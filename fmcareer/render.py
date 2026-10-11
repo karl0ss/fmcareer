@@ -4,6 +4,7 @@ The page itself is fmcareer/web/report.{html,css,js}; the career goes in as JSON
 script draws the pages (hash-routed: #me, #seasons, #season/<yyyy-yy>, #players,
 #player/<id>, #records, #honours, #transfers, #club).
 """
+
 import html
 import json
 
@@ -13,6 +14,7 @@ from fmcareer import web
 def footer():
     """fmcareer's version, linked to its repository."""
     from fmcareer import __version__
+
     return f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(__version__)}'
 
 

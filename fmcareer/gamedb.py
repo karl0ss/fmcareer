@@ -31,7 +31,7 @@ def _parse(b, trailing):
         while True:
             n = struct.unpack_from("<I", b, o)[0]
             o += 4
-            strs.append(b[o:o + n].decode("utf-8", "replace"))
+            strs.append(b[o : o + n].decode("utf-8", "replace"))
             o += n
             flag = b[o]
             o += 1
@@ -61,8 +61,9 @@ def parse_names(b):
 def english_names(db_paths, table):
     """Merge English (language 8) names for one table, later databases overriding."""
     if _IMPORT_ERROR is not None:
-        raise SystemExit(f"this fmsave version moved the container readers fmcareer-names uses "
-                         f"({_IMPORT_ERROR}); update fmcareer") from _IMPORT_ERROR
+        raise SystemExit(
+            f"this fmsave version moved the container readers fmcareer-names uses ({_IMPORT_ERROR}); update fmcareer"
+        ) from _IMPORT_ERROR
     names = {}
     for path in db_paths:
         ix = read_index(path)

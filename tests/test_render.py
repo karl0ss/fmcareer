@@ -27,8 +27,9 @@ def test_data_round_trips_and_cannot_close_the_script_tag(sample):
 
 def test_footer_shows_the_version_and_links_the_repository(sample):
     import fmcareer
+
     html = render(sample)
-    foot = html[html.find("<footer>"):html.find("</footer>")]
+    foot = html[html.find("<footer>") : html.find("</footer>")]
     assert f"v{fmcareer.__version__}" in foot and "https://github.com/karl0ss/fmcareer" in foot
     assert "fmsave" not in foot and "Built entirely" not in html and "since retired" not in html
 
@@ -40,8 +41,9 @@ def chrome():
     for name in ("chromium", "chromium-browser", "google-chrome", "chrome-headless-shell"):
         if shutil.which(name):
             return shutil.which(name)
-    found = sorted(glob.glob(os.path.expanduser(
-        "~/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell")))
+    found = sorted(
+        glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell"))
+    )
     return found[-1] if found else None
 
 
@@ -52,15 +54,27 @@ needs_chrome = pytest.mark.skipif(CHROME is None, reason="no headless Chromium f
 def dom(tmp_path, html, page):
     path = tmp_path / "report.html"
     path.write_text(html, encoding="utf-8")
-    out = subprocess.run([CHROME, "--headless", "--no-sandbox", "--disable-gpu", "--virtual-time-budget=3000",
-                          "--dump-dom", f"file://{path}#{page}"], capture_output=True, text=True, timeout=60)
+    out = subprocess.run(
+        [
+            CHROME,
+            "--headless",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--virtual-time-budget=3000",
+            "--dump-dom",
+            f"file://{path}#{page}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     return out.stdout
 
 
 def view_of(text):
     """The drawn page only: from the view up to the embedded data."""
     start = text.find('id="view"')
-    return text[start:text.find('<script type="application/json"', start)]
+    return text[start : text.find('<script type="application/json"', start)]
 
 
 PAGES = {
@@ -88,7 +102,7 @@ def test_every_page_draws(tmp_path, sample, page):
 def test_left_out_sections_leave_the_nav_and_fall_back(tmp_path, sample):
     sample["options"]["sections"] = ["me", "seasons"]
     text = dom(tmp_path, render(sample), "records")
-    nav = text[text.find('id="nav"'):text.find("</nav>")]
+    nav = text[text.find('id="nav"') : text.find("</nav>")]
     assert "Records" not in nav and "Seasons" in nav
     assert "The climb" in view_of(text)  # the hidden page falls back to the first section
 
@@ -109,8 +123,11 @@ def test_seasons_run_oldest_to_newest(tmp_path, sample):
     assert view.find("2029/30") < view.find("2031/32") < view.find("2032/33")
 
 
-AI_TEXT = {"model": "test-model", "overview": ["An invented-for-tests introduction."],
-           "seasons": {"2032/33": ["A model-written review of 2032/33.", "Second paragraph."]}}
+AI_TEXT = {
+    "model": "test-model",
+    "overview": ["An invented-for-tests introduction."],
+    "seasons": {"2032/33": ["A model-written review of 2032/33.", "Second paragraph."]},
+}
 
 
 @needs_chrome
@@ -119,7 +136,7 @@ def test_ai_text_replaces_the_plain_summaries_where_present(tmp_path, sample):
     season = view_of(dom(tmp_path, render(sample), "season/2032-33"))
     assert "A model-written review of 2032/33." in season and "Second paragraph." in season
     assert "Written by test-model" in season and "Show the plain summary" in season
-    other = view_of(dom(tmp_path, render(sample), "season/2031-32"))   # no AI text for this one
+    other = view_of(dom(tmp_path, render(sample), "season/2031-32"))  # no AI text for this one
     assert "were crowned champions" in other and "Written by" not in other
     me = view_of(dom(tmp_path, render(sample), "me"))
     assert "An invented-for-tests introduction." in me
@@ -134,11 +151,11 @@ def test_without_ai_text_the_plain_summary_shows(tmp_path, sample):
 @needs_chrome
 def test_header_and_overview_show_the_managers_face_else_the_club_badge(tmp_path, sample):
     text = dom(tmp_path, render(sample), "me")
-    head = text[text.find('id="brand"'):text.find("</div>", text.find('id="brand"'))]
-    assert "crest" in head and "data:image" not in head            # no face: the club's badge (initials)
+    head = text[text.find('id="brand"') : text.find("</div>", text.find('id="brand"'))]
+    assert "crest" in head and "data:image" not in head  # no face: the club's badge (initials)
     sample["images"] = {"person:101": "data:image/png;base64,AAAA"}
     text = dom(tmp_path, render(sample), "me")
-    head = text[text.find('id="brand"'):text.find("</div>", text.find('id="brand"'))]
+    head = text[text.find('id="brand"') : text.find("</div>", text.find('id="brand"'))]
     assert 'class="pic face' in head and "crest" not in head
     assert view_of(text).count("data:image/png;base64,AAAA") >= 1  # the overview's big picture too
 
@@ -147,7 +164,10 @@ def test_pages_are_whole_documents_with_nothing_left_to_fill(sample):
     import re
 
     from fmcareer import web
-    sample["manager"]["name"] = "Alex __FOOTER__ Example"   # data is filled last, so it is left alone
+
+    sample["manager"]["name"] = "Alex __FOOTER__ Example"  # data is filled last, so it is left alone
     for text in (render(sample), web.page("app", VERSION="1", FOOTER="f")):
         assert text.count("<style>") == 1 and "<script src" not in text
-        assert not re.search(r"__(STYLE|SCRIPT|TITLE|FOOTER|DATA|VERSION)__", text.replace("Alex __FOOTER__ Example", ""))
+        assert not re.search(
+            r"__(STYLE|SCRIPT|TITLE|FOOTER|DATA|VERSION)__", text.replace("Alex __FOOTER__ Example", "")
+        )

@@ -23,6 +23,7 @@ and `person/r-<id>/portrait` for players the game generated) or names its files 
 (`logos/Clubs/Normal/Normal/716.png`), the folder saying what they are. The ids are the
 same as above: club uid, person unique_id, competition database id.
 """
+
 import base64
 import io
 import os
@@ -91,8 +92,19 @@ def load(install, wanted):
 _MAP = re.compile(r'<record\s+from="([^"]+)"\s+to="graphics/pictures/(club|person|comp)/(?:r-)?(\d+)/(\w+)"')
 _IMAGE_EXT = (".png", ".jpg", ".jpeg")
 # alternative and retro badge sets, placeholders, small sizes, and things the report doesn't show
-_SKIP_DIRS = {"alternatives", "alternative", "retro", "fantasy", "default", "small", "kits", "backgrounds",
-              "media", "nations", "confederations"}
+_SKIP_DIRS = {
+    "alternatives",
+    "alternative",
+    "retro",
+    "fantasy",
+    "default",
+    "small",
+    "kits",
+    "backgrounds",
+    "media",
+    "nations",
+    "confederations",
+}
 _KIND_DIRS = {"clubs": "club", "club": "club", "competitions": "comp", "faces": "person", "players": "person"}
 _ROLE_RANK = {"logo": 0, "portrait": 0, "icon": 1}  # full-size pictures before small icons
 
@@ -160,6 +172,7 @@ def _encode(image, kind):
 def load_pack(graphics, wanted):
     """Data URIs for the wanted (kind, id) pairs the graphics packs have: {"kind:id": uri}."""
     from PIL import Image
+
     out = {}
     for (kind, ident), path in pack_images(graphics, wanted).items():
         try:

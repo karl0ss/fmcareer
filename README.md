@@ -18,9 +18,9 @@ Season summaries are written from the data, or optionally by an AI model you cho
 Club badges, faces and competition logos come from the game and from any logo or face
 packs you've installed.
 
-Everything is read from the save itself through
+Everything is read from the save itself through our fork of
 [fmsave](https://github.com/karl0ss/fmsave) (branch `history-decoders`, which adds the
-history decoders this tool needs). Nothing is scraped from screenshots or the game UI.
+history decoders this tool needs), pinned to a commit in `pyproject.toml`. Nothing is scraped from screenshots or the game UI.
 
 ## Download (Windows)
 
@@ -170,6 +170,7 @@ release. A local build: `pip install ".[images,build]"` then `python packaging/b
 ```sh
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest
+.venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
 The tests use a small made-up career, so they need no save or game install. The page

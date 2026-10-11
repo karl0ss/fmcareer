@@ -70,6 +70,7 @@ def ordinal(n):
 
 # ---- facts
 
+
 def comparison(prev, r):
     """How a season compares with the one before, spelt out so the model needn't work it out."""
     if prev["club"] != r["club"]:
@@ -77,10 +78,20 @@ def comparison(prev, r):
     if prev["competition"] != r["competition"]:
         up = (r.get("tier") or 99) < (prev.get("tier") or 99)
         return f"played a division {'higher' if up else 'lower'} than the previous season"
-    place = ("finished higher" if r["position"] < prev["position"] else
-             "finished lower" if r["position"] > prev["position"] else "finished in the same place")
-    points = ("more points" if r["points"] > prev["points"] else
-              "fewer points" if r["points"] < prev["points"] else "the same points")
+    place = (
+        "finished higher"
+        if r["position"] < prev["position"]
+        else "finished lower"
+        if r["position"] > prev["position"]
+        else "finished in the same place"
+    )
+    points = (
+        "more points"
+        if r["points"] > prev["points"]
+        else "fewer points"
+        if r["points"] < prev["points"]
+        else "the same points"
+    )
     return f"{place} in the same division than the previous season, with {points}"
 
 
@@ -98,18 +109,32 @@ def season_facts(data):
         prev = league[i - 1] if i else None
         season = r["season"]
         facts = {
-            "season": season, "manager": manager, "club": r["club"],
+            "season": season,
+            "manager": manager,
+            "club": r["club"],
             "competition": r["competition"],
             "top_division": r.get("tier") == 1,
-            "league_finish": ordinal(r["position"]), "teams": r["teams"],
-            "played": r["played"], "won": r["won"], "drawn": r["drawn"], "lost": r["lost"],
-            "goals_for": r["goals_for"], "goals_against": r["goals_against"], "points": r["points"],
-            "champions": r["champion"], "promoted": r["promoted"], "relegated": r["relegated"],
+            "league_finish": ordinal(r["position"]),
+            "teams": r["teams"],
+            "played": r["played"],
+            "won": r["won"],
+            "drawn": r["drawn"],
+            "lost": r["lost"],
+            "goals_for": r["goals_for"],
+            "goals_against": r["goals_against"],
+            "points": r["points"],
+            "champions": r["champion"],
+            "promoted": r["promoted"],
+            "relegated": r["relegated"],
             "manager_left_for_another_club_after": r["moved"],
         }
         if prev:
-            facts["previous_season"] = {"club": prev["club"], "competition": prev["competition"],
-                                        "league_finish": ordinal(prev["position"]), "points": prev["points"]}
+            facts["previous_season"] = {
+                "club": prev["club"],
+                "competition": prev["competition"],
+                "league_finish": ordinal(prev["position"]),
+                "points": prev["points"],
+            }
             facts["compared_with_previous_season"] = comparison(prev, r)
         cups = []
         for c in data.get("cups", []):
@@ -160,9 +185,15 @@ def season_facts(data):
                 t = max(sold, key=lambda t: t["fee"])
                 market["biggest_sale"] = {"player": t["player"], "fee": money(t["fee"]), "to": t.get("other")}
             facts["transfers"] = market
-        notable = [{"opponent": m["opponent"], "score": f"{m['goals_for']}-{m['goals_against']}",
-                    "competition": m.get("competition")}
-                   for m in data.get("notable_matches", []) if m["season"] == season and m.get("opponent")]
+        notable = [
+            {
+                "opponent": m["opponent"],
+                "score": f"{m['goals_for']}-{m['goals_against']}",
+                "competition": m.get("competition"),
+            }
+            for m in data.get("notable_matches", [])
+            if m["season"] == season and m.get("opponent")
+        ]
         if notable:
             facts["notable_results"] = notable[:4]
         out.append((season, facts))
@@ -171,28 +202,48 @@ def season_facts(data):
 
 def overview_facts(data):
     league, m, career = data.get("league", []), data.get("manager", {}), data.get("career") or {}
-    stints = [{"club": s["club"], "from": (s["start"] or "")[:4] or None, "to": (s["end"] or "")[:4] or "present"}
-              for s in data.get("stints", [])]
+    stints = [
+        {"club": s["club"], "from": (s["start"] or "")[:4] or None, "to": (s["end"] or "")[:4] or "present"}
+        for s in data.get("stints", [])
+    ]
     facts = {"manager": m.get("name"), "clubs": stints, "seasons_completed": len(league)}
     if league:
         first, last = league[0], league[-1]
-        facts["first_season"] = {"season": first["season"], "club": first["club"], "competition": first["competition"],
-                                 "league_finish": ordinal(first["position"])}
-        facts["latest_season"] = {"season": last["season"], "club": last["club"], "competition": last["competition"],
-                                  "league_finish": ordinal(last["position"]), "top_division": last.get("tier") == 1}
+        facts["first_season"] = {
+            "season": first["season"],
+            "club": first["club"],
+            "competition": first["competition"],
+            "league_finish": ordinal(first["position"]),
+        }
+        facts["latest_season"] = {
+            "season": last["season"],
+            "club": last["club"],
+            "competition": last["competition"],
+            "league_finish": ordinal(last["position"]),
+            "top_division": last.get("tier") == 1,
+        }
         tiers = [r for r in league if r.get("rank")]
         if tiers:
             best = min(tiers, key=lambda r: r["rank"])
-            facts["best_league_finish"] = {"season": best["season"], "club": best["club"],
-                                           "competition": best["competition"], "league_finish": ordinal(best["position"])}
+            facts["best_league_finish"] = {
+                "season": best["season"],
+                "club": best["club"],
+                "competition": best["competition"],
+                "league_finish": ordinal(best["position"]),
+            }
         facts["promotions"] = sum(1 for r in league if r["promoted"])
         facts["league_titles"] = [f"{r['competition']} ({r['season']})" for r in league if r["champion"]]
-    cups_won = [f"{c['competition']} ({c['season']})" for c in data.get("cups", []) if c.get("won") and not c.get("youth")]
+    cups_won = [
+        f"{c['competition']} ({c['season']})" for c in data.get("cups", []) if c.get("won") and not c.get("youth")
+    ]
     if cups_won:
         facts["cups_won"] = cups_won
     wins = [f"{a['name']} ({a['season']})" for a in data.get("awards", []) if a["placing"] == "Winner"]
-    near = [f"{a['placing'].lower()} for {a['name']} ({a['season']})" for a in data.get("awards", [])
-            if a["placing"] != "Winner"]
+    near = [
+        f"{a['placing'].lower()} for {a['name']} ({a['season']})"
+        for a in data.get("awards", [])
+        if a["placing"] != "Winner"
+    ]
     if near:
         facts["manager_awards_not_won"] = near
     if wins:
@@ -208,14 +259,17 @@ def overview_facts(data):
 
 # ---- the endpoint
 
+
 def _base(endpoint):
     return endpoint.rstrip("/")
 
 
 def _request(endpoint, token, path, body=None, timeout=300):
-    req = urllib.request.Request(_base(endpoint) + path, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json",
-                                          **({"Authorization": f"Bearer {token}"} if token else {})})
+    req = urllib.request.Request(
+        _base(endpoint) + path,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})},
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read())
@@ -241,8 +295,8 @@ def tidy(text):
     return [p for p in paras if p]
 
 
-TOKENS = 4000         # room for the answer (and a reasoning model's thinking)
-MORE_TOKENS = 16000   # asked again with this much when thinking used it all up
+TOKENS = 4000  # room for the answer (and a reasoning model's thinking)
+MORE_TOKENS = 16000  # asked again with this much when thinking used it all up
 
 
 # Endpoints and models that refused `reasoning_effort` (strict APIs reject it for models
@@ -251,9 +305,15 @@ _NO_EFFORT = set()
 
 
 def chat(endpoint, token, model, system, facts, max_tokens=TOKENS):
-    body = {"model": model, "temperature": 0.3, "max_tokens": max_tokens,
-            "messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": json.dumps(facts, ensure_ascii=False)}]}
+    body = {
+        "model": model,
+        "temperature": 0.3,
+        "max_tokens": max_tokens,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": json.dumps(facts, ensure_ascii=False)},
+        ],
+    }
     if (endpoint, model) not in _NO_EFFORT:
         # reasoning models (gpt-oss and the like) otherwise think for minutes, often until
         # they run out of tokens, for a short piece of prose
