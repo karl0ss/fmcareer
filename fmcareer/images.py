@@ -107,6 +107,12 @@ def wanted_images(data):
     m = data.get("manager", {})
     if m.get("person_id"):
         want.add(("person", m["person_id"]))
+    today = data.get("club_today") or {}
+    want.update(("person", p["person_id"]) for p in today.get("squad", []))
+    live = today.get("live_table") or {}
+    want.update(("club", r["club_uid"]) for r in live.get("rows", []) if r.get("club_uid") is not None)
+    if live.get("competition_db"):
+        want.add(("comp", live["competition_db"]))
     career = data.get("career") or {}
     for key in ("record_signing", "record_sale"):
         if career.get(key) and career[key].get("person_id"):

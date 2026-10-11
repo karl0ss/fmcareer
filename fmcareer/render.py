@@ -133,7 +133,8 @@ const slug = season => season.replace('/', '-');
 const fmtDate = iso => iso ? iso.split('-').reverse().join('/') : '';
 const money = n => n == null ? '' : '£' + n.toLocaleString('en-GB');
 const num = v => v == null ? '–' : v;
-const moneyShort = n => !n ? '–' : n >= 1e6 ? '£' + (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '£' + Math.round(n / 1e3) + 'k';
+const moneyShort = n => { if (!n) return '–'; const a = Math.abs(n), s = n < 0 ? '−£' : '£';
+  return s + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 1 : 2) + 'M' : Math.round(a / 1e3) + 'k'); };
 const C = D.career;
 // images embedded from the user's FM26 install (fmcareer --install); clubs without a badge get a crest
 const IM = D.images || {};
@@ -210,7 +211,8 @@ function seasonStory(r) {
 }
 
 // ---- navigation and routing
-const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']];
+const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']]
+  .concat(D.club_today ? [['club', 'Club today']] : []);
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 document.getElementById('brand').innerHTML = `${CUR ? crest(CUR.club_uid, CUR.club) : ''}${esc(M.name)} <span>· career history</span>`;
 // tint the page with the current club's badge colour
@@ -228,7 +230,7 @@ const view = document.getElementById('view');
 function route() {
   const [page, arg] = (location.hash.slice(1) || 'me').split('/');
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page)));
-  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg), honours: pageHonours, transfers: pageTransfers}[page] || pageMe)();
+  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg), honours: pageHonours, transfers: pageTransfers, club: pageClub}[page] || pageMe)();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -470,6 +472,49 @@ function pageTransfers() {
         <td>${face(t.person_id)}${esc(t.player)}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
   };
   [ts, td, tt, tstaff].forEach(e => e.onchange = draw); draw();
+}
+
+// ---- page: the current club today
+function balanceChart(H) {
+  if (!H || H.length < 2) return '';
+  const W = 960, Ht = 220, ml = 70, mr = 16, mt = 12, mb = 28;
+  const vals = H.map(h => h.balance), lo = Math.min(0, ...vals), hi = Math.max(...vals);
+  const x = i => ml + (W - ml - mr) * i / (H.length - 1), y = v => mt + (Ht - mt - mb) * (1 - (v - lo) / ((hi - lo) || 1));
+  let s = `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Club bank balance by month">`;
+  [lo, (lo + hi) / 2, hi].forEach(v => { s += `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${ml - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-3)">${moneyShort(v) === '–' ? '£0' : moneyShort(v)}</text>`; });
+  H.forEach((h, i) => { if (h.month.endsWith('-07-01') || i === 0) s += `<text x="${x(i)}" y="${Ht - 8}" text-anchor="middle" font-size="11" fill="var(--text-3)">${h.month.slice(0, 7)}</text>`; });
+  s += `<polyline points="${H.map((h, i) => x(i) + ',' + y(h.balance)).join(' ')}" fill="none" stroke="var(--up)" stroke-width="2"/>`;
+  return s + '</svg>';
+}
+function pageClub() {
+  const T = D.club_today; if (!T) { pageMe(); return; }
+  const F = T.finances, live = T.live_table;
+  const money = n => n == null ? '–' : moneyShort(n);
+  view.innerHTML = `
+    <div class="card heroband"><div>${crest(T.club_uid, T.club, 'lg')}</div><div>
+      <h1>${esc(T.club)}</h1>
+      <p class="lede">${T.stadium ? `${esc(T.stadium.name)} · capacity ${T.stadium.capacity.toLocaleString('en-GB')}${T.stadium.built ? ', built ' + T.stadium.built : ''}` : ''}${T.affiliates.length ? `<br>Affiliates: ${T.affiliates.map(esc).join(', ')}` : ''}</p></div></div>
+    <h2>Finances${F ? ` <span class="muted" style="font-size:14px">(${fmtDate(F.month).slice(3)})</span>` : ''}</h2>
+    ${F ? `<div class="tiles">
+      <div class="card tile"><div class="v">${money(F.balance)}</div><div class="k">Bank balance</div></div>
+      <div class="card tile"><div class="v">${money(F.transfer_left)}</div><div class="k">Transfer budget left</div><div class="s">of ${money(F.transfer_budget)}</div></div>
+      <div class="card tile"><div class="v">${money(F.wage_payroll)}</div><div class="k">Weekly wages</div><div class="s">budget ${money(F.wage_budget)} p/w</div></div>
+      <div class="card tile"><div class="v">${money(T.sponsors.annual)}</div><div class="k">Sponsorship a year</div><div class="s">${plural(T.sponsors.count, 'deal')}</div></div>
+      <div class="card tile"><div class="v">${T.staff}</div><div class="k">Staff</div><div class="s">${T.corporate_facilities ? 'Corporate facilities: ' + esc(T.corporate_facilities) : ''}</div></div>
+    </div>
+    <div class="card chart" style="margin-top:12px">${balanceChart(T.balance_history)}</div>
+    <p class="note">Bank balance at each month end the save keeps (${T.balance_history.length} months).</p>` : '<p class="muted">No finance records.</p>'}
+    ${T.tactics.length ? `<h2>Tactics</h2><div class="card"><ul class="list">${T.tactics.map(x => `<li><span><b>${esc(x.name)}</b></span><span class="muted">${esc(x.style || '')}${x.mentality ? ' · ' + esc(x.mentality) : ''}</span></li>`).join('')}</ul></div>` : ''}
+    ${live ? `<h2>${pic('comp', live.competition_db)}${esc(live.competition || 'League')} — live table</h2>
+    <div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+      ${live.rows.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${crest(t.club_uid, t.club)}${esc(t.club || '?')}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.goals_for}</td><td class="n">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <h2>Squad</h2>
+    <div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n">Potential</th><th class="n">Value</th><th class="n">Wage p/w</th><th>Contract</th><th>Status</th></tr></thead><tbody>
+      ${T.squad.map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}${p.first_team ? '' : '<span class="badge">Other team</span>'}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
+        <td class="n">${num(p.ability)}</td><td class="n">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td>${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted">${esc(p.status || '')}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save.</p>`;
 }
 
 route();
