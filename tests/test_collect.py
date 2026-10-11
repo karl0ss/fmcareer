@@ -1,11 +1,17 @@
 """The pure parts of collect: league levels, club spells, manager lookup, names, helpers."""
 
 import datetime as dt
+import inspect
+import re
 from types import SimpleNamespace as NS
 
 import pytest
 
 from fmcareer.collect import (
+    COLLECT_STEPS,
+    collect,
+    list_managers,
+    manager_steps,
     _norm,
     find_manager,
     league_levels,
@@ -168,3 +174,23 @@ def test_read_names(tmp_path):
     assert comps == {13: "League One", 7: "Premier League"}
     assert awards == {0: "Manager of the Year"}
     assert path.endswith("competition_names.csv")
+
+
+def test_step_counts_match_the_progress_calls():
+    """The app's progress bar relies on these counts."""
+    assert len(re.findall(r"\bprogress\(", inspect.getsource(collect))) == COLLECT_STEPS
+
+    class Empty:
+        def staff(self):
+            return []
+
+        def career_manager_records(self):
+            return []
+
+        def history_people(self):
+            return []
+
+    for everyone in (False, True):
+        seen = []
+        list_managers(Empty(), seen.append, everyone=everyone)
+        assert len(seen) == manager_steps(everyone)

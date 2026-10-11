@@ -89,6 +89,7 @@ def wait(job_id):
 
 def test_jobs_report_steps_results_and_errors():
     def works(step, x):
+        step.plan(1)
         step("thinking")
         return x * 2
 
@@ -96,7 +97,47 @@ def test_jobs_report_steps_results_and_errors():
         raise SystemExit("no staff member called 'Nobody'")
 
     job = wait(app.start_job(works, 21))
-    assert job["status"] == "done" and job["result"] == 42
+    assert job["status"] == "done" and job["result"] == 42 and job["total"] == 1
     assert [s["text"] for s in job["steps"]] == ["thinking", "Finished"]
     job = wait(app.start_job(fails))
     assert job["status"] == "error" and "Nobody" in job["error"]
+
+
+def test_job_status_reports_elapsed_time_for_the_progress_bar(server):
+    base, _ = server
+    job_id = app.start_job(lambda step: step.plan(2) or step("one") or step("two"))
+    wait(job_id)
+    code, body = call(base + "/api/job/" + job_id)
+    job = json.loads(body)
+    assert code == 200 and job["total"] == 2 and job["elapsed"] >= 0
+    assert [s["text"] for s in job["steps"]] == ["one", "two", "Finished"]
+
+
+def test_report_and_manager_jobs_plan_the_steps_they_report(monkeypatch, tmp_path):
+    """The bar's step counts match what the jobs actually report."""
+    save = tmp_path / "a.fm"
+    save.write_bytes(b"x")
+    monkeypatch.setattr(app, "OPEN", {"key": None, "save": None, "managers": {}})
+    monkeypatch.setattr(app, "open_save", lambda path, names: object())
+    monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
+
+    def fake_collect(*a, progress, **k):
+        for i in range(app.COLLECT_STEPS):
+            progress(f"part {i}")
+        return {"manager": {"name": "Alex"}, "league": [], "stints": []}
+
+    def fake_list(s, progress, everyone):
+        for i in range(app.manager_steps(everyone)):
+            progress(f"part {i}")
+        return []
+
+    monkeypatch.setattr(app, "collect", fake_collect)
+    monkeypatch.setattr(app, "list_managers", fake_list)
+    monkeypatch.setattr(app, "render", lambda data: "<p>report</p>")
+    for job_id in (app.start_job(app.job_managers, str(save), True),
+                   app.start_job(app.job_managers, str(save), True),     # cached the second time
+                   app.start_job(app.job_report, str(save), 1, {}, False, None)):
+        job = wait(job_id)
+        assert job["status"] == "done", job["error"]
+        assert len(job["steps"]) - 1 == job["total"]  # every planned step, then Finished

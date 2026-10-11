@@ -18,7 +18,7 @@ import uuid
 import webbrowser
 from pathlib import Path
 
-from fmcareer.collect import DEFAULT_OPTIONS, collect, list_managers, open_save
+from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
 from fmcareer.render import render
 
 HOME = Path.home()
@@ -103,10 +103,15 @@ OPEN = {"key": None, "save": None, "managers": {}}
 
 def start_job(fn, *args):
     job_id = uuid.uuid4().hex[:12]
-    job = JOBS[job_id] = dict(status="queued", steps=[], result=None, error=None, started=time.time())
+    job = JOBS[job_id] = dict(status="queued", steps=[], total=None, result=None, error=None, started=time.time())
 
     def step(text):
         job["steps"].append(dict(text=text, at=round(time.time() - job["started"], 1)))
+
+    def plan(total):  # how many steps the job will report, for the page's progress bar
+        job["total"] = total
+
+    step.plan = plan
 
     def run():
         with WORK:
@@ -125,23 +130,32 @@ def start_job(fn, *args):
     return job_id
 
 
+def save_key(path):
+    return (path, os.path.getmtime(path), names_dir())
+
+
 def get_save(step, path):
-    key = (path, os.path.getmtime(path), names_dir())
+    key = save_key(path)
     if OPEN["key"] != key:
         OPEN.update(key=None, save=None, managers={})
-        step("Opening the save (about a minute for a long career)")
+        step("Opening the save")
         OPEN.update(key=key, save=open_save(path, names_dir()))
+    else:
+        step("Using the save already open")
     return OPEN["save"]
 
 
 def job_names(step, install):
     from fmcareer.names import main as build_names
+    step.plan(1)
     step("Reading competition and award names from the game")
     build_names([install, str(NAMES)])
     return dict(names=names_dir())
 
 
 def job_managers(step, path, everyone):
+    cached = OPEN["key"] == save_key(path) and everyone in OPEN["managers"]
+    step.plan(1 if cached else 1 + manager_steps(everyone))
     s = get_save(step, path)
     if everyone not in OPEN["managers"]:
         OPEN["managers"][everyone] = list_managers(s, step, everyone=everyone)
@@ -149,6 +163,7 @@ def job_managers(step, path, everyone):
 
 
 def job_report(step, path, staff_uid, options, images, install):
+    step.plan(1 + COLLECT_STEPS + bool(images and install) + 1)  # save, collect, images, writing
     s = get_save(step, path)
     data = collect(path, None, names_dir(), staff_uid=staff_uid, save=s, options=options, progress=step)
     if images and install:
@@ -196,7 +211,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                        images=images_available(), defaults=DEFAULT_OPTIONS))
         if self.path.startswith("/api/job/"):
             job = JOBS.get(self.path.rsplit("/", 1)[-1])
-            return self.send(200 if job else 404, job or {"error": "no such job"})
+            if not job:
+                return self.send(404, {"error": "no such job"})
+            return self.send(200, dict(job, elapsed=round(time.time() - job["started"], 1)))
         if self.path.startswith("/reports/"):
             name = os.path.basename(self.path[len("/reports/"):].split("?")[0])
             target = REPORTS / name
@@ -293,6 +310,15 @@ button:disabled { opacity: .45; cursor: default; }
 .opts label { display: block; padding: 2px 0; }
 .log { font-size: 13px; color: var(--text-2); margin-top: 10px; }
 .log div::before { content: "› "; color: var(--accent); }
+.log .prog::before, .log .now::before { content: none; }
+.prog { height: 10px; margin: 4px 0 6px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.prog.run { background: repeating-linear-gradient(-45deg, var(--surface-2) 0 8px, #2a2d5a 8px 16px) 0 0 / 22.6px 100%;
+  animation: crawl .8s linear infinite; }
+.prog i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #7b3cff, var(--accent-2));
+  transition: width .4s ease; }
+.now { color: var(--text); margin-bottom: 4px; }
+@keyframes crawl { to { background-position: 22.6px 0; } }
+@media (prefers-reduced-motion: reduce) { .prog.run { animation: none; } }
 .err { color: var(--down); margin-top: 8px; } .ok { color: var(--up); }
 .muted { color: var(--text-3); } a { color: var(--accent); }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
@@ -355,11 +381,23 @@ async function api(path, body) {
   const r = await fetch(path, body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {});
   const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
 }
+// The bar counts finished steps out of the steps the job said it would report; the stripes
+// move while a step is still running, so a long step still shows the app is working.
+function progress(j) {
+  const steps = j.status === 'running' || j.status === 'queued' ? j.steps : j.steps.slice(0, -1);  // drop Finished/Stopped
+  const total = Math.max(j.total || steps.length, steps.length, 1);
+  const running = j.status === 'running' || j.status === 'queued';
+  const done = j.status === 'done' ? total : Math.max(steps.length - 1, 0);
+  const cur = steps[steps.length - 1];
+  const label = !running ? (j.status === 'done' ? `All ${total} steps done in ${j.steps[j.steps.length - 1].at}s` : 'Stopped')
+    : cur ? `Step ${steps.length} of ${total}: ${esc(cur.text)} <span class="muted">· ${Math.round(j.elapsed - cur.at)}s on this step</span>` : 'Starting…';
+  return `<div class="now">${label}</div><div class="prog${running ? ' run' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><i style="width:${100 * done / total}%"></i></div>`;
+}
 async function follow(job, logEl) {
   logEl.innerHTML = '';
   for (;;) {
     const j = await api('/api/job/' + job);
-    logEl.innerHTML = j.steps.map(s => `<div>${esc(s.text)} <span class="muted">${s.at}s</span></div>`).join('');
+    logEl.innerHTML = progress(j) + j.steps.map(s => `<div>${esc(s.text)} <span class="muted">${s.at}s</span></div>`).join('');
     if (j.status === 'done') return j.result;
     if (j.status === 'error') throw new Error(j.error);
     await new Promise(r => setTimeout(r, 1000));
@@ -428,7 +466,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'images') remember('images', e.target.checked);
 });
 $('generate').onclick = async () => {
-  $('generate').disabled = true; $('genState').textContent = 'Working… a long career takes a few minutes.';
+  $('generate').disabled = true; $('genState').textContent = 'Working…';
   try {
     const {job} = await api('/api/report', {save: chosenSave, staff_uid: chosenManager,
       sections: [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec),

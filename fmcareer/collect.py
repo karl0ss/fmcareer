@@ -200,6 +200,11 @@ def open_save(save_path, names_dir=None):
     return fmsave.open(save_path, competition_names=comp_csv) if comp_csv else fmsave.open(save_path)
 
 
+def manager_steps(everyone):
+    """How many progress steps list_managers reports."""
+    return 3 if everyone else 1
+
+
 def list_managers(s, progress=lambda text: None, everyone=False):
     """Managers to report on: the save's human managers, or with `everyone` every current
     staff member with a managerial record (human managers first, then by games).
@@ -230,6 +235,9 @@ def list_managers(s, progress=lambda text: None, everyone=False):
            for x, rec in found.values() if x.name and rec.games]
     out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
     return out
+
+
+COLLECT_STEPS = 7  # progress steps collect reports; tests check this against the code
 
 
 def collect(save_path, manager_name, names_dir, *, staff_uid=None, save=None, options=None,
