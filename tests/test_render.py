@@ -141,3 +141,13 @@ def test_header_and_overview_show_the_managers_face_else_the_club_badge(tmp_path
     head = text[text.find('id="brand"'):text.find("</div>", text.find('id="brand"'))]
     assert 'class="pic face' in head and "crest" not in head
     assert view_of(text).count("data:image/png;base64,AAAA") >= 1  # the overview's big picture too
+
+
+def test_pages_are_whole_documents_with_nothing_left_to_fill(sample):
+    import re
+
+    from fmcareer import web
+    sample["manager"]["name"] = "Alex __FOOTER__ Example"   # data is filled last, so it is left alone
+    for text in (render(sample), web.page("app", VERSION="1", FOOTER="f")):
+        assert text.count("<style>") == 1 and "<script src" not in text
+        assert not re.search(r"__(STYLE|SCRIPT|TITLE|FOOTER|DATA|VERSION)__", text.replace("Alex __FOOTER__ Example", ""))

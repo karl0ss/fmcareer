@@ -18,6 +18,7 @@ PyInstaller.__main__.run([
     "--noconfirm",
     "--clean",
     # fmsave's layout data, and the image readers with their native decoders
+    "--collect-data", "fmcareer",   # the report's and the app's pages (fmcareer/web)
     "--collect-all", "fmsave",
     "--collect-all", "UnityPy",
     "--collect-all", "texture2ddecoder",
