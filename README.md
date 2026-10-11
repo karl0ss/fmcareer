@@ -42,8 +42,20 @@ This writes `names/competition_names.csv` and `names/award_names.csv`.
 
 - The manager is matched by full, first + last, or common name, ignoring case and
   accents. Any manager in the save works, not only the human one.
+- `--install "/path/to/Football Manager 26"` embeds club badges, real players' photos
+  and competition logos from your own install. It needs the images extra:
+  `pip install "fmcareer[images] @ git+https://github.com/karl0ss/fmcareer.git"`. Clubs and
+  players without licensed artwork (most non-league clubs, every regen) get a lettered
+  crest or no photo.
 - `--json career_data.json` also writes the collected data.
 - A large save takes a few minutes and about 3 GB of memory.
+
+## Images
+
+The game keeps its licensed artwork in Unity asset bundles; the address catalog next to
+them names each image by the save's own ids (`club_<club uid>`, `person_<uid + 1>`,
+`comp_<database id>`). fmcareer reads only the images a report needs and embeds them,
+scaled down, in the HTML. Nothing from the game is stored in this repository.
 
 ## How it works out the history
 

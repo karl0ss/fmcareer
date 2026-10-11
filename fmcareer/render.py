@@ -12,50 +12,56 @@ TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  color-scheme: light;
-  --bg: #f6f5f2; --surface: #fcfcfb; --surface-2: #f0efeb; --line: #e3e1dc;
-  --text: #161614; --text-2: #52514e; --text-3: #7c7a75;
-  --accent: #2a78d6; --accent-soft: #e6effa; --gold: #9a6a00; --gold-soft: #fbf1d9;
-  --up: #12804f; --up-soft: #e3f4ec; --down: #b23b3b; --down-soft: #f8e6e6; --band: #f3f2ee;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --line: #2f2f2c;
-    --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86;
-    --accent: #3987e5; --accent-soft: #1d2b3d; --gold: #e0b44c; --gold-soft: #33290f;
-    --up: #3fbf86; --up-soft: #15302a; --down: #e66767; --down-soft: #3a1c1c; --band: #1f1f1d;
-  }
-}
-:root[data-theme="dark"] {
+  /* FM26-style palette: deep indigo panels, purple headings, lime and gold highlights */
   color-scheme: dark;
-  --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --line: #2f2f2c;
-  --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86;
-  --accent: #3987e5; --accent-soft: #1d2b3d; --gold: #e0b44c; --gold-soft: #33290f;
-  --up: #3fbf86; --up-soft: #15302a; --down: #e66767; --down-soft: #3a1c1c; --band: #1f1f1d;
+  --bg: #0c0d24; --surface: #171936; --surface-2: #20234a; --line: #2c2f5e;
+  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #8486b4;
+  --accent: #c77dff; --accent-soft: #33275e; --accent-2: #e04fd0;
+  --gold: #f4c54d; --gold-soft: #3b3220; --up: #8be04e; --up-soft: #23391f;
+  --down: #ff6b7a; --down-soft: #3e1d2c; --band: #1c1e40; --club: #6b4bd6;
+  --head: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  font: 15px/1.55 "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 64px; }
-.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.brand { font-weight: 700; font-size: 17px; color: var(--text); }
-.brand span { color: var(--text-3); font-weight: 500; }
-nav { display: flex; gap: 2px; margin: 14px 0 22px; border-bottom: 1px solid var(--line);
-  overflow-x: auto; scrollbar-width: none; }
-nav a { color: var(--text-2); padding: 10px 14px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.bar { background: linear-gradient(180deg, #14163a, #0f1130); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.bar .in { max-width: 1160px; margin: 0 auto; padding: 10px 16px 0; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 22px/1.1 var(--head); color: var(--text); }
+.brand span { color: var(--text-3); font-weight: 500; font-size: 17px; }
+.brand img { width: 34px; height: 34px; object-fit: contain; }
+.asof { font: 600 14px var(--head); color: #fff; padding: 5px 14px; border-radius: 6px;
+  background: linear-gradient(90deg, #7b3cff, var(--accent-2)); }
+nav { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+nav a { font: 600 18px var(--head); color: var(--text-2); padding: 8px 12px 10px; border-bottom: 3px solid transparent; white-space: nowrap; }
 nav a:hover { text-decoration: none; color: var(--text); }
-nav a.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-h1 { font-size: 30px; margin: 0; letter-spacing: -0.015em; line-height: 1.2; }
-h2 { font-size: 18px; margin: 30px 0 12px; }
+nav a.on { color: var(--accent); border-bottom-color: var(--accent); }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 22px 16px 64px; }
+h1 { font: 700 34px/1.15 var(--head); margin: 0; }
+h2 { font: 600 20px var(--head); color: var(--accent); margin: 30px 0 10px; }
+.card b { font-family: inherit; }
+.card > b:first-child { font: 600 17px var(--head); color: var(--accent); display: block; margin-bottom: 4px; }
+.pic { width: 22px; height: 22px; object-fit: contain; vertical-align: -6px; margin-right: 8px; }
+.pic.face { border-radius: 50%; object-fit: cover; background: var(--surface-2); }
+.pic.lg { width: 92px; height: 92px; vertical-align: middle; margin: 0; }
+.pic.md { width: 40px; height: 40px; vertical-align: middle; }
+.crest { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; vertical-align: -6px;
+  border-radius: 6px 6px 11px 11px; background: var(--surface-2); color: var(--text-2); font: 700 10px var(--head); }
+.crest.md { width: 40px; height: 44px; font-size: 14px; border-radius: 8px 8px 20px 20px; vertical-align: middle; }
+.crest.lg { width: 92px; height: 104px; font-size: 30px; margin: 0; border-radius: 14px 14px 46px 46px;
+  background: linear-gradient(160deg, var(--club), #2a1f63); color: #fff; }
+.heroband { background: linear-gradient(100deg, color-mix(in srgb, var(--club) 55%, transparent), transparent 70%);
+  border-radius: 12px; padding: 18px; display: flex; gap: 18px; align-items: center; }
 .lede { color: var(--text-2); font-size: 16px; margin: 6px 0 0; max-width: 70ch; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+.tile .v { font: 700 32px/1.1 var(--head); }
 .tile .k { color: var(--text-2); font-size: 13px; }
 .tile .s { color: var(--text-3); font-size: 12px; margin-top: 2px; }
 .hero { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
@@ -82,7 +88,7 @@ tr.click:hover td { background: var(--surface-2); }
 .seasons { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .scard { display: block; color: inherit; transition: border-color .15s; }
 .scard:hover { border-color: var(--accent); text-decoration: none; }
-.scard .yr { font-weight: 700; font-size: 18px; }
+.scard .yr { font: 700 22px var(--head); }
 .scard .fin { font-size: 14px; color: var(--text-2); margin-top: 2px; }
 .scard .row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 0; }
 .pager { display: flex; justify-content: space-between; margin-bottom: 14px; font-size: 14px; }
@@ -93,11 +99,12 @@ tr.click:hover td { background: var(--surface-2); }
 .cabinet { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .trophy { border-left: 3px solid var(--gold); }
 .trophy .yr { color: var(--text-3); font-size: 13px; }
+.trophy .pic { display: block; margin: 6px 0 8px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
 select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .chart { position: relative; overflow-x: auto; overflow-y: hidden; }
 .chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
-.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+.tip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
   opacity: 0; transition: opacity .1s; white-space: nowrap; }
 .note { color: var(--text-3); font-size: 13px; margin-top: 8px; }
@@ -108,9 +115,11 @@ footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top"><div class="brand" id="brand"></div><div class="muted" id="asof"></div></div>
+<div class="bar"><div class="in">
+  <div class="top"><div class="brand" id="brand"></div><div class="asof" id="asof"></div></div>
   <nav id="nav"></nav>
+</div></div>
+<div class="wrap">
   <main id="view"></main>
   <footer>Built entirely from the save file via fmsave decoders; competition and award names from the game's own database. Fees for retired players are mostly unavailable.</footer>
 </div>
@@ -126,6 +135,12 @@ const money = n => n == null ? '' : '£' + n.toLocaleString('en-GB');
 const num = v => v == null ? '–' : v;
 const moneyShort = n => !n ? '–' : n >= 1e6 ? '£' + (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : '£' + Math.round(n / 1e3) + 'k';
 const C = D.career;
+// images embedded from the user's FM26 install (fmcareer --install); clubs without a badge get a crest
+const IM = D.images || {};
+const pic = (kind, id, cls = '') => id != null && IM[kind + ':' + id] ? `<img class="pic ${cls}" src="${IM[kind + ':' + id]}" alt="">` : '';
+const initials = name => (name || '?').replace(/\b(FC|AFC|City|Town|United)\b/g, '').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase() || '?';
+const crest = (uid, name, cls = '') => pic('club', uid, cls) || `<span class="crest ${cls}">${esc(initials(name))}</span>`;
+const face = (id, cls = '') => pic('person', id, 'face ' + cls);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const short = name => name.replace(/^English /, '');
 
@@ -196,7 +211,17 @@ function seasonStory(r) {
 
 // ---- navigation and routing
 const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['honours', 'Honours & cups'], ['transfers', 'Transfers']];
-document.getElementById('brand').innerHTML = `${esc(M.name)} <span>· career history</span>`;
+const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
+document.getElementById('brand').innerHTML = `${CUR ? crest(CUR.club_uid, CUR.club) : ''}${esc(M.name)} <span>· career history</span>`;
+// tint the page with the current club's badge colour
+(() => { const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
+  const im = new Image(); im.onload = () => { try {
+    const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 24, 24);
+    const px = g.getImageData(0, 0, 24, 24).data; let r = 0, gg = 0, b = 0, n = 0;
+    for (let i = 0; i < px.length; i += 4) { const s = Math.max(px[i], px[i+1], px[i+2]) - Math.min(px[i], px[i+1], px[i+2]);
+      if (px[i+3] > 200 && s > 40) { r += px[i]; gg += px[i+1]; b += px[i+2]; n++; } }
+    if (n) document.documentElement.style.setProperty('--club', `rgb(${r/n|0},${gg/n|0},${b/n|0})`);
+  } catch (e) {} }; im.src = src; })();
 document.getElementById('asof').textContent = M.game_date ? 'As of ' + fmtDate(M.game_date) : '';
 document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#${id}" data-nav="${id}">${label}</a>`).join('');
 const view = document.getElementById('view');
@@ -264,10 +289,13 @@ function pageMe() {
     ? `Took charge of ${esc(S[0].club)} in ${years(S[0]).slice(0, 4)}${first ? `, in the ${esc(first.competition)}` : ''}. ${promotions ? `${plural(promotions, 'promotion')} later` : 'Since then'}, the club ${lastLine}${best ? `, with a best finish of ${ord(best.position)} in the ${esc(best.competition)} (${best.season})` : ''}.`
     : `${plural(S.length, 'club')} so far: ${S.map(st => `${esc(st.club)} (${years(st)})`).join(', ')}.${best ? ` Best league finish: ${ord(best.position)} in the ${esc(best.competition)} with ${esc(best.club)} (${best.season}).` : ''}`;
   view.innerHTML = `
-    <div class="card hero">
-      <div>
+    <div class="card hero heroband">
+      <div style="display:flex;gap:18px;align-items:center">
+        ${face(M.person_id, 'lg') || (CUR ? crest(CUR.club_uid, CUR.club, 'lg') : '')}
+        <div>
         <h1>${esc(M.name)}</h1>
         <p class="lede">${lede}</p>
+        </div>
       </div>
       <div class="facts">
         ${M.birth_date ? `<span>Born</span><b>${fmtDate(M.birth_date)}${M.age ? ` (age ${M.age})` : ''}</b>` : ''}
@@ -300,7 +328,7 @@ function pageMe() {
     <div class="card chart" id="climb">${chart.html}</div>
     <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
     <h2>Trophy cabinet</h2>
-    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div><b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
+    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
     <h2>Manager awards</h2>
     <div class="card"><ul class="list">${D.awards.map(a => `<li><span><a href="#season/${slug(a.season)}">${a.season}</a> · ${esc(a.name)}</span>${a.placing === 'Winner' ? '<span class="badge gold">Winner</span>' : `<span class="badge">${a.placing}</span>`}</li>`).join('')}</ul></div>
     <h2>Club legends of the era</h2>
@@ -339,16 +367,16 @@ function pageSeason(arg) {
   const top = xi.length ? xi.reduce((a, b) => (b.goals > a.goals ? b : a)) : null;
   const unnamed = table.filter(t => !t.club && !t.me).length;
   const chart = climbChart(season);
-  const playerRow = p => `<tr><td>${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p === top ? '<span class="badge gold">Top scorer</span>' : ''}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td></tr>`;
+  const playerRow = p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p === top ? '<span class="badge gold">Top scorer</span>' : ''}</td><td class="n">${p.apps}</td><td class="n">${p.goals}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td></tr>`;
   const pHead = '<thead><tr><th>Player</th><th class="n">Apps</th><th class="n">Goals</th><th class="n">Avg</th></tr></thead>';
-  const moveList = (list, dir) => list.length ? `<ul class="list">${list.map(t => `<li><span>${esc(t.player)} <span class="muted">${dir === 'in' ? 'from' : 'to'} ${esc(t.other || 'no club')}</span></span><span class="muted">${t.fee ? '<b style="color:var(--text)">' + moneyShort(t.fee) + '</b> · ' : ''}${t.type} · ${fmtDate(t.date)}</span></li>`).join('')}</ul>` : '<p class="muted">None</p>';
+  const moveList = (list, dir) => list.length ? `<ul class="list">${list.map(t => `<li><span>${face(t.person_id)}${esc(t.player)} <span class="muted">${dir === 'in' ? 'from' : 'to'} ${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || 'no club')}</span></span><span class="muted">${t.fee ? '<b style="color:var(--text)">' + moneyShort(t.fee) + '</b> · ' : ''}${t.type} · ${fmtDate(t.date)}</span></li>`).join('')}</ul>` : '<p class="muted">None</p>';
   const gd = r.goals_for - r.goals_against;
   const cupOutcome = c => c.won ? `<span class="badge gold first">Won</span> v ${esc(c.opponent || '?')}`
     : c.league_stage ? `<span class="muted">League stage${c.position != null ? ', ' + ord(c.position + 1) : ''}</span>`
     : `Out to ${esc(c.opponent || '?')}${c.method ? ' <span class="muted">' + c.method + '</span>' : ''}`;
   view.innerHTML = `
     <div class="pager"><span>${r.prev ? `<a href="#season/${slug(r.prev)}">← ${r.prev}</a>` : ''}</span><a href="#seasons">All seasons</a><span>${r.next ? `<a href="#season/${slug(r.next)}">${r.next} →</a>` : ''}</span></div>
-    <h1>${season} season review</h1>
+    <h1>${crest(r.club_uid, r.club, 'md')}${season} season review</h1>
     <p class="lede">${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}${r.champion ? ' · Champions' : ''}${r.promotedAfter ? ' · Promoted' : ''}${r.relegatedAfter ? ' · Relegated' : ''}${r.moved ? ' · Left for a new club' : ''}</p>
     <h2>Summary</h2>
     <div class="card story">${seasonStory(r).map(p => `<p>${p}</p>`).join('')}</div>
@@ -363,10 +391,10 @@ function pageSeason(arg) {
     </div>
     <h2>Final table</h2>
     ${table.length ? `<div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-      ${table.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${t.me ? esc(r.club) : t.club ? esc(t.club) : '<span class="muted">Not yet identified</span>'}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.goals_for}</td><td class="n">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
+      ${table.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${t.me ? crest(r.club_uid, r.club) + esc(r.club) : t.club ? crest(t.club_uid, t.club) + esc(t.club) : '<span class="crest">?</span><span class="muted">Not yet identified</span>'}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.goals_for}</td><td class="n">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
     </tbody></table></div>${unnamed ? `<p class="note">${plural(unnamed, 'club')} not identified yet: the save doesn't label past table rows with clubs, and naming them is work in progress.</p>` : ''}` : '<p class="muted">Table not available.</p>'}
     <div class="grid2" style="margin-top:12px">
-      <div><h2>Cups</h2><div class="card"><ul class="list">${cups.map(c => `<li><span>${esc(c.competition)}</span><span>${cupOutcome(c)}</span></li>`).join('') || '<li class="muted">No cup entries recorded</li>'}</ul></div></div>
+      <div><h2>Cups</h2><div class="card"><ul class="list">${cups.map(c => `<li><span>${pic('comp', c.competition_db)}${esc(c.competition)}</span><span>${cupOutcome(c)}</span></li>`).join('') || '<li class="muted">No cup entries recorded</li>'}</ul></div></div>
       <div><h2>Honours & awards</h2><div class="card"><ul class="list">
         ${hon.map(h => `<li><span>${esc(h.name)}</span><span class="badge gold">Trophy</span></li>`).join('')}
         ${aw.map(a => `<li><span>${esc(a.name)}</span><span class="badge ${a.placing === 'Winner' ? 'gold' : ''}">${a.placing}</span></li>`).join('')}
@@ -374,7 +402,7 @@ function pageSeason(arg) {
     </div>
     ${(D.squad_stats[season] || []).length ? `<h2>Full squad statistics</h2>
     <div class="card scroll"><table><thead><tr><th>Player</th><th class="n">Apps</th><th class="n">Starts</th><th class="n">Sub</th><th class="n">Goals</th><th class="n">Assists</th><th class="n">Mins</th><th class="n">Avg</th><th class="n">PoM</th><th class="n">YC</th><th class="n">RC</th></tr></thead><tbody>
-      ${D.squad_stats[season].map(p => `<tr><td>${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}</tr>`).join('')}
+      ${D.squad_stats[season].map(p => `<tr><td>${face(p.person_id)}${esc(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
     <p class="note">League, cup and continental games. ${D.squad_stats[season].some(p => p.partial) ? 'The game deletes most of a player\'s statistics when he retires. Players marked Partial keep only their appearances, goals and rating from the season\'s best-18 record; retired players outside the best 18 are missing.' : 'Players who retired since may be missing.'}</p>` : ''}
     <h2>Squad: the season's best 18</h2>
@@ -394,7 +422,7 @@ function pageSeason(arg) {
 function pageHonours() {
   view.innerHTML = `<h1>Honours & cup runs</h1>
     <h2>Trophies</h2>
-    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div><b>${esc(h.name)}</b></a>`).join('')}</div>
+    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('')}</div>
     <h2>Every cup run</h2>
     <div class="controls"><label><input type="checkbox" id="youth"> Include youth competitions</label></div>
     <div class="card scroll"><table><thead><tr><th>Season</th><th>Competition</th><th>Outcome</th></tr></thead><tbody id="cupbody"></tbody></table></div>`;
@@ -439,7 +467,7 @@ function pageTransfers() {
     const fs = ts.value, fd = td.value, ft = tt.value, staff = tstaff.checked;
     tbody.innerHTML = T.filter(t => (staff || !t.staff || ft === t.type) && (!fs || t.season === fs) && (!fd || t.direction === fd) && (!ft || t.type === ft))
       .map(t => `<tr><td>${fmtDate(t.date)}</td><td>${t.direction === 'in' ? '<span class="badge up first">In</span>' : t.direction === 'out' ? '<span class="badge first">Out</span>' : '<span class="badge first">Internal</span>'}</td>
-        <td>${esc(t.player)}</td><td>${t.type}</td><td>${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
+        <td>${face(t.person_id)}${esc(t.player)}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`).join('');
   };
   [ts, td, tt, tstaff].forEach(e => e.onchange = draw); draw();
 }

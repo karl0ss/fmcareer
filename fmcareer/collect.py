@@ -177,6 +177,7 @@ def collect(save_path, manager_name, names_dir):
     teams = {t.team_id: c.name for c in clubs.values() for t in c.teams}
     comps = list(s.competitions())
     comp_name = {c.id: c.name for c in comps}
+    comp_db = {c.id: c.database_id for c in comps}
     record = s.manager_career(staff_uid)
     manager_ref = s.history_person_reference(staff_uid)
     events = list(s.manager_events(staff_uid)) if me.is_human_manager else []
@@ -211,8 +212,18 @@ def collect(save_path, manager_name, names_dir):
 
     # people names: current players, then retired people found in game_db
     players = {p.uid: p for p in s.players()}
-    retired = {h.reference: h.name for h in s.history_people() if h.name}
+    people = list(s.history_people())
+    retired = {h.reference: h.name for h in people if h.name}
+    retired_unique = {h.reference: h.unique_id for h in people}
     ref_to_uid = s.history_player_references()
+
+    def person_id(uid, ref):
+        """The person's unique id (uid + 1), the key of his photo."""
+        if uid is None:
+            uid = ref_to_uid.get(ref)
+        if uid is not None:
+            return uid + 1
+        return retired_unique.get(ref)
 
     def person(uid, ref, fallback=None):
         if ref is not None and ref == manager_ref:
@@ -240,7 +251,7 @@ def collect(save_path, manager_name, names_dir):
             league.append(dict(season=season_label(r.season_year), end_year=r.season_year,
                                club=st["club"], club_uid=club_uid,
                                competition=comp_name.get(r.competition_id) or f"Competition {r.competition_id}",
-                               competition_id=r.competition_id, tier=lv,
+                               competition_id=r.competition_id, competition_db=comp_db.get(r.competition_id), tier=lv,
                                position=r.position + 1, teams=r.total_teams,
                                played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
                                goals_for=r.goals_for, goals_against=r.goals_against, points=r.points))
@@ -260,7 +271,7 @@ def collect(save_path, manager_name, names_dir):
                 if not r.imported and r.games_played != 255]
         mine = club_lists.get(lr["club_uid"])
         tables[lr["season"]] = [dict(
-            position=r.position + 1, club=r.club_name, me=r.history_index == mine,
+            position=r.position + 1, club=r.club_name, club_uid=r.club_uid, me=r.history_index == mine,
             played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
             goals_for=r.goals_for, goals_against=r.goals_against, points=r.points)
             for r in sorted(rows, key=lambda r: r.position)]
@@ -276,6 +287,7 @@ def collect(save_path, manager_name, names_dir):
                            size=level_size[lv]))
 
     honours = [dict(season=season_label(h.season), end_year=h.season, club=clubs[h.club_uid].name,
+                    competition_db=h.competition_id,
                     name=db_names.get(h.competition_id, f"Competition {h.competition_id}"))
                for h in sorted(s.career_honours(), key=lambda h: h.season)
                if h.club_uid in clubs and in_career(h.club_uid, h.season)]
@@ -288,6 +300,8 @@ def collect(save_path, manager_name, names_dir):
             name = comp_name.get(c.competition_id) or f"Stage {c.stage_id}"
             league_stage = c.result == 0 and c.opponent_team_id is None
             cups.append(dict(season=season_label(c.end_year), end_year=c.end_year, club=st["club"],
+                             competition_db=comp_db.get(c.competition_id),
+                             opponent_uid=club_by_team.get(c.opponent_team_id),
                              competition=name, youth=any(w in name for w in ("U18", "U19", "U21", "U23")),
                              won=c.result == 3, league_stage=league_stage,
                              position=c.position, opponent=teams.get(c.opponent_team_id),
@@ -331,7 +345,9 @@ def collect(save_path, manager_name, names_dir):
                               staff=m.record_type in STAFF_TYPES,
                               fee=m.fee if m.fee else None, _key=(m.player_reference, m.from_team_id, m.to_team_id),
                               player=person(m.player_uid, m.player_reference, m.player_name),
-                              other=(m.from_club_name if m.direction == "in" else m.to_club_name)))
+                              person_id=None if m.record_type in STAFF_TYPES else person_id(m.player_uid, m.player_reference),
+                              other=(m.from_club_name if m.direction == "in" else m.to_club_name),
+                              other_uid=(m.from_club_uid if m.direction == "in" else m.to_club_uid)))
         mover_uids |= {m.player_uid for m in club_moves if m.player_uid}
         mover_uids |= {u for u, p in players.items() if p.club_uid == club_uid}
         gone_refs |= {m.player_reference for m in club_moves if m.player_uid is None and m.player_reference}
@@ -377,6 +393,7 @@ def collect(save_path, manager_name, names_dir):
                 continue
             best_eleven.setdefault(season_label(end_year), []).append(dict(
                 slot=r.slot, name=person(r.player_uid, r.player_reference, r.player_name),
+                person_id=person_id(r.player_uid, r.player_reference),
                 current=r.player_uid in current_uids, apps=r.appearances, goals=r.goals,
                 rating=round(r.average_rating, 2) if r.average_rating else None))
     for rows in best_eleven.values():
@@ -396,6 +413,7 @@ def collect(save_path, manager_name, names_dir):
         seen_rows.add(key)
         p = squads[season_label(r.season_year + 1)].setdefault(who, dict(
             name=person(r.player_uid, r.player_reference), current=r.player_uid in current_uids,
+            person_id=person_id(r.player_uid, r.player_reference),
             apps=0, starts=0, subs=0, goals=0, assists=0, minutes=0, rating_total=0, pom=0, yellow=0, red=0))
         p["apps"] += r.rated_appearances or 0; p["starts"] += r.starts or 0; p["subs"] += r.substitute_appearances or 0
         p["goals"] += r.goals or 0; p["assists"] += r.assists or 0; p["minutes"] += r.minutes or 0
@@ -412,6 +430,7 @@ def collect(save_path, manager_name, names_dir):
     for season, xi in best_eleven.items():
         have = {p["name"] for p in squad_stats.get(season, [])}
         extra = [dict(name=b["name"], current=b["current"], apps=b["apps"], goals=b["goals"], rating=b["rating"],
+                      person_id=b["person_id"],
                       starts=None, subs=None, assists=None, minutes=None, pom=None, yellow=None, red=None,
                       partial=True)
                  for b in xi if b["name"] not in have and b["apps"]]
@@ -424,6 +443,7 @@ def collect(save_path, manager_name, names_dir):
             if f is None:
                 return None
             return dict(player=person(None, f.player_reference), fee=f.fee,
+                        person_id=person_id(None, f.player_reference),
                         date=f.transfer_date.isoformat() if f.transfer_date else None,
                         from_club=teams.get(f.from_team_id), to_club=teams.get(f.to_team_id))
         career = dict(games=record.games, wins=record.wins, draws=record.draws, losses=record.losses,
@@ -434,7 +454,7 @@ def collect(save_path, manager_name, names_dir):
                       agent_fees=record.agent_fees, club_jobs=record.club_jobs,
                       record_signing=fee(record.highest_fee_paid), record_sale=fee(record.highest_fee_received))
 
-    squad = sorted((dict(name=p.name, age=p.age) for u, p in players.items() if u in current_uids),
+    squad = sorted((dict(name=p.name, age=p.age, person_id=u + 1) for u, p in players.items() if u in current_uids),
                    key=lambda x: x["name"])
 
     return dict(
@@ -445,7 +465,7 @@ def collect(save_path, manager_name, names_dir):
                      age=me.age, wage=me.wage if current else None,
                      contract_start=me.contract_start.isoformat() if current and me.contract_start else None,
                      contract_end=me.contract_end.isoformat() if current and me.contract_end else None,
-                     human=me.is_human_manager),
+                     human=me.is_human_manager, person_id=staff_uid + 1, nation_id=me.nation_id),
         stints=[dict(club=st["club"], club_uid=st["club_uid"],
                      start=st["start"].isoformat() if st["start"] else None,
                      end=st["end"].isoformat() if st["end"] else None) for st in stints],
