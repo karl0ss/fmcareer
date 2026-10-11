@@ -201,7 +201,7 @@ def pyramid_of(above: dict[int, set[int]], start: set[int]) -> set[int]:
 
 DEFAULT_OPTIONS = {
     # report pages, in nav order
-    "sections": ["me", "seasons", "players", "records", "honours", "transfers", "club"],
+    "sections": ["me", "report", "seasons", "players", "records", "honours", "transfers", "club"],
     # which kinds of move transfer lists show at first (viewers can toggle them)
     "show": {"Loan": False, "Trial": False, "Youth intake": False, "Released": True, "staff": False},
 }

@@ -1,7 +1,8 @@
-"""Season summaries and the career introduction written by a language model.
+"""The Report page's articles written by a language model: a feature on the manager's
+career, then one news-style article per season.
 
-Optional: the report's own templated text is always there, and is what the report shows
-when no model is set or a call fails. Any OpenAI-compatible chat endpoint works (OpenAI,
+Optional: the report writes its own articles from the same facts, and shows those when no
+model is set or a piece fails. Any OpenAI-compatible chat endpoint works (OpenAI,
 llama.cpp / llama-swap, Ollama, LM Studio, vLLM, ...): the model is handed only facts
 taken from the collected career and told to use nothing else.
 """
@@ -15,33 +16,34 @@ from typing import Any
 
 from fmcareer._types import Record, Step
 
-PROMPT_VERSION = 5  # bump when the prompts or facts change, so cached text is rewritten
+PROMPT_VERSION = 6  # bump when the prompts or facts change, so cached text is rewritten
+
+RULES = """Write from the JSON facts the user gives you and nothing else: never invent players, \
+scores, dates, rounds, transfers, quotes or events, and leave out anything the facts don't say.
+Rules: every name, number, trophy and achievement you mention must be in the facts. \
+Never call anything a record, historic, first or best unless the facts say so. Never say \
+whether a match was home or away. Write every number as digits, exactly as given. \
+A manager award placing other than "Winner" means he did not win it. No quotes from anyone.
+Format: the headline on the first line (no quotation marks, no label), a blank line, then \
+the article in paragraphs separated by blank lines. No subheadings, lists, bullet points or \
+markdown. Money is already written the way it should appear."""
 
 # "Reasoning: low" keeps gpt-oss style reasoning models from thinking for minutes; other
 # models ignore it. Exact word limits are avoided: reasoning models get stuck counting words.
-SEASON_PROMPT = """Reasoning: low
-You write the season review in a Football Manager career report.
-Write from the JSON facts the user gives you and nothing else: never invent players, \
-scores, dates, rounds, transfers or events, and leave out anything the facts don't say.
-Rules: every name, number, trophy and achievement you mention must be in the facts. \
-Never call anything a record, historic, first or best unless the facts say so. Never say \
-whether a match was home or away. Write every number as digits, exactly as given. \
-A manager award placing other than "Winner" means he did not win it.
-Style: British English, past tense, third person, like a club historian. Two or three \
-short paragraphs separated by blank lines; keep it brief. No headings, lists, bullet points or markdown. \
-Money is already written the way it should appear."""
+SEASON_PROMPT = f"""Reasoning: low
+You are a football journalist writing the end-of-season report on one club's season for a \
+newspaper, in a Football Manager career.
+{RULES}
+Style: British English, past tense, a lively but factual sports-page voice. Three or four \
+short paragraphs."""
 
-OVERVIEW_PROMPT = """Reasoning: low
-You write the introduction to a Football Manager manager's career report.
-Write from the JSON facts the user gives you and nothing else: never invent players, \
-scores, dates, clubs or events, and leave out anything the facts don't say. The \
-league_titles list is complete: no other league was won.
-Rules: every name, number, trophy and achievement you mention must be in the facts. \
-Never call anything a record, historic, first or best unless the facts say so. Never say \
-whether a match was home or away. Write every number as digits, exactly as given. \
-A manager award placing other than "Winner" means he did not win it.
-Style: British English, third person, like a club historian. Exactly two short paragraphs \
-separated by a blank line (the journey, then the honours and record); keep it brief. No headings, lists, bullet points or markdown."""
+CAREER_PROMPT = f"""Reasoning: low
+You are a football journalist writing a newspaper feature on a manager's whole career so \
+far, in a Football Manager career: where he started, the journey season by season, the \
+honours, and where things stand now. The league_titles list is complete: no other league \
+was won.
+{RULES}
+Style: British English, a feature writer's voice, factual. Four to six paragraphs."""
 
 
 class WriterError(Exception):
@@ -203,7 +205,7 @@ def season_facts(data: Record) -> list[tuple[str, Record]]:
     return out
 
 
-def overview_facts(data: Record) -> Record:
+def career_facts(data: Record) -> Record:
     league, m, career = data.get("league", []), data.get("manager", {}), data.get("career") or {}
     stints = [
         {"club": s["club"], "from": (s["start"] or "")[:4] or None, "to": (s["end"] or "")[:4] or "present"}
@@ -234,6 +236,16 @@ def overview_facts(data: Record) -> Record:
                 "competition": best["competition"],
                 "league_finish": ordinal(best["position"]),
             }
+        facts["season_by_season"] = [
+            {
+                "season": r["season"],
+                "club": r["club"],
+                "competition": r["competition"],
+                "league_finish": ordinal(r["position"]),
+                **{k: True for k in ("champion", "promoted", "relegated") if r[k]},
+            }
+            for r in league
+        ]
         facts["promotions"] = sum(1 for r in league if r["promoted"])
         facts["league_titles"] = [f"{r['competition']} ({r['season']})" for r in league if r["champion"]]
     cups_won = [
@@ -380,24 +392,33 @@ def text_key(model: str, endpoint: str, system: str, facts: Record) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
+def article(paras: list[str]) -> Record:
+    """{"headline", "paragraphs"} from the model's paragraphs: the first is the headline when
+    it reads like one (short, no closing full stop); otherwise the report writes its own."""
+    first = paras[0].strip().strip('"\u201c\u201d*').removeprefix("Headline:").strip()
+    if len(paras) > 1 and len(first) <= 140 and not first.endswith("."):
+        return {"headline": first, "paragraphs": paras[1:]}
+    return {"headline": None, "paragraphs": paras}
+
+
 def write(
     data: Record, endpoint: str, token: str, model: str, step: Step, known: dict[str, list[str]] | None = None
 ) -> Record:
-    """The model's text for the career: {"model", "overview", "seasons": {season: [paragraphs]},
-    "written", "pieces", "problems"}.
+    """The model's articles: {"model", "career": article, "seasons": {season: article},
+    "written", "pieces", "problems"}, each article {"headline", "paragraphs"}.
 
-    `known` maps text keys to paragraphs written before (updated in place), so unchanged
+    `known` maps text keys to what was written before (updated in place), so unchanged
     seasons are not rewritten. `step` is called once per piece. A piece the model gives no
-    usable text for keeps its plain summary and the rest carry on; WriterError (the endpoint
-    failing) stops the writing, as does a model that manages none of the first two pieces.
+    usable text for keeps the report's own article and the rest carry on; WriterError (the
+    endpoint failing) stops the writing, as does a model that manages none of the first two.
     """
     known = {} if known is None else known
-    jobs = [("overview", OVERVIEW_PROMPT, overview_facts(data))]
+    jobs = [("career", CAREER_PROMPT, career_facts(data))]
     jobs += [(season, SEASON_PROMPT, facts) for season, facts in season_facts(data)]
-    out = {"model": model, "overview": None, "seasons": {}, "written": 0, "pieces": len(jobs), "problems": []}
+    out = {"model": model, "career": None, "seasons": {}, "written": 0, "pieces": len(jobs), "problems": []}
     for n, (name, system, facts) in enumerate(jobs):
         key = text_key(model, endpoint, system, facts)
-        label = "the career introduction" if name == "overview" else f"the {name} summary"
+        label = "the career feature" if name == "career" else f"the {name} article"
         if key in known:
             step(f"Using {label} written before")
         else:
@@ -410,10 +431,10 @@ def write(
                     raise WriterError(f"{model} gave no usable text for the first two pieces ({e})") from None
                 continue
         out["written"] += 1
-        if name == "overview":
-            out["overview"] = known[key]
+        if name == "career":
+            out["career"] = article(known[key])
         else:
-            out["seasons"][name] = known[key]
+            out["seasons"][name] = article(known[key])
     return out
 
 

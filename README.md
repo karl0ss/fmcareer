@@ -3,6 +3,7 @@
 A manager's career history from a Football Manager 26 save: point it at a save and a
 manager's name, and it builds one self-contained HTML page with:
 
+- **Report**: a feature on the whole career with a timeline, then an article per season.
 - **Career overview**: profile, league record, the game's own managerial stats (games,
   money spent, record signing and sale), the climb through the league pyramid, trophy
   cabinet, manager awards and the club legends of the era.
@@ -14,7 +15,7 @@ manager's name, and it builds one self-contained HTML page with:
 - **Honours & cups**, **Transfers** and **Club today** (finances, squad, tactics and the
   live league table).
 
-Season summaries are written from the data, or optionally by an AI model you choose.
+A Report page tells the career as newspaper articles, written from the data or optionally by an AI model you choose.
 Club badges, faces and competition logos come from the game and from any logo or face
 packs you've installed.
 
@@ -69,7 +70,7 @@ opens a page in your browser (served only on your own machine, at
    for every manager in the save, searchable by name or club);
 4. tick the pages to include, which kinds of move the transfer lists show at first
    (loans, trials, youth intake, released players, staff), and whether to embed images;
-5. set options, for now AI-written summaries (below);
+5. set options, for now AI-written articles for the Report page (below);
 6. generate: a progress bar counts the steps, and the report opens in a new tab with a
    Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
 
@@ -100,26 +101,30 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
   all). `--show loans,trials,youth,released,staff` picks which kinds of move the transfer
   lists show at first (default: released); viewers can switch them in the report.
 - `--json career_data.json` also writes the collected data.
-- AI-written summaries are set up in the app; the command line uses the plain ones.
+- AI-written articles are set up in the app; the command line uses the report's own.
 - A large save takes a few minutes and about 3 GB of memory.
 
-## AI-written summaries (optional)
+## The Report page and AI-written articles (optional)
 
-Each season review and the career introduction have plain summaries built from the data.
-Under "AI writing" in the app's Options step you can instead have them written by a language
-model: tick "Write the summaries with an AI model", give an OpenAI-compatible endpoint
-(OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually ending in `/v1`), a token
-if it needs one and a model, and press Test. The model is given only facts from the
-career and told to use nothing else; any number in its text that the facts don't hold
-gets the piece asked again, then dropped for the plain summary. A piece the model gives no
-usable text for keeps its plain summary and the rest carry on; if the endpoint fails, or
-the model manages none of the first two pieces, the report keeps the plain summaries, and
-the app says how many pieces the model wrote. Reasoning models are asked to think briefly
-(`reasoning_effort: low`, dropped for endpoints that refuse it), and get more room if they
-still run out before writing. Text already written for the same facts and model
-is reused, so regenerating is quick. Readers can switch between the AI and plain
-summaries in the report. The facts, including names from your save, are sent to the
-endpoint you choose; the token stays in your local settings and is never shown again.
+The Report page reads like a newspaper: it opens with a feature on the manager's whole
+career and a timeline of every season, then one article per season, read in order with
+previous and next (each season's review also opens with its article). The report writes
+these articles itself from the data. Under "AI writing" in the app's Options step you can
+have a language model write them instead, as news reports: tick the box, give an
+OpenAI-compatible endpoint (OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually
+ending in `/v1`), a token if it needs one and a model, and press Test.
+
+The model is given only facts from the career and told to use nothing else; any number in
+its text that the facts don't hold gets the piece asked again, then the report's own
+article is used. A piece the model gives no usable text for keeps the report's own and the
+rest carry on; if the endpoint fails, or the model manages none of the first two pieces,
+the report keeps its own articles, and the app says how many the model wrote. Reasoning
+models are asked to think briefly (`reasoning_effort: low`, dropped for endpoints that
+refuse it). Articles already written for the same facts and model are reused, so
+regenerating is quick. Readers can switch between the AI-written and the report's own
+articles. The facts, including names from your save, are sent to the endpoint you choose;
+the token stays in your local settings and is never shown again. The Career overview and
+the rest of the report always use the report's own text.
 
 ## Images
 
@@ -187,6 +192,6 @@ skipped when no Chromium is found; set `FMCAREER_CHROME` to point at one.
 - Faces: the game draws its own faces for people without a photo (most generated
   players, and your manager) and doesn't keep them as pictures, so those show no face
   unless a face pack covers them. A manager with no face shows the club's badge.
-- AI summaries are only as good as the model; the number check catches invented
-  figures, not every wrong word, and readers can always switch to the plain summary.
+- AI articles are only as good as the model; the number check catches invented
+  figures, not every wrong word, and readers can always switch to the report's own articles.
 - Checked against one long career save so far. Reports from other saves are welcome.

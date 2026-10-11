@@ -52,14 +52,14 @@ __STYLE__
   <h2><span class="n">5</span>Options</h2>
   <div class="card">
     <b class="group">AI writing</b>
-    <label><input type="checkbox" id="aiOn"> Write the season summaries and career introduction with an AI model</label>
+    <label><input type="checkbox" id="aiOn"> Write the Report's career feature and season articles with an AI model</label>
     <div class="row" style="margin-top:12px">
       <div><label class="f">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
       <div><label class="f">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off"></div>
       <div><label class="f">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist></div>
       <div class="actions" style="margin:0"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
     </div>
-    <p class="muted" style="font-size:13px;margin:10px 0 0">Off, or if the model fails, the report uses its plain summaries. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">Off, or where the model fails, the report writes its own articles from the same facts. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
     <div class="log" id="aiLog"></div>
   </div>
 

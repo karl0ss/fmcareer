@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SECTION_NAMES = {me: 'Career overview', seasons: 'Seasons', players: 'Players', records: 'Records', honours: 'Honours & cups', transfers: 'Transfers', club: 'Club today'};
+const SECTION_NAMES = {me: 'Career overview', report: 'Report (career and season articles)', seasons: 'Seasons', players: 'Players', records: 'Records', honours: 'Honours & cups', transfers: 'Transfers', club: 'Club today'};
 const SHOW_NAMES = {Loan: 'Loans', Trial: 'Trials', 'Youth intake': 'Youth intake', Released: 'Released', staff: 'Staff moves'};
 let state = null, chosenSave = null, managers = [], chosenManager = null;
 const remember = (k, v) => { try { localStorage.setItem('fmcareer-app-' + k, JSON.stringify(v)); } catch (e) {} };
@@ -49,7 +49,11 @@ function drawManagers() {
   $('generate').disabled = chosenManager == null;
 }
 function drawOptions() {
-  const d = state.defaults, sec = recall('sections', d.sections), show = recall('show', d.show);
+  const d = state.defaults, show = recall('show', d.show);
+  // pages added since the reader last chose start ticked
+  const offered = recall('sections-offered', d.sections), sec = recall('sections', d.sections)
+    .concat(d.sections.filter(k => !offered.includes(k)));
+  remember('sections-offered', d.sections);
   $('sections').innerHTML = d.sections.map(k => `<label><input type="checkbox" data-sec="${k}" ${sec.includes(k) ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('');
   $('show').innerHTML = Object.keys(d.show).map(k => `<label><input type="checkbox" data-show="${esc(k)}" ${show[k] ? 'checked' : ''}> ${SHOW_NAMES[k] || k}</label>`).join('');
   const sources = [state.settings.graphics && 'your graphics packs', state.settings.install && 'the game'].filter(Boolean);
@@ -127,8 +131,8 @@ $('generate').onclick = async () => {
       show: Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])),
       images: $('images').checked, fresh: $('fresh').checked});
     const r = await follow(job, $('genLog'));
-    const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} summaries.`
-      : ` AI wrote ${r.ai.written} of ${r.ai.pieces} summaries; the rest are plain (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
+    const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} articles.`
+      : ` AI wrote ${r.ai.written} of ${r.ai.pieces} articles; the report wrote the rest (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
     $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();

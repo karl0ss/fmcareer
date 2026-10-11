@@ -307,7 +307,7 @@ AI_TEXTS = CACHE / "ai" / "texts.json"
 
 
 def ai_write(step: Progress, data: Record, ai: dict[str, str]) -> Record:
-    """The AI writer's text for a career ({"model", "overview", "seasons"}), or None.
+    """The AI writer's articles for the Report page ({"model", "career", "seasons", ...}).
 
     Text written before for the same facts, model and endpoint is reused. A failure stops
     the writing and leaves the templated summaries in place, with a step saying why.
@@ -399,7 +399,7 @@ def job_report(
     if ai:
         written = ai_write(step, data, ai)
         if written.get("written"):
-            data["ai"] = {k: written[k] for k in ("model", "overview", "seasons")}
+            data["ai"] = {k: written[k] for k in ("model", "career", "seasons")}
         ai_note = {k: written[k] for k in ("written", "pieces", "problems")}
     if images:
         data["images"] = report_images(step, data, install, graphics, fresh)

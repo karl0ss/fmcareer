@@ -442,7 +442,7 @@ SAMPLE = {
         "staff": 25,
     },
     "options": {
-        "sections": ["me", "seasons", "players", "records", "honours", "transfers", "club"],
+        "sections": ["me", "report", "seasons", "players", "records", "honours", "transfers", "club"],
         "show": {"Loan": False, "Trial": False, "Youth intake": False, "Released": True, "staff": False},
     },
 }

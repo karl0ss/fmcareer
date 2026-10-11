@@ -21,11 +21,30 @@ def test_season_facts_follow_the_report(sample):
     assert later["top_scorer"] == {"name": "Sam Striker", "goals": 21}
 
 
-def test_overview_facts(sample):
-    facts = writer.overview_facts(sample)
+def test_career_facts(sample):
+    facts = writer.career_facts(sample)
     assert facts["manager"] == "Alex Example" and facts["promotions"] == 1
     assert facts["league_titles"] == ["Second Division (2031/32)"]
     assert facts["best_league_finish"]["competition"] == "First Division"
+    assert facts["season_by_season"][1] == {
+        "season": "2031/32",
+        "club": "Example Town",
+        "competition": "Second Division",
+        "league_finish": "1st",
+        "champion": True,
+        "promoted": True,
+    }
+
+
+def test_articles_split_off_their_headline():
+    assert writer.article(["Town win the league", "They won it.", "More."]) == {
+        "headline": "Town win the league",
+        "paragraphs": ["They won it.", "More."],
+    }
+    assert writer.article(["**Headline: Town win**", "Body."])["headline"] == "Town win"
+    # a first paragraph that reads like prose is not a headline: the report writes its own
+    assert writer.article(["They won the league in style.", "More."])["headline"] is None
+    assert writer.article(["Only one paragraph"])["headline"] is None
 
 
 def test_numbers_the_facts_do_not_have_are_caught():
@@ -90,7 +109,7 @@ def test_one_unusable_piece_keeps_its_plain_summary_and_the_rest_go_on(monkeypat
     monkeypatch.setattr(writer, "_request", lambda *a, **k: {"choices": [{"message": {"content": next(answers)}}]})
     out = writer.write(sample, "http://x/v1", "", "m", lambda t: None, {})
     assert out["written"] == 3 and out["pieces"] == 4 and "2029/30" not in out["seasons"]
-    assert out["problems"] == ["the 2029/30 summary: wrote nothing"]
+    assert out["problems"] == ["the 2029/30 article: wrote nothing"]
 
 
 def test_a_model_that_writes_nothing_stops_early(monkeypatch, sample):
@@ -104,10 +123,12 @@ def test_a_model_that_writes_nothing_stops_early(monkeypatch, sample):
 
 
 def test_write_reuses_known_text(monkeypatch, sample):
-    fake = FakeEndpoint(monkeypatch, ["Intro."] + ["Season text."] * 3)
+    fake = FakeEndpoint(monkeypatch, ["The headline\n\nIntro."] + ["Season text."] * 3)
     steps, known = [], {}
     out = writer.write(sample, "http://x/v1", "", "m", steps.append, known)
-    assert out["overview"] == ["Intro."] and set(out["seasons"]) == {"2029/30", "2031/32", "2032/33"}
+    assert out["career"] == {"headline": "The headline", "paragraphs": ["Intro."]}
+    assert set(out["seasons"]) == {"2029/30", "2031/32", "2032/33"}
+    assert out["seasons"]["2029/30"] == {"headline": None, "paragraphs": ["Season text."]}
     assert out["written"] == out["pieces"] == 4 and out["problems"] == []
     assert len(steps) == writer.pieces(sample) == 4
     before = len(fake.sent)

@@ -317,7 +317,7 @@ def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
     assert "plain summaries" in first["steps"][-2]["text"]
     monkeypatch.setattr(writer, "chat", lambda *a: [f"Text for {a[4].get('season', 'the career')}."])
     second = run(job)
-    assert second["result"]["seasons"]["2032/33"] == ["Text for 2032/33."]
+    assert second["result"]["seasons"]["2032/33"]["paragraphs"] == ["Text for 2032/33."]
     assert any("written before" in s["text"] for s in second["steps"])  # the overview from the first run
 
 

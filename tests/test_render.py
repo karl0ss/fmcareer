@@ -131,27 +131,49 @@ def test_seasons_run_oldest_to_newest(tmp_path, sample):
 
 AI_TEXT = {
     "model": "test-model",
-    "overview": ["An invented-for-tests introduction."],
-    "seasons": {"2032/33": ["A model-written review of 2032/33.", "Second paragraph."]},
+    "career": {"headline": "Example manager's rise", "paragraphs": ["An invented-for-tests feature."]},
+    "seasons": {"2032/33": {"headline": "Town hold on", "paragraphs": ["A model-written report.", "Second."]}},
 }
 
 
 @needs_chrome
-def test_ai_text_replaces_the_plain_summaries_where_present(tmp_path, sample):
+def test_report_opens_with_the_career_and_a_timeline_of_seasons(tmp_path, sample):
     sample["ai"] = AI_TEXT
-    season = view_of(dom(tmp_path, render(sample), "season/2032-33"))
-    assert "A model-written review of 2032/33." in season and "Second paragraph." in season
-    assert "Written by test-model" in season and "Show the plain summary" in season
-    other = view_of(dom(tmp_path, render(sample), "season/2031-32"))  # no AI text for this one
-    assert "were crowned champions" in other and "Written by" not in other
-    me = view_of(dom(tmp_path, render(sample), "me"))
-    assert "An invented-for-tests introduction." in me
+    view = view_of(dom(tmp_path, render(sample), "report"))
+    assert "An invented-for-tests feature." in view and "Written by test-model" in view
+    assert "Town hold on" in view  # the model's headline on the timeline
+    assert "Example Town crowned Second Division champions" in view  # the report's own where the model wrote none
+    assert view.find("An invented-for-tests") < view.find("2029/30 · Old Rovers") < view.find("2032/33 · Example Town")
+    assert 'href="#report/2029-30"' in view
 
 
 @needs_chrome
-def test_without_ai_text_the_plain_summary_shows(tmp_path, sample):
-    view = view_of(dom(tmp_path, render(sample), "season/2032-33"))
-    assert "12th-placed finish" in view and "Written by" not in view
+def test_each_season_has_its_own_report_page_read_in_order(tmp_path, sample):
+    sample["ai"] = AI_TEXT
+    view = view_of(dom(tmp_path, render(sample), "report/2032-33"))
+    assert "Town hold on" in view and "A model-written report." in view and "Second." in view
+    assert 'href="#report/2031-32"' in view and "Full 2032/33 season review" in view
+    first = view_of(dom(tmp_path, render(sample), "report/2029-30"))
+    assert "← The career" in first and 'href="#report/2031-32"' in first
+
+
+@needs_chrome
+def test_season_summary_opens_with_the_article_and_the_overview_keeps_its_own_text(tmp_path, sample):
+    sample["ai"] = AI_TEXT
+    season = view_of(dom(tmp_path, render(sample), "season/2032-33"))
+    assert "Town hold on" in season and "A model-written report." in season and "The numbers" in season
+    me = view_of(dom(tmp_path, render(sample), "me"))
+    assert "An invented-for-tests feature." not in me and "2 clubs so far" in me
+
+
+@needs_chrome
+def test_without_a_model_the_report_writes_its_own_articles(tmp_path, sample):
+    view = view_of(dom(tmp_path, render(sample), "report"))
+    assert "Alex Example: 3 seasons, 1 promotion and 1 title" in view
+    assert "Promotion came in 2031/32 (Second Division)." in view
+    assert "Written by" not in view and "Example Town finish 12th in the First Division" in view
+    season = view_of(dom(tmp_path, render(sample), "report/2032-33"))
+    assert "12th-placed finish" in season
 
 
 @needs_chrome

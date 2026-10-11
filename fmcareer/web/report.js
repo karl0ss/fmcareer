@@ -1,13 +1,12 @@
 const D = JSON.parse(document.getElementById('data').textContent);
 const M = D.manager, L = D.league;
 const OPT = D.options || {};
-// AI-written summaries, when the report has them; viewers can switch back to the plain ones
+// the Report page's articles: the model's where the report has them (readers can switch to the
+// report's own), else written here from the same data
 const AI = D.ai || null;
 let USE_AI = true;
 try { USE_AI = localStorage.getItem('fmcareer-ai') !== 'off'; } catch (e) {}
 const aiOn = () => AI && USE_AI;
-const aiParas = paras => paras.map(p => esc(p));
-const aiSwitch = has => !has ? '' : `<p class="note">${aiOn() ? `Written by ${esc(AI.model)} from the facts in the save.` : 'The plain summary.'} <a href="#" data-ai-toggle>${aiOn() ? 'Show the plain summary' : 'Show the AI-written summary'}</a></p>`;
 document.addEventListener('click', e => {
   if (!e.target.closest || !e.target.closest('[data-ai-toggle]')) return;
   e.preventDefault(); USE_AI = !USE_AI;
@@ -127,8 +126,8 @@ function seasonStory(r) {
 }
 
 // ---- navigation and routing
-const SECTIONS = OPT.sections || ['me', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
-const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
+const SECTIONS = OPT.sections || ['me', 'report', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
+const NAV = [['me', 'Career overview'], ['report', 'Report'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
   .filter(([id]) => SECTIONS.includes(id) && (id !== 'club' || D.club_today));
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 // the manager's face where a face pack or the game has one, else the current club's badge
@@ -152,17 +151,17 @@ let lastBase = null;
 const TALL_ROWS = 15;  // tables longer than this get a scrolling box
 function route() {
   let [page, arg, sub] = (location.hash.slice(1) || SECTIONS[0] || 'me').split('/');
-  const owner = {season: 'seasons', player: 'players'}[page] || page;
+  const owner = {season: 'seasons', player: 'players'}[page] || page;  // report/<season> belongs to report
   if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
-  ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
+  ({me: pageMe, report: () => pageReport(arg), seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
   // long tables scroll inside their own box (headings stay put), so pages stay short
   view.querySelectorAll('.scroll').forEach(box => {
     const rows = box.querySelectorAll('tbody tr').length;
     box.classList.toggle('tall', rows > TALL_ROWS);
   });
   // a new page starts at the top; another tab of the same page keeps its tabs in view
-  const base = page === 'season' ? page + '/' + arg : page, tabs = view.querySelector('.tabs');
+  const base = page === 'season' || page === 'report' ? page + '/' + arg : page, tabs = view.querySelector('.tabs');
   if (base !== lastBase || !tabs) window.scrollTo(0, 0);
   else if (tabs.getBoundingClientRect().top < 0) tabs.scrollIntoView();
   lastBase = base;
@@ -211,6 +210,90 @@ function climbChart(highlight) {
   }};
 }
 
+// ---- the career in words: the overview's lede, and the Report page's own articles
+const stintYears = st => `${st.start ? st.start.slice(0, 4) : '?'}–${st.end ? st.end.slice(0, 4) : ''}`;
+const listing = items => items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+function careerLede() {
+  const S = D.stints || [], first = L[0], last = L[L.length - 1];
+  const lastLine = last ? (last.tier === 1 ? `is in the top division, the ${esc(last.competition)}` : `plays in the ${esc(last.competition)}`) : '';
+  return S.length === 1
+    ? `Took charge of ${esc(S[0].club)} in ${stintYears(S[0]).slice(0, 4)}${first ? `, in the ${esc(first.competition)}` : ''}. ${promotions ? `${plural(promotions, 'promotion')} later` : 'Since then'}, the club ${lastLine}${best ? `, with a best finish of ${ord(best.position)} in the ${esc(best.competition)} (${best.season})` : ''}.`
+    : `${plural(S.length, 'club')} so far: ${S.map(st => `${esc(st.club)} (${stintYears(st)})`).join(', ')}.${best ? ` Best league finish: ${ord(best.position)} in the ${esc(best.competition)} with ${esc(best.club)} (${best.season}).` : ''}`;
+}
+function seasonHeadline(r) {
+  if (r.champion) return `${esc(r.club)} crowned ${esc(r.competition)} champions`;
+  if (r.promoted) return `${esc(r.club)} promoted after finishing ${ord(r.position)} in the ${esc(r.competition)}`;
+  if (r.relegated) return `${esc(r.club)} relegated from the ${esc(r.competition)}`;
+  return `${esc(r.club)} finish ${ord(r.position)} in the ${esc(r.competition)}`;
+}
+// the career feature written from the data, for when no model wrote one
+function careerArticle() {
+  const C = D.career || {}, last = L[L.length - 1];
+  const ups = L.filter(r => r.promoted).map(r => `${r.season} (${esc(r.competition)})`);
+  const downs = L.filter(r => r.relegated).map(r => `${r.season} (${esc(r.competition)})`);
+  const won = L.filter(r => r.champion).map(r => `the ${esc(r.competition)} in ${r.season}`);
+  const cupsWon = D.cups.filter(c => c.won && !c.youth).map(c => `the ${esc(c.competition)} in ${c.season}`);
+  const awardWon = D.awards.filter(a => a.placing === 'Winner').map(a => `${esc(a.name)} (${a.season})`);
+  const paras = [careerLede()];
+  if (ups.length || downs.length) paras.push(`${ups.length ? `Promotion came in ${listing(ups)}.` : ''}${downs.length ? ` Relegation followed in ${listing(downs)}.` : ''}`.trim());
+  if (won.length || cupsWon.length) paras.push(`The honours: ${listing([...won, ...cupsWon])}.`);
+  if (awardWon.length) paras.push(`${esc(M.name)} was named ${listing(awardWon)}.`);
+  if (C.games) paras.push(`In all, ${C.games} games in charge: ${C.wins} won, ${C.draws} drawn and ${C.losses} lost.${C.record_signing ? ` The record signing was ${esc(C.record_signing.player)} for ${moneyShort(C.record_signing.fee)}` + (C.record_sale ? `, the record sale ${esc(C.record_sale.player)} for ${moneyShort(C.record_sale.fee)}.` : '.') : ''}`);
+  if (last) paras.push(`The latest completed season, ${last.season}, ended ${ord(last.position)} in the ${esc(last.competition)}${M.club ? `, and ${esc(M.name)} remains in charge of ${esc(M.club)}` : ''}.`);
+  const headline = `${esc(M.name)}: ${plural(L.length, 'season')}${promotions ? `, ${plural(promotions, 'promotion')}` : ''}${titles ? ` and ${plural(titles, 'title')}` : ''}`;
+  return {headline, paragraphs: paras};
+}
+
+// the articles: the model's where the report has them and the reader hasn't switched them off,
+// else the report's own (the headline too, when the model's first line wasn't one)
+function articleFrom(ai, own) {
+  if (!(aiOn() && ai)) return {...own(), model: false};
+  return {headline: ai.headline ? esc(ai.headline) : own().headline, paragraphs: ai.paragraphs.map(p => esc(p)), model: true};
+}
+const careerFeature = () => articleFrom(AI && AI.career, careerArticle);
+const seasonArticle = r => articleFrom(AI && AI.seasons[r.season], () => ({headline: seasonHeadline(r), paragraphs: seasonStory(r)}));
+const byline = written => AI
+  ? `<p class="note byline">${written ? `Written by ${esc(AI.model)} from the facts in the save.` : 'Written from the facts in the save.'} <a href="#" data-ai-toggle>${aiOn() ? 'Show the report\'s own articles' : 'Show the AI-written articles'}</a></p>`
+  : '<p class="note byline">Written from the facts in the save.</p>';
+const outcome = r => [r.champion && '<span class="badge gold">Champions</span>', r.promoted && '<span class="badge up">Promoted</span>',
+  r.relegated && '<span class="badge down">Relegated</span>'].filter(Boolean).join('').replace('class="badge', 'class="badge first');
+
+// ---- page: the report. First the career from start to finish with a timeline of its
+// seasons; then one page per season, read in order with previous / next.
+function pageReport(arg) {
+  const r = arg ? seasonRow(arg.replace('-', '/')) : null;
+  if (r) return reportSeason(r);
+  const c = careerFeature();
+  view.innerHTML = `<h1>The ${esc(M.name)} report</h1>
+    ${byline(c.model)}
+    <article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${p}</p>`).join('')}</article>
+    <h2>Season by season</h2>
+    <ol class="timeline">${L.map(s => {
+      const a = seasonArticle(s);
+      return `<li class="${s.champion ? 'gold' : s.promoted ? 'up' : s.relegated ? 'down' : ''}"><a href="#report/${slug(s.season)}">
+        <span class="kicker">${s.season} · ${esc(s.club)} · ${esc(s.competition)} · ${ord(s.position)}</span>
+        <b>${a.headline}</b>${outcome(s) ? `<span class="row">${outcome(s)}</span>` : ''}</a></li>`;
+    }).join('')}</ol>
+    ${L.length ? `<p><a class="button" href="#report/${slug(L[0].season)}">Start reading: ${L[0].season} →</a></p>` : ''}`;
+}
+function reportSeason(r) {
+  const a = seasonArticle(r), i = L.indexOf(r), prev = L[i - 1], next = L[i + 1];
+  view.innerHTML = `
+    <div class="pager"><span>${prev ? `<a href="#report/${slug(prev.season)}">← ${prev.season}</a>` : '<a href="#report">← The career</a>'}</span><a href="#report">The career</a><span>${next ? `<a href="#report/${slug(next.season)}">${next.season} →</a>` : ''}</span></div>
+    <article class="card story news">
+      <div class="kicker">${r.season} · ${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}</div>
+      <h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${p}</p>`).join('')}
+      ${byline(a.model)}
+    </article>
+    <div class="tiles" style="margin-top:12px">
+      <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams} · ${outcome(r) || esc(r.competition)}</div></div>
+      <div class="card tile"><div class="v">${r.points}</div><div class="k">Points</div><div class="s">W${r.won} D${r.drawn} L${r.lost}</div></div>
+      <div class="card tile"><div class="v">${r.goals_for}–${r.goals_against}</div><div class="k">Goals</div><div class="s">for and against</div></div>
+    </div>
+    <p class="actions"><a class="button" href="#season/${slug(r.season)}">Full ${r.season} season review</a>
+      ${next ? `<a class="button ghost" href="#report/${slug(next.season)}">Next: ${next.season} →</a>` : ''}</p>`;
+}
+
 // ---- page: career overview
 function pageMe() {
   const winRate = Math.round(100 * totals.won / Math.max(1, totals.played));
@@ -219,19 +302,13 @@ function pageMe() {
   const scorers = [...careerList].sort((a, b) => b.goals - a.goals).slice(0, 8);
   const chart = climbChart();
   const S = D.stints || [];
-  const years = st => `${st.start ? st.start.slice(0, 4) : '?'}–${st.end ? st.end.slice(0, 4) : ''}`;
-  const lastLine = last ? (last.tier === 1 ? `is in the top division, the ${esc(last.competition)}` : `plays in the ${esc(last.competition)}`) : '';
-  const lede = S.length === 1
-    ? `Took charge of ${esc(S[0].club)} in ${years(S[0]).slice(0, 4)}${first ? `, in the ${esc(first.competition)}` : ''}. ${promotions ? `${plural(promotions, 'promotion')} later` : 'Since then'}, the club ${lastLine}${best ? `, with a best finish of ${ord(best.position)} in the ${esc(best.competition)} (${best.season})` : ''}.`
-    : `${plural(S.length, 'club')} so far: ${S.map(st => `${esc(st.club)} (${years(st)})`).join(', ')}.${best ? ` Best league finish: ${ord(best.position)} in the ${esc(best.competition)} with ${esc(best.club)} (${best.season}).` : ''}`;
   view.innerHTML = `
     <div class="card hero heroband">
       <div class="who">
         ${face(M.person_id, 'lg') || (CUR ? crest(CUR.club_uid, CUR.club, 'lg') : '')}
         <div>
         <h1>${esc(M.name)}</h1>
-        ${aiOn() && AI.overview ? aiParas(AI.overview).map(p => `<p class="lede">${p}</p>`).join('') : `<p class="lede">${lede}</p>`}
-        ${aiSwitch(AI && AI.overview)}
+        <p class="lede">${careerLede()}</p>
         </div>
       </div>
       <div class="facts">
@@ -320,8 +397,7 @@ function pageSeason(arg, tab = 'summary') {
   const summary = () => {
     const nm = (D.notable_matches || []).filter(m => m.season === season);
     return `
-    <div class="card story">${(aiOn() && AI.seasons[season] ? aiParas(AI.seasons[season]) : seasonStory(r)).map(p => `<p>${p}</p>`).join('')}</div>
-    ${aiSwitch(AI && AI.seasons[season])}
+    ${(() => { const a = seasonArticle(r); return `<article class="card story news" style="margin-top:0"><h2>${a.headline}</h2>${a.paragraphs.map(p => `<p>${p}</p>`).join('')}</article>${byline(a.model)}`; })()}
     <h2>The numbers</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams}</div></div>
