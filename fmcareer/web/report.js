@@ -149,12 +149,18 @@ const view = document.getElementById('view');
 const tabBar = (base, tabs, cur) => `<nav class="tabs" aria-label="Sections of this page">${tabs.map(([id, label]) =>
   `<a href="#${base}/${id}"${id === cur ? ' class="on" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
 let lastBase = null;
+const TALL_ROWS = 15;  // tables longer than this get a scrolling box
 function route() {
   let [page, arg, sub] = (location.hash.slice(1) || SECTIONS[0] || 'me').split('/');
   const owner = {season: 'seasons', player: 'players'}[page] || page;
   if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
   ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
+  // long tables scroll inside their own box (headings stay put), so pages stay short
+  view.querySelectorAll('.scroll').forEach(box => {
+    const rows = box.querySelectorAll('tbody tr').length;
+    box.classList.toggle('tall', rows > TALL_ROWS);
+  });
   // a new page starts at the top; another tab of the same page keeps its tabs in view
   const base = page === 'season' ? page + '/' + arg : page, tabs = view.querySelector('.tabs');
   if (base !== lastBase || !tabs) window.scrollTo(0, 0);
@@ -423,6 +429,7 @@ function pageTransfers() {
       return `<details class="card fold"${i === 0 || fs ? ' open' : ''}><summary><b>${s}</b><span class="muted">${ins} in · ${list.length - ins} out${spent ? ' · ' + moneyShort(spent) + ' spent' : ''}</span></summary>
         <div class="scroll"><table><thead><tr><th class="o">Date</th><th></th><th>Player</th><th class="o">Type</th><th>Club</th><th class="n">Fee</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('') || '<p class="muted">No moves match.</p>';
+    out.querySelectorAll('.scroll').forEach(box => box.classList.toggle('tall', box.querySelectorAll('tbody tr').length > TALL_ROWS));
   };
   [ts, td, tt].forEach(e => e.onchange = draw); draw();
 }
@@ -492,6 +499,7 @@ function pagePlayers() {
     document.getElementById('pmore').innerHTML = cut.length < list.length
       ? `<button class="more" id="pall">Show all ${list.length} players</button>` : '';
     const more = document.getElementById('pall'); if (more) more.onclick = () => { all = true; draw(); };
+    document.getElementById('pbody').closest('.scroll').classList.toggle('tall', cut.length > TALL_ROWS);
     document.getElementById('pbody').innerHTML = cut
       .map(P => `<tr class="click" data-href="player/${encodeURIComponent(P.key)}"><td>${face(P.person_id)}<a href="#player/${encodeURIComponent(P.key)}">${esc(P.name)}</a>${P.current ? '<span class="badge accent">Current</span>' : ''}${P.partial ? '<span class="badge">Partial</span>' : ''}</td>
         <td class="n o">${P.seasons.length}</td><td class="n">${P.apps}</td><td class="n">${P.goals}</td><td class="n o">${P.partial && !P.assists ? '–' : P.assists}</td><td class="n">${P.rating ? P.rating.toFixed(2) : '–'}</td><td class="n o">${P.partial && !P.pom ? '–' : P.pom}</td><td class="n o">${moneyShort(P.paid)}</td><td class="n o">${moneyShort(P.sold)}</td></tr>`).join('');

@@ -114,6 +114,9 @@ button.more { font: 600 15px var(--head); color: var(--text); background: var(--
   border-radius: 8px; padding: 8px 16px; margin-top: 10px; cursor: pointer; }
 button.more:hover { border-color: var(--accent); }
 .who { display: flex; gap: 18px; align-items: center; }
+/* long tables: a box of their own that scrolls, with the headings kept in view */
+.scroll.tall { max-height: min(70vh, 640px); overflow-y: auto; padding-top: 0; }  /* no gap above the stuck headings */
+.scroll.tall thead th { position: sticky; top: 0; z-index: 1; box-shadow: inset 0 -1px 0 var(--line); }
 /* tables and charts wider than the screen scroll sideways; a soft edge shows there is more */
 .scroll, .chart { background:
   linear-gradient(90deg, var(--surface) 30%, transparent) left / 24px 100% no-repeat local,

@@ -206,3 +206,13 @@ def test_transfers_fold_by_season_newest_open(tmp_path, sample):
     view = view_of(dom(tmp_path, render(sample), "transfers"))
     folds = re.findall(r'<details class="card fold"( open(?:="")?)?><summary><b>([^<]+)</b>', view)
     assert folds[0][1] == "2033/34" and folds[0][0] and all(not o for o, _ in folds[1:]) and len(folds) == 2
+
+
+@needs_chrome
+def test_long_tables_scroll_in_their_own_box(tmp_path, sample):
+    short = view_of(dom(tmp_path, render(sample), "season/2032-33/squad"))
+    assert "scroll tall" not in short
+    row = sample["squad_stats"]["2032/33"][0]
+    sample["squad_stats"]["2032/33"] = [dict(row, name=f"Player {i}", person_id=None) for i in range(20)]
+    long = view_of(dom(tmp_path, render(sample), "season/2032-33/squad"))
+    assert 'class="card scroll tall"' in long
