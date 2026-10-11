@@ -68,9 +68,9 @@ opens a page in your browser (served only on your own machine, at
 3. load its managers and pick one: the save's human managers (tick "Show all managers"
    for every manager in the save, searchable by name or club);
 4. tick the pages to include, which kinds of move the transfer lists show at first
-   (loans, trials, youth intake, released players, staff), whether to embed images, and
-   optionally set up AI-written summaries (below);
-5. generate: a progress bar counts the steps, and the report opens in a new tab with a
+   (loans, trials, youth intake, released players, staff), and whether to embed images;
+5. optionally set up AI-written summaries (below);
+6. generate: a progress bar counts the steps, and the report opens in a new tab with a
    Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
 
 The Windows exe is this same app. On Windows `~` is your user folder
@@ -106,7 +106,7 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
 ## AI-written summaries (optional)
 
 Each season review and the career introduction have plain summaries built from the data.
-In the app's "What to include" step you can instead have them written by a language
+In the app's "AI writing" step you can instead have them written by a language
 model: tick "Write the summaries with an AI model", give an OpenAI-compatible endpoint
 (OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually ending in `/v1`), a token
 if it needs one and a model, and press Test. The model is given only facts from the

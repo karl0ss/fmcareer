@@ -560,17 +560,23 @@ footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
   <div class="card opts">
     <div><b>Pages</b><div id="sections"></div></div>
     <div><b>Transfer lists show at first</b><div id="show"></div><p class="muted" style="font-size:13px">Viewers can switch these on and off in the report.</p></div>
-    <div><b>Writing</b><label><input type="checkbox" id="aiOn"> Write the summaries with an AI model</label>
-      <label class="f" style="margin-top:8px">Endpoint (OpenAI-compatible, usually ending in /v1)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1">
-      <label class="f" style="margin-top:8px">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off">
-      <label class="f" style="margin-top:8px">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist>
-      <div class="actions"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
-      <p class="muted" style="font-size:13px">Off, or if the model fails, the report uses its plain summaries. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
-      <div class="log" id="aiLog"></div></div>
     <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your graphics packs and the game</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
   </div>
 
-  <h2><span class="n">5</span>Report</h2>
+  <h2><span class="n">5</span>AI writing <span class="muted" style="font: 500 15px var(--head)">optional</span></h2>
+  <div class="card">
+    <label><input type="checkbox" id="aiOn"> Write the season summaries and career introduction with an AI model</label>
+    <div class="row" style="margin-top:12px">
+      <div><label class="f">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
+      <div><label class="f">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off"></div>
+      <div><label class="f">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist></div>
+      <div class="actions" style="margin:0"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:10px 0 0">Off, or if the model fails, the report uses its plain summaries. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
+    <div class="log" id="aiLog"></div>
+  </div>
+
+  <h2><span class="n">6</span>Report</h2>
   <div class="card">
     <div class="actions"><button id="generate" disabled>Generate report</button>
       <label class="muted"><input type="checkbox" id="fresh"> Read the save again instead of using what was read before</label>
