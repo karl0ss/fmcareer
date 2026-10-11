@@ -1,8 +1,17 @@
-"""fmcareer-names: which database versions it reads, and unwrapping game files."""
+"""fmcareer-names: which database versions it reads, and reading the game's database files."""
+
+import struct
+import sys
 
 import pytest
 
-from fmcareer.names import CONTAINER, current_versions, main, unwrap
+from fmcareer.gamedb import parse_names, read_sections
+from fmcareer.names import current_versions, main
+
+if sys.version_info >= (3, 14):
+    from compression import zstd
+else:
+    from backports import zstd
 
 
 def test_reads_only_the_newest_games_databases():
@@ -12,51 +21,41 @@ def test_reads_only_the_newest_games_databases():
     assert current_versions([]) == []
 
 
+def container(wrapper, sections):
+    """A made-up game database file: wrapper, header, zstd sections, zstd directory."""
+    body, entries = b"", b""
+    for name, ext, raw in sections:
+        frame = zstd.compress(raw)
+        entries += struct.pack("<I", len(name)) + name.encode() + struct.pack("<I", 4) + ext.encode()
+        entries += struct.pack("<5Q", len(body), len(frame), len(raw), 0, 0)
+        body += frame
+    directory = struct.pack("<I", 4) + b"Test" + struct.pack("<I", 0) + entries
+    header = b"\x02\x01fmf." + b"\x00" * 3 + struct.pack("<Q", 26 + len(body) - 9) + b"\x00" * 9
+    return wrapper + header + body + b"\x02\x01fmf." + b"\x00" * 3 + zstd.compress(directory)
+
+
 @pytest.mark.parametrize(
     "wrapper",
     [
         b"\x03\x01tad.\xb2\x0d",  # 8 bytes, older versions
-        b"\x03\x01tad.\xa0\x0f\x8d\x0e\x07\x00",
+        b"\x03\x01tad.\xa0\x0f\x8d\x0e\x07\x00",  # 12 bytes, newer
     ],
-)  # 12 bytes, newer
-def test_unwrap_strips_either_wrapper(tmp_path, wrapper):
-    body = CONTAINER + b"rest of the container"
-    src = tmp_path / "2600" / "lang_db.dat"
-    src.parent.mkdir()
-    src.write_bytes(wrapper + body)
-    out = tmp_path / "out"
-    out.mkdir()
-    with open(unwrap(str(src), str(out)), "rb") as f:
-        assert f.read() == body
+)
+def test_sections_are_read_from_either_wrapper(tmp_path, wrapper):
+    path = tmp_path / "lang_db.dat"
+    sections = [("8_25", ".dat", b"english"), ("1_25", ".dat", b"other"), ("8_0", ".cmt", b"not a table")]
+    path.write_bytes(container(wrapper, sections))
+    assert read_sections(str(path), {"8_25", "8_0", "9_9"}) == {"8_25": b"english"}
 
 
-def test_unwrap_rejects_other_files(tmp_path):
-    src = tmp_path / "x.dat"
-    src.write_bytes(b"not a game database at all")
-    with pytest.raises(SystemExit, match="unexpected header"):
-        unwrap(str(src), str(tmp_path))
-
-
-def test_wrong_folder_says_where_the_install_is(tmp_path):
-    with pytest.raises(SystemExit, match="does not look like the Football Manager 26 install"):
-        main([str(tmp_path), str(tmp_path / "names")])
-
-
-def test_fmsave_still_has_the_container_readers_gamedb_uses():
-    """gamedb uses two private fmsave readers; this fails when fmsave changes them."""
-    import inspect
-
-    from fmcareer import gamedb
-
-    assert gamedb.read_index is not None and gamedb.read_section is not None
-    assert list(inspect.signature(gamedb.read_section).parameters)[:2] == ["container_index", "name"]
+def test_other_files_are_refused(tmp_path):
+    path = tmp_path / "x.dat"
+    path.write_bytes(b"not a game database at all")
+    with pytest.raises(ValueError, match="not a Football Manager database"):
+        read_sections(str(path), {"8_25"})
 
 
 def test_name_tables_parse():
-    import struct
-
-    from fmcareer.gamedb import parse_names
-
     def text(s):
         raw = s.encode()
         return struct.pack("<I", len(raw)) + raw
@@ -65,3 +64,8 @@ def test_name_tables_parse():
     table += struct.pack("<I", 7) + text("Example League") + b"\x00"
     table += struct.pack("<I", 9) + text("Example Cup") + b"\x01" + text("Cup") + b"\x00"
     assert parse_names(table) == {7: ["Example League"], 9: ["Example Cup", "Cup"]}
+
+
+def test_wrong_folder_says_where_the_install_is(tmp_path):
+    with pytest.raises(SystemExit, match="does not look like the Football Manager 26 install"):
+        main([str(tmp_path), str(tmp_path / "names")])

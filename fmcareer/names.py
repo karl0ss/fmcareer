@@ -7,9 +7,7 @@ game install; it accepts a user-built `database_id,name` CSV via
 `fmsave.open(save, competition_names=...)`. This script builds that CSV (and an
 award-name CSV for the career report) from the game's own database files.
 
-Game database files (`shared/data/database/db/<ver>/<ver>_fm/*.dat`) are a short
-`03 01 'tad.'` wrapper (8 bytes in older database versions, 12 in newer ones)
-around the same `fmf.` container a save uses.
+The files are read by fmcareer.gamedb (format notes there).
 `lang_db.dat` / `lang_update_db.dat` hold per-language name tables named
 `<language>_<table>`; language 8 is English. Table 25 = competitions keyed on
 the editor database id (the save's `Competition.database_id`); table 0 =
@@ -21,25 +19,8 @@ import argparse
 import csv
 import os
 import sys
-import tempfile
 
 from fmcareer.gamedb import english_names
-
-CONTAINER = b"\x02\x01fmf."
-
-
-def unwrap(src, tmpdir):
-    """Copy a game .dat without its wrapper so fmsave's container reader opens it."""
-    dst = os.path.join(tmpdir, os.path.basename(os.path.dirname(src)) + "_" + os.path.basename(src) + ".fm")
-    with open(src, "rb") as f, open(dst, "wb") as g:
-        head = f.read(64)
-        start = head.find(CONTAINER)
-        if head[:6] != b"\x03\x01tad." or start < 0:
-            raise SystemExit(f"{src}: unexpected header")
-        f.seek(start)
-        while chunk := f.read(1 << 20):
-            g.write(chunk)
-    return dst
 
 
 def current_versions(folders):
@@ -72,15 +53,14 @@ def main(argv=None):
         )
     versions = a.db or current_versions(os.listdir(root))
     os.makedirs(a.out, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        paths = []
-        for ver in versions:
-            for fn in ("lang_db.dat", "lang_update_db.dat"):
-                p = os.path.join(root, ver, f"{ver}_fm", fn)
-                if os.path.exists(p):
-                    paths.append(unwrap(p, tmp))
-        comps = english_names(paths, 25)
-        awards = english_names(paths, 0)
+    paths = [
+        p
+        for ver in versions
+        for fn in ("lang_db.dat", "lang_update_db.dat")
+        if os.path.exists(p := os.path.join(root, ver, f"{ver}_fm", fn))
+    ]
+    comps = english_names(paths, 25)
+    awards = english_names(paths, 0)
     with open(os.path.join(a.out, "competition_names.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         for db_id in sorted(comps):

@@ -1,24 +1,72 @@
-"""Parse FM26 game-database language name tables (used by fmcareer-names).
+"""Read FM26 game-database name tables (used by fmcareer-names).
+
+A game database file (`shared/data/database/db/<ver>/<ver>_fm/*.dat`) is a short
+`03 01 'tad.'` wrapper (8 bytes in older database versions, 12 in newer ones) around a
+container: a 26-byte header starting `02 01 'fmf.'` whose u64 at byte 9 (counted from
+byte 9) points to a directory at the end of the file. The directory is one zstd frame:
+a length-prefixed name, a u32, then per entry `[u32 n] name [u32 4] extension` and five
+u64s (offset from byte 26, compressed size, size, two more). Each `.dat` entry is a zstd
+frame holding one table.
 
 Table layout (`tad.`): u32 count, then per record [u32 database id] and strings
 `[u32 len][utf-8]`, each followed by a flag byte. Competition tables (25) end a
 record with flag 00; award tables (0) carry flags ff/01 and one trailing byte 00.
+Language tables are named `<language>_<table>`; language 8 is English.
 
-The tables sit in the same container format a save uses, which fmsave reads; it has no
-public function for raw sections (its public API reads saves, and a game database file is
-not one), so its two private readers are used here, in this one place only.
+fmcareer reads these files itself: fmsave reads saves only and never the game install.
 """
 
 import struct
+import sys
 
-try:
-    from fmsave._container import read_index
-    from fmsave._save import read_section
-except ImportError as error:  # fmsave reorganised its internals
-    read_index = read_section = None
-    _IMPORT_ERROR = error
+if sys.version_info >= (3, 14):
+    from compression import zstd
 else:
-    _IMPORT_ERROR = None
+    from backports import zstd
+
+WRAPPER = b"\x03\x01tad."
+CONTAINER = b"\x02\x01fmf."
+FRAME_BASE = 26
+MAX_SECTION_BYTES = 512 * 1024 * 1024
+
+
+def container_start(head: bytes) -> int:
+    """Where the container begins inside a game database file's first bytes."""
+    start = head.find(CONTAINER)
+    if head[:6] != WRAPPER or start < 0:
+        raise ValueError("not a Football Manager database file")
+    return start
+
+
+def read_sections(path: str, wanted: set[str]) -> dict[str, bytes]:
+    """The `.dat` sections of a game database file whose names are in `wanted`."""
+    with open(path, "rb") as f:
+        base = container_start(f.read(64))
+        f.seek(base)
+        header = f.read(FRAME_BASE)
+        directory_at = 9 + struct.unpack_from("<Q", header, 9)[0]
+        f.seek(base + directory_at)
+        trailer = f.read()
+        if trailer[:6] != CONTAINER:
+            raise ValueError(f"{path}: the directory is damaged")
+        directory = zstd.decompress(trailer[9:])
+        name_length = struct.unpack_from("<I", directory, 0)[0]
+        cursor, found = 4 + name_length + 4, {}
+        while cursor + 4 <= len(directory):
+            n = struct.unpack_from("<I", directory, cursor)[0]
+            if not 1 <= n <= 256 or cursor + 4 + n + 8 + 40 > len(directory):
+                break
+            name = directory[cursor + 4 : cursor + 4 + n].decode("ascii", "replace")
+            ext_at = cursor + 4 + n
+            extension = directory[ext_at + 4 : ext_at + 8].decode("ascii", "replace")
+            offset, compressed, size, _a, _b = struct.unpack_from("<5Q", directory, ext_at + 8)
+            cursor = ext_at + 8 + 40
+            if extension == ".dat" and name in wanted:
+                if size > MAX_SECTION_BYTES:
+                    raise ValueError(f"{path}: section {name} is implausibly large")
+                f.seek(base + FRAME_BASE + offset)
+                found[name] = zstd.decompress(f.read(compressed))
+    return found
 
 
 def _parse(b, trailing):
@@ -58,15 +106,10 @@ def parse_names(b):
     raise ValueError("table did not parse exactly")
 
 
-def english_names(db_paths, table):
+def english_names(db_paths: list[str], table: int) -> dict[int, list[str]]:
     """Merge English (language 8) names for one table, later databases overriding."""
-    if _IMPORT_ERROR is not None:
-        raise SystemExit(
-            f"this fmsave version moved the container readers fmcareer-names uses ({_IMPORT_ERROR}); update fmcareer"
-        ) from _IMPORT_ERROR
-    names = {}
+    names: dict[int, list[str]] = {}
     for path in db_paths:
-        ix = read_index(path)
-        if f"8_{table}" in ix.sections:
-            names.update(parse_names(read_section(ix, f"8_{table}")))
+        for raw in read_sections(path, {f"8_{table}"}).values():
+            names.update(parse_names(raw))
     return names

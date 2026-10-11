@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 # fmsave is our fork (branch history-decoders), pinned to a commit so every build reads saves the
 # same way; move the pin forward deliberately when the fork changes.
-dependencies = ["fmsave @ git+https://github.com/karl0ss/fmsave.git@5857ed6e72be96a5d2980d79e596fce34e3ea0f2"]
+dependencies = [
+    "fmsave @ git+https://github.com/karl0ss/fmsave.git@5857ed6e72be96a5d2980d79e596fce34e3ea0f2",
+    "backports.zstd>=1.0; python_version < '3.14'",  # reading the game's database files (gamedb)
+]
 
 [project.optional-dependencies]
 images = ["UnityPy>=1.20"]
