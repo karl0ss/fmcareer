@@ -34,3 +34,27 @@ def test_unwrap_rejects_other_files(tmp_path):
 def test_wrong_folder_says_where_the_install_is(tmp_path):
     with pytest.raises(SystemExit, match="does not look like the Football Manager 26 install"):
         main([str(tmp_path), str(tmp_path / "names")])
+
+
+def test_fmsave_still_has_the_container_readers_gamedb_uses():
+    """gamedb uses two private fmsave readers; this fails when fmsave changes them."""
+    import inspect
+
+    from fmcareer import gamedb
+    assert gamedb.read_index is not None and gamedb.read_section is not None
+    assert list(inspect.signature(gamedb.read_section).parameters)[:2] == ["container_index", "name"]
+
+
+def test_name_tables_parse():
+    import struct
+
+    from fmcareer.gamedb import parse_names
+
+    def text(s):
+        raw = s.encode()
+        return struct.pack("<I", len(raw)) + raw
+
+    table = b"\x03\x01tad." + b"\x00\x00" + struct.pack("<I", 2)
+    table += struct.pack("<I", 7) + text("Example League") + b"\x00"
+    table += struct.pack("<I", 9) + text("Example Cup") + b"\x01" + text("Cup") + b"\x00"
+    assert parse_names(table) == {7: ["Example League"], 9: ["Example Cup", "Cup"]}
