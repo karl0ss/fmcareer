@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fmcareer import __version__
 from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
-from fmcareer.render import render
+from fmcareer.render import footer, render
 
 HOME = Path.home()
 CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "fmcareer" / "settings.json"
@@ -287,7 +287,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            return self.send(200, PAGE.replace("__VERSION__", __version__), "text/html")
+            return self.send(200, PAGE.replace("__VERSION__", __version__).replace("__FOOTER__", footer()), "text/html")
         if self.path == "/api/state":
             settings = load_settings()
             return self.send(200, dict(settings=settings, saves=list_saves(settings["saves_dir"]),
@@ -414,6 +414,7 @@ button:disabled { opacity: .45; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .prog.run { animation: none; } }
 .err { color: var(--down); margin-top: 8px; } .ok { color: var(--up); }
 .muted { color: var(--text-3); } a { color: var(--accent); }
+footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
 @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
 </style>
@@ -464,6 +465,7 @@ button:disabled { opacity: .45; cursor: default; }
     <div class="log" id="genLog"></div>
     <div id="reports" style="margin-top:14px"></div>
   </div>
+  <footer>__FOOTER__</footer>
 </div>
 <script>
 const $ = id => document.getElementById(id);

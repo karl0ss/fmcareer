@@ -25,6 +25,15 @@ def test_data_round_trips_and_cannot_close_the_script_tag(sample):
     assert "<title>Evil &lt;/script&gt;" in html
 
 
+def test_footer_names_both_versions_and_links_the_repositories(sample):
+    import fmcareer
+    html = render(sample)
+    foot = html[html.find("<footer>"):html.find("</footer>")]
+    assert f"v{fmcareer.__version__}" in foot
+    assert "https://github.com/karl0ss/fmcareer" in foot and "https://github.com/karl0ss/fmsave" in foot
+    assert "Built entirely" not in html
+
+
 def chrome():
     """A headless Chromium to run the report in: FMCAREER_CHROME, PATH, or Playwright's cache."""
     if os.environ.get("FMCAREER_CHROME"):
@@ -93,3 +102,9 @@ def test_transfer_toggles_follow_the_report_defaults(tmp_path, sample):
     sample["options"]["show"]["Trial"] = True
     text = view_of(dom(tmp_path, render(sample), "transfers"))
     assert "Tom Trialist" in text and "Staff member" not in text
+
+
+@needs_chrome
+def test_seasons_run_oldest_to_newest(tmp_path, sample):
+    view = view_of(dom(tmp_path, render(sample), "seasons"))
+    assert view.find("2029/30") < view.find("2031/32") < view.find("2032/33")

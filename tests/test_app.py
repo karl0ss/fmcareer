@@ -203,7 +203,8 @@ def test_version_flag_and_page_show_the_version(server, capsys):
     with pytest.raises(SystemExit):
         app.main(["--version"])
     assert capsys.readouterr().out.strip() == f"fmcareer {fmcareer.__version__}"
-    assert f"v{fmcareer.__version__}".encode() in call(server[0] + "/")[1]
+    page = call(server[0] + "/")[1]
+    assert f"v{fmcareer.__version__}".encode() in page and b"https://github.com/karl0ss/fmsave" in page
 
 
 def test_a_second_start_hands_over_to_the_running_app(server, capsys):

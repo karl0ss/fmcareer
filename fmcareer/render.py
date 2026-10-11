@@ -121,7 +121,7 @@ footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 </div></div>
 <div class="wrap">
   <main id="view"></main>
-  <footer>Built entirely from the save file via fmsave decoders; competition and award names from the game's own database. Fees for retired players are mostly unavailable.</footer>
+  <footer>__FOOTER__</footer>
 </div>
 <script type="application/json" id="data">__DATA__</script>
 <script>
@@ -392,7 +392,7 @@ function pageMe() {
 // ---- page: seasons grid
 function pageSeasons() {
   view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge. Open one for the full review.</p>
-    <div class="seasons" style="margin-top:20px">${[...L].reverse().map(r => `
+    <div class="seasons" style="margin-top:20px">${L.map(r => `
       <a class="card scard" href="#season/${slug(r.season)}">
         <div class="yr">${r.season}</div>
         <div class="fin">${(D.stints || []).length > 1 ? esc(r.club) + ' · ' : ''}${ord(r.position)} · ${esc(r.competition)} · ${r.points} pts</div>
@@ -658,7 +658,20 @@ route();
 """
 
 
+def footer():
+    """fmcareer's and fmsave's versions, each linked to its repository."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    from fmcareer import __version__
+    try:
+        fmsave_version = " " + version("fmsave")
+    except PackageNotFoundError:
+        fmsave_version = ""
+    return (f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(__version__)}'
+            f' · reads saves with <a href="https://github.com/karl0ss/fmsave">fmsave</a>{html.escape(fmsave_version)}')
+
+
 def render(data):
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     title = html.escape(f"{data['manager']['name']} — Career History")
-    return TEMPLATE.replace("__TITLE__", title).replace("__DATA__", payload)
+    return TEMPLATE.replace("__TITLE__", title).replace("__FOOTER__", footer()).replace("__DATA__", payload)
