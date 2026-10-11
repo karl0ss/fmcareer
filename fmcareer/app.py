@@ -46,7 +46,8 @@ INSTALL_GUESSES = [
 # ---- settings
 
 def load_settings():
-    settings = {"saves_dir": "", "install": "", "graphics": ""}
+    settings = {"saves_dir": "", "install": "", "graphics": "",
+                "ai_enabled": False, "ai_endpoint": "", "ai_token": "", "ai_model": ""}
     try:
         settings.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
     except (OSError, ValueError):
@@ -59,6 +60,20 @@ def load_settings():
         from fmcareer.images import guess_graphics
         settings["graphics"] = guess_graphics(settings["saves_dir"])
     return settings
+
+
+def public_settings(settings):
+    """Settings for the page: the AI token never leaves the app, only whether one is saved."""
+    shown = {k: v for k, v in settings.items() if k != "ai_token"}
+    shown["ai_token_set"] = bool(settings.get("ai_token"))
+    return shown
+
+
+def ai_config(settings):
+    """The AI writer's endpoint, token and model when it is switched on and set up, else None."""
+    if settings.get("ai_enabled") and settings.get("ai_endpoint") and settings.get("ai_model"):
+        return dict(endpoint=settings["ai_endpoint"], token=settings.get("ai_token", ""), model=settings["ai_model"])
+    return None
 
 
 def store_settings(settings):
@@ -173,7 +188,10 @@ def start_job(fn, *args):
     def plan(total):  # how many steps the job will report, for the page's progress bar
         job["total"] = total
 
-    step.plan = plan
+    def more(n):  # steps found to be needed (or no longer needed) once the job is under way
+        job["total"] = (job["total"] or 0) + n
+
+    step.plan, step.more = plan, more
 
     def run():
         with WORK:
@@ -252,7 +270,63 @@ def report_images(step, data, install, graphics, fresh):
     return {**game, **pack}
 
 
-def job_report(step, path, staff_uid, options, images, install, fresh=False, graphics=""):
+AI_TEXTS = CACHE / "ai" / "texts.json"
+
+
+def ai_write(step, data, ai):
+    """The AI writer's text for a career ({"model", "overview", "seasons"}), or None.
+
+    Text written before for the same facts, model and endpoint is reused. A failure stops
+    the writing and leaves the templated summaries in place, with a step saying why.
+    """
+    from fmcareer import writer
+    try:
+        known = json.loads(AI_TEXTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        known = {}
+    total = writer.pieces(data)
+    step.more(total)
+    done = 0
+
+    def counted(text):
+        nonlocal done
+        done += 1
+        step(text)
+
+    try:
+        return writer.write(data, ai["endpoint"], ai["token"], ai["model"], counted, known)
+    except writer.WriterError as e:
+        step.more(-(total - done) + 1)
+        step(f"AI writing stopped ({e}); the plain summaries are used")
+        return None
+    finally:
+        AI_TEXTS.parent.mkdir(parents=True, exist_ok=True)
+        keep = dict(list(known.items())[-3000:])
+        AI_TEXTS.write_text(json.dumps(keep), encoding="utf-8")
+
+
+def job_ai_test(step, endpoint, token, model):
+    from fmcareer import writer
+    step.plan(2 if model else 1)
+    step("Asking the endpoint for its models")
+    try:
+        models = writer.list_models(endpoint, token)
+    except writer.WriterError:
+        models = []  # not every endpoint lists models; the chat test below still tells
+    reply = None
+    if model:
+        step(f"Asking {model} for one sentence")
+        try:
+            reply = " ".join(writer.chat(endpoint, token, model, "Reply in one short sentence.",
+                                         {"question": "Say hello to a Football Manager player."}))
+        except writer.WriterError as e:
+            raise SystemExit(str(e)) from None  # shown to the user as it is
+    elif not models:
+        raise SystemExit("The endpoint listed no models; check the address (it usually ends in /v1).")
+    return dict(models=models, reply=reply)
+
+
+def job_report(step, path, staff_uid, options, images, install, fresh=False, graphics="", ai=None):
     key = cache_key(path, "career", staff_uid)
     data = None if fresh else cache_read(key)
     images = bool(images and (install or graphics))
@@ -265,6 +339,10 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False, gra
         cache_write(key, data)
     # options only choose what the page shows, so one read serves every choice of options
     data = dict(data, options=options, club_today=data["club_today"] if "club" in options["sections"] else None)
+    if ai:
+        written = ai_write(step, data, ai)
+        if written:
+            data["ai"] = written
     if images:
         data["images"] = report_images(step, data, install, graphics, fresh)
     step("Writing the report")
@@ -303,7 +381,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, PAGE.replace("__VERSION__", __version__).replace("__FOOTER__", footer()), "text/html")
         if self.path == "/api/state":
             settings = load_settings()
-            return self.send(200, dict(settings=settings, saves=list_saves(settings["saves_dir"]),
+            return self.send(200, dict(settings=public_settings(settings), saves=list_saves(settings["saves_dir"]),
                                        reports=list_reports(), reports_dir=str(REPORTS), names=names_dir(),
                                        images=images_available(), defaults=DEFAULT_OPTIONS))
         if self.path.startswith("/api/job/"):
@@ -325,9 +403,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "bad JSON"})
         settings = load_settings()
         if self.path == "/api/settings":
-            settings.update({k: str(req.get(k, settings[k])).strip() for k in ("saves_dir", "install", "graphics")})
+            settings.update({k: str(req.get(k, settings[k])).strip()
+                             for k in ("saves_dir", "install", "graphics", "ai_endpoint", "ai_model")})
+            if "ai_enabled" in req:
+                settings["ai_enabled"] = bool(req["ai_enabled"])
+            if req.get("ai_token"):  # a blank field keeps the saved token
+                settings["ai_token"] = str(req["ai_token"]).strip()
+            if req.get("ai_token_clear"):
+                settings["ai_token"] = ""
             store_settings(settings)
-            return self.send(200, dict(settings=settings, saves=list_saves(settings["saves_dir"])))
+            return self.send(200, dict(settings=public_settings(settings), saves=list_saves(settings["saves_dir"])))
+        if self.path == "/api/ai-test":
+            endpoint = str(req.get("endpoint") or settings["ai_endpoint"]).strip()
+            if not endpoint:
+                return self.send(400, {"error": "Set the endpoint first."})
+            token = str(req.get("token") or settings["ai_token"]).strip()
+            return self.send(200, {"job": start_job(job_ai_test, endpoint, token, str(req.get("model") or "").strip())})
         if self.path == "/api/names":
             if not os.path.isdir(settings["install"]):
                 return self.send(400, {"error": "Set the Football Manager 26 install folder first."})
@@ -348,7 +439,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 if k in DEFAULT_OPTIONS["show"]}}
             return self.send(200, {"job": start_job(job_report, save, staff_uid, options,
                                                     bool(req.get("images")), settings["install"],
-                                                    bool(req.get("fresh")), settings["graphics"])})
+                                                    bool(req.get("fresh")), settings["graphics"],
+                                                    ai_config(settings))})
         return self.send(404, {"error": "not found"})
 
 
@@ -398,7 +490,7 @@ h2 .n { display: inline-grid; place-items: center; width: 26px; height: 26px; bo
   background: linear-gradient(135deg, #7b3cff, var(--accent-2)); color: #fff; font-size: 15px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 label.f { display: block; color: var(--text-2); font-size: 13px; margin: 0 0 4px; }
-input[type=text], input[type=search] { width: 100%; font: inherit; color: var(--text); background: var(--surface-2);
+input[type=text], input[type=search], input[type=password] { width: 100%; font: inherit; color: var(--text); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
 button { font: 600 16px var(--head); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer;
@@ -468,6 +560,13 @@ footer { margin: 40px 0 10px; color: var(--text-3); font-size: 12px; }
   <div class="card opts">
     <div><b>Pages</b><div id="sections"></div></div>
     <div><b>Transfer lists show at first</b><div id="show"></div><p class="muted" style="font-size:13px">Viewers can switch these on and off in the report.</p></div>
+    <div><b>Writing</b><label><input type="checkbox" id="aiOn"> Write the summaries with an AI model</label>
+      <label class="f" style="margin-top:8px">Endpoint (OpenAI-compatible, usually ending in /v1)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1">
+      <label class="f" style="margin-top:8px">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off">
+      <label class="f" style="margin-top:8px">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist>
+      <div class="actions"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
+      <p class="muted" style="font-size:13px">Off, or if the model fails, the report uses its plain summaries. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>
+      <div class="log" id="aiLog"></div></div>
     <div><b>Images</b><label><input type="checkbox" id="images"> Club badges, players' photos and competition logos from your graphics packs and the game</label><p class="muted" id="imagesNote" style="font-size:13px"></p></div>
   </div>
 
@@ -541,6 +640,13 @@ function drawOptions() {
   $('images').checked = !$('images').disabled && recall('images', true);
   $('imagesNote').textContent = !state.images ? 'Needs the images extra: pip install "fmcareer[images]".' : !sources.length ? 'Set the install or graphics folder first.' : 'From ' + sources.join(' and ') + (state.settings.graphics ? '; packs win, as in the game.' : '.');
 }
+function drawAI() {
+  const st = state.settings;
+  $('aiOn').checked = !!st.ai_enabled; $('aiEndpoint').value = st.ai_endpoint || ''; $('aiModel').value = st.ai_model || '';
+  $('aiToken').value = ''; $('aiToken').placeholder = st.ai_token_set ? 'saved (leave blank to keep it)' : '';
+}
+const aiFields = () => ({ai_enabled: $('aiOn').checked, ai_endpoint: $('aiEndpoint').value, ai_model: $('aiModel').value,
+  ai_token: $('aiToken').value});
 function drawReports() {
   $('reports').innerHTML = state.reports.length ? '<b class="muted">Reports</b>' + state.reports.map(r => `<div class="item"><a href="/reports/${encodeURIComponent(r.file)}" target="_blank">${esc(r.file.replace(/\.html$/, '').replace(/-/g, ' '))}</a><span class="m">${fmtTime(r.modified)} · ${fmtSize(r.size)} · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a></span></div>`).join('')
     + `<p class="muted" style="font-size:13px">Each report is one file with its images inside: it opens in any browser, offline, so you can keep it, copy it or send it. They are saved in ${esc(state.reports_dir)}.</p>` : '';
@@ -554,12 +660,29 @@ async function refresh() {
   $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install; $('graphics').value = state.settings.graphics;
   chosenSave = chosenSave || recall('save', null);
   if (chosenSave && !state.saves.some(s => s.path === chosenSave)) chosenSave = null;
-  drawSaves(); drawOptions(); drawReports(); drawNames();
+  drawSaves(); drawOptions(); drawReports(); drawNames(); drawAI();
 }
 $('saves').onclick = e => { const it = e.target.closest('[data-path]'); if (!it) return; chosenSave = it.dataset.path; remember('save', chosenSave);
   managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers(); };
 $('managers').onclick = e => { const it = e.target.closest('[data-uid]'); if (!it) return; chosenManager = +it.dataset.uid; drawManagers(); };
 $('saveFilter').oninput = drawSaves; $('managerFilter').oninput = drawManagers;
+$('aiSave').onclick = async () => {
+  try { await api('/api/settings', aiFields()); await refresh();
+    $('aiLog').innerHTML = `<div class="ok">Saved.${state.settings.ai_enabled && !(state.settings.ai_endpoint && state.settings.ai_model) ? ' Set the endpoint and model to use it.' : ''}</div>`;
+  } catch (e) { $('aiLog').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+};
+$('aiOn').onchange = () => $('aiSave').onclick();
+$('aiTest').onclick = async () => {
+  $('aiTest').disabled = true;
+  try {
+    await api('/api/settings', aiFields()); await refresh();
+    const {job} = await api('/api/ai-test', {model: $('aiModel').value});
+    const r = await follow(job, $('aiLog'));
+    $('aiModels').innerHTML = r.models.map(m => `<option value="${esc(m)}">`).join('');
+    $('aiLog').innerHTML += r.reply ? `<div class="ok">It answered: “${esc(r.reply)}”</div>`
+      : `<div class="ok">${r.models.length} models listed; pick one and test again.</div>`;
+  } catch (e) { $('aiLog').innerHTML += `<div class="err">${esc(e.message)}</div>`; } finally { $('aiTest').disabled = false; }
+};
 $('saveSettings').onclick = async () => { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh(); };
 $('buildNames').onclick = async () => {
   try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value});

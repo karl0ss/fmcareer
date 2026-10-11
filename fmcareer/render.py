@@ -128,6 +128,19 @@ footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 const D = JSON.parse(document.getElementById('data').textContent);
 const M = D.manager, L = D.league;
 const OPT = D.options || {};
+// AI-written summaries, when the report has them; viewers can switch back to the plain ones
+const AI = D.ai || null;
+let USE_AI = true;
+try { USE_AI = localStorage.getItem('fmcareer-ai') !== 'off'; } catch (e) {}
+const aiOn = () => AI && USE_AI;
+const aiParas = paras => paras.map(p => esc(p));
+const aiSwitch = has => !has ? '' : `<p class="note">${aiOn() ? `Written by ${esc(AI.model)} from the facts in the save.` : 'The plain summary.'} <a href="#" data-ai-toggle>${aiOn() ? 'Show the plain summary' : 'Show the AI-written summary'}</a></p>`;
+document.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('[data-ai-toggle]')) return;
+  e.preventDefault(); USE_AI = !USE_AI;
+  try { localStorage.setItem('fmcareer-ai', USE_AI ? 'on' : 'off'); } catch (err) {}
+  const y = window.scrollY; route(); window.scrollTo(0, y);
+});
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ord = n => { const s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 const slug = season => season.replace('/', '-');
@@ -252,7 +265,8 @@ const SECTIONS = OPT.sections || ['me', 'seasons', 'players', 'records', 'honour
 const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
   .filter(([id]) => SECTIONS.includes(id) && (id !== 'club' || D.club_today));
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
-document.getElementById('brand').innerHTML = `${CUR ? crest(CUR.club_uid, CUR.club) : ''}${esc(M.name)} <span>· career history</span>`;
+// the manager's face where a face pack or the game has one, else the current club's badge
+document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? crest(CUR.club_uid, CUR.club) : '')}${esc(M.name)} <span>· career history</span>`;
 // tint the page with the current club's badge colour
 (() => { const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
   const im = new Image(); im.onload = () => { try {
@@ -336,7 +350,8 @@ function pageMe() {
         ${face(M.person_id, 'lg') || (CUR ? crest(CUR.club_uid, CUR.club, 'lg') : '')}
         <div>
         <h1>${esc(M.name)}</h1>
-        <p class="lede">${lede}</p>
+        ${aiOn() && AI.overview ? aiParas(AI.overview).map(p => `<p class="lede">${p}</p>`).join('') : `<p class="lede">${lede}</p>`}
+        ${aiSwitch(AI && AI.overview)}
         </div>
       </div>
       <div class="facts">
@@ -421,7 +436,8 @@ function pageSeason(arg) {
     <h1>${crest(r.club_uid, r.club, 'md')}${season} season review</h1>
     <p class="lede">${esc(r.club)} · ${esc(r.competition)} · ${ord(r.position)} of ${r.teams}${r.champion ? ' · Champions' : ''}${r.promotedAfter ? ' · Promoted' : ''}${r.relegatedAfter ? ' · Relegated' : ''}${r.moved ? ' · Left for a new club' : ''}</p>
     <h2>Summary</h2>
-    <div class="card story">${seasonStory(r).map(p => `<p>${p}</p>`).join('')}</div>
+    <div class="card story">${(aiOn() && AI.seasons[season] ? aiParas(AI.seasons[season]) : seasonStory(r)).map(p => `<p>${p}</p>`).join('')}</div>
+    ${aiSwitch(AI && AI.seasons[season])}
     <h2>The numbers</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${ord(r.position)}</div><div class="k">League finish</div><div class="s">of ${r.teams}</div></div>
@@ -482,7 +498,7 @@ function pageHonours() {
 function pageTransfers() {
   const T = D.transfers, seasons = [...new Set(T.map(t => t.season))].sort();
   const count = (s, f) => T.filter(t => t.season === s && f(t)).length;
-  view.innerHTML = `<h1>Transfers</h1><p class="lede">Every recorded move in and out of the club, with fees where the save holds them. Fees for players who have since retired are mostly unavailable.</p>
+  view.innerHTML = `<h1>Transfers</h1><p class="lede">Every recorded move in and out of the club, with fees where the save holds them.</p>
     <h2>Totals</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${D.players_bought}</div><div class="k">Players signed</div><div class="s">transfers, frees and signings</div></div>
@@ -659,16 +675,9 @@ route();
 
 
 def footer():
-    """fmcareer's and fmsave's versions, each linked to its repository."""
-    from importlib.metadata import PackageNotFoundError, version
-
+    """fmcareer's version, linked to its repository."""
     from fmcareer import __version__
-    try:
-        fmsave_version = " " + version("fmsave")
-    except PackageNotFoundError:
-        fmsave_version = ""
-    return (f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(__version__)}'
-            f' · reads saves with <a href="https://github.com/karl0ss/fmsave">fmsave</a>{html.escape(fmsave_version)}')
+    return f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(__version__)}'
 
 
 def render(data):

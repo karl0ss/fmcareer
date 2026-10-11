@@ -25,13 +25,12 @@ def test_data_round_trips_and_cannot_close_the_script_tag(sample):
     assert "<title>Evil &lt;/script&gt;" in html
 
 
-def test_footer_names_both_versions_and_links_the_repositories(sample):
+def test_footer_shows_the_version_and_links_the_repository(sample):
     import fmcareer
     html = render(sample)
     foot = html[html.find("<footer>"):html.find("</footer>")]
-    assert f"v{fmcareer.__version__}" in foot
-    assert "https://github.com/karl0ss/fmcareer" in foot and "https://github.com/karl0ss/fmsave" in foot
-    assert "Built entirely" not in html
+    assert f"v{fmcareer.__version__}" in foot and "https://github.com/karl0ss/fmcareer" in foot
+    assert "fmsave" not in foot and "Built entirely" not in html and "since retired" not in html
 
 
 def chrome():
@@ -108,3 +107,37 @@ def test_transfer_toggles_follow_the_report_defaults(tmp_path, sample):
 def test_seasons_run_oldest_to_newest(tmp_path, sample):
     view = view_of(dom(tmp_path, render(sample), "seasons"))
     assert view.find("2029/30") < view.find("2031/32") < view.find("2032/33")
+
+
+AI_TEXT = {"model": "test-model", "overview": ["An invented-for-tests introduction."],
+           "seasons": {"2032/33": ["A model-written review of 2032/33.", "Second paragraph."]}}
+
+
+@needs_chrome
+def test_ai_text_replaces_the_plain_summaries_where_present(tmp_path, sample):
+    sample["ai"] = AI_TEXT
+    season = view_of(dom(tmp_path, render(sample), "season/2032-33"))
+    assert "A model-written review of 2032/33." in season and "Second paragraph." in season
+    assert "Written by test-model" in season and "Show the plain summary" in season
+    other = view_of(dom(tmp_path, render(sample), "season/2031-32"))   # no AI text for this one
+    assert "were crowned champions" in other and "Written by" not in other
+    me = view_of(dom(tmp_path, render(sample), "me"))
+    assert "An invented-for-tests introduction." in me
+
+
+@needs_chrome
+def test_without_ai_text_the_plain_summary_shows(tmp_path, sample):
+    view = view_of(dom(tmp_path, render(sample), "season/2032-33"))
+    assert "12th-placed finish" in view and "Written by" not in view
+
+
+@needs_chrome
+def test_header_and_overview_show_the_managers_face_else_the_club_badge(tmp_path, sample):
+    text = dom(tmp_path, render(sample), "me")
+    head = text[text.find('id="brand"'):text.find("</div>", text.find('id="brand"'))]
+    assert "crest" in head and "data:image" not in head            # no face: the club's badge (initials)
+    sample["images"] = {"person:101": "data:image/png;base64,AAAA"}
+    text = dom(tmp_path, render(sample), "me")
+    head = text[text.find('id="brand"'):text.find("</div>", text.find('id="brand"'))]
+    assert 'class="pic face' in head and "crest" not in head
+    assert view_of(text).count("data:image/png;base64,AAAA") >= 1  # the overview's big picture too

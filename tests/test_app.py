@@ -41,7 +41,8 @@ def test_page_and_state(server):
     assert code == 200 and b"fmcareer" in page
     code, state = call(base + "/api/state")
     state = json.loads(state)
-    assert state["settings"] == {"saves_dir": "", "install": "", "graphics": ""}
+    assert state["settings"] == {"saves_dir": "", "install": "", "graphics": "", "ai_enabled": False,
+                                 "ai_endpoint": "", "ai_model": "", "ai_token_set": False}
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
     assert "sections" in state["defaults"]
 
@@ -204,7 +205,7 @@ def test_version_flag_and_page_show_the_version(server, capsys):
         app.main(["--version"])
     assert capsys.readouterr().out.strip() == f"fmcareer {fmcareer.__version__}"
     page = call(server[0] + "/")[1]
-    assert f"v{fmcareer.__version__}".encode() in page and b"https://github.com/karl0ss/fmsave" in page
+    assert f"v{fmcareer.__version__}".encode() in page and b"fmsave" not in page
 
 
 def test_a_second_start_hands_over_to_the_running_app(server, capsys):
@@ -225,3 +226,52 @@ def test_pack_images_win_over_the_games(monkeypatch, tmp_path):
     assert pics == {"club:1": "pack1", "club:2": "game2"}
     assert steps == ["Embedding badges and photos from your graphics packs and the game"]
     assert app.report_images(steps.append, {}, "", "/graphics", False) == {"club:1": "pack1"}
+
+
+def test_ai_settings_keep_the_token_out_of_the_page(server):
+    base, _ = server
+    body = {"ai_enabled": True, "ai_endpoint": "http://model.example/v1", "ai_model": "m", "ai_token": "sekrit"}
+    code, out = call(base + "/api/settings", body)
+    assert code == 200 and b"sekrit" not in out and json.loads(out)["settings"]["ai_token_set"] is True
+    assert b"sekrit" not in call(base + "/api/state")[1]
+    call(base + "/api/settings", {"ai_token": ""})                          # blank keeps it
+    assert app.load_settings()["ai_token"] == "sekrit"
+    assert app.ai_config(app.load_settings()) == {"endpoint": "http://model.example/v1", "token": "sekrit", "model": "m"}
+    call(base + "/api/settings", {"ai_enabled": False})
+    assert app.ai_config(app.load_settings()) is None
+
+
+def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
+    from fmcareer import writer
+    monkeypatch.setattr(app, "AI_TEXTS", tmp_path / "ai" / "texts.json")
+    data = {"manager": {"name": "Alex"}, "league": [
+        {"season": s, "club": "Example Town", "club_uid": 1, "competition": "Example League", "tier": 1, "rank": 5,
+         "position": 5, "teams": 20, "played": 38, "won": 15, "drawn": 10, "lost": 13, "goals_for": 50,
+         "goals_against": 45, "points": 55} for s in ("2030/31", "2031/32", "2032/33")]}
+    calls = []
+
+    def fake_chat(endpoint, token, model, system, facts):
+        calls.append(facts.get("season"))
+        if facts.get("season") == "2031/32":
+            raise writer.WriterError("the endpoint answered 500")
+        return [f"Text for {facts.get('season', 'the career')}."]
+
+    monkeypatch.setattr(writer, "chat", fake_chat)
+
+    def run(job_fn):
+        job = wait(app.start_job(job_fn))
+        assert job["status"] == "done", job["error"]
+        assert len(job["steps"]) - 1 == job["total"]
+        return job
+
+    def job(step):
+        step.plan(1)
+        step("before")
+        return app.ai_write(step, data, {"endpoint": "http://x/v1", "token": "", "model": "m"})
+
+    first = run(job)
+    assert first["result"] is None and "plain summaries" in first["steps"][-2]["text"]
+    monkeypatch.setattr(writer, "chat", lambda *a: [f"Text for {a[4].get('season', 'the career')}."])
+    second = run(job)
+    assert second["result"]["seasons"]["2032/33"] == ["Text for 2032/33."]
+    assert any("written before" in s["text"] for s in second["steps"])   # the overview from the first run

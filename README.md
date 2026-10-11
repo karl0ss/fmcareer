@@ -89,6 +89,20 @@ names files or a new fmcareer/fmsave are read afresh; tick "Read the save again"
 - `--json career_data.json` also writes the collected data.
 - A large save takes a few minutes and about 3 GB of memory.
 
+## AI-written summaries (optional)
+
+Each season review and the career introduction have plain summaries built from the data.
+In the app's "What to include" step you can instead have them written by a language
+model: tick "Write the summaries with an AI model", give an OpenAI-compatible endpoint
+(OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually ending in `/v1`), a token
+if it needs one and a model, and press Test. The model is given only facts from the
+career and told to use nothing else; any number in its text that the facts don't hold
+gets the piece asked again, then dropped for the plain summary. If the endpoint fails,
+the report keeps the plain summaries. Text already written for the same facts and model
+is reused, so regenerating is quick. Readers can switch between the AI and plain
+summaries in the report. The facts, including names from your save, are sent to the
+endpoint you choose; the token stays in your local settings and is never shown again.
+
 ## Images
 
 The game keeps its licensed artwork in Unity asset bundles; the address catalog next to
