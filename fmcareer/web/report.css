@@ -129,13 +129,13 @@ select { font: inherit; color: var(--text); background: var(--surface); border: 
   border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
   opacity: 0; transition: opacity .1s; white-space: nowrap; }
 .note { color: var(--text-3); font-size: 13px; margin-top: 8px; }
-.story p { margin: 0 0 10px; max-width: 75ch; }
+.story p { margin: 0 0 10px; }
 .story p:last-child { margin-bottom: 0; }
 footer { margin-top: 44px; color: var(--text-3); font-size: 12px; }
 /* the Report page: newspaper-style articles */
 .news { margin-top: 14px; }
 .news h2 { font: 700 26px/1.2 var(--head); color: var(--text); margin: 4px 0 12px; }
-.news p { max-width: 70ch; font-size: 16px; line-height: 1.65; }
+.news p { font-size: 16px; line-height: 1.65; }
 .news .note { font-size: 13px; }
 .kicker { font: 600 13px var(--head); letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
 .byline { margin-top: 4px; }
