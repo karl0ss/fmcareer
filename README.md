@@ -111,8 +111,12 @@ model: tick "Write the summaries with an AI model", give an OpenAI-compatible en
 (OpenAI, llama.cpp/llama-swap, Ollama, LM Studio, vLLM: usually ending in `/v1`), a token
 if it needs one and a model, and press Test. The model is given only facts from the
 career and told to use nothing else; any number in its text that the facts don't hold
-gets the piece asked again, then dropped for the plain summary. If the endpoint fails,
-the report keeps the plain summaries. Text already written for the same facts and model
+gets the piece asked again, then dropped for the plain summary. A piece the model gives no
+usable text for keeps its plain summary and the rest carry on; if the endpoint fails, or
+the model manages none of the first two pieces, the report keeps the plain summaries, and
+the app says how many pieces the model wrote. Reasoning models are asked to think briefly
+(`reasoning_effort: low`, dropped for endpoints that refuse it), and get more room if they
+still run out before writing. Text already written for the same facts and model
 is reused, so regenerating is quick. Readers can switch between the AI and plain
 summaries in the report. The facts, including names from your save, are sent to the
 endpoint you choose; the token stays in your local settings and is never shown again.

@@ -250,7 +250,7 @@ def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
          "goals_against": 45, "points": 55} for s in ("2030/31", "2031/32", "2032/33")]}
     calls = []
 
-    def fake_chat(endpoint, token, model, system, facts):
+    def fake_chat(endpoint, token, model, system, facts, max_tokens=None):
         calls.append(facts.get("season"))
         if facts.get("season") == "2031/32":
             raise writer.WriterError("the endpoint answered 500")
@@ -270,7 +270,8 @@ def test_ai_writing_falls_back_and_keeps_the_step_count(monkeypatch, tmp_path):
         return app.ai_write(step, data, {"endpoint": "http://x/v1", "token": "", "model": "m"})
 
     first = run(job)
-    assert first["result"] is None and "plain summaries" in first["steps"][-2]["text"]
+    assert first["result"]["stopped"] and first["result"]["written"] == 0
+    assert "plain summaries" in first["steps"][-2]["text"]
     monkeypatch.setattr(writer, "chat", lambda *a: [f"Text for {a[4].get('season', 'the career')}."])
     second = run(job)
     assert second["result"]["seasons"]["2032/33"] == ["Text for 2032/33."]

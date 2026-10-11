@@ -298,7 +298,7 @@ def ai_write(step, data, ai):
     except writer.WriterError as e:
         step.more(-(total - done) + 1)
         step(f"AI writing stopped ({e}); the plain summaries are used")
-        return None
+        return {"written": 0, "pieces": total, "problems": [str(e)], "stopped": True}
     finally:
         AI_TEXTS.parent.mkdir(parents=True, exist_ok=True)
         keep = dict(list(known.items())[-3000:])
@@ -321,6 +321,9 @@ def job_ai_test(step, endpoint, token, model):
                                          {"question": "Say hello to a Football Manager player."}))
         except writer.WriterError as e:
             raise SystemExit(str(e)) from None  # shown to the user as it is
+        except writer.UnusableAnswer as e:
+            raise SystemExit(f"{model} answered but {e}. A reasoning model may need more room, "
+                             "or try another model.") from None
     elif not models:
         raise SystemExit("The endpoint listed no models; check the address (it usually ends in /v1).")
     return dict(models=models, reply=reply)
@@ -339,10 +342,12 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False, gra
         cache_write(key, data)
     # options only choose what the page shows, so one read serves every choice of options
     data = dict(data, options=options, club_today=data["club_today"] if "club" in options["sections"] else None)
+    ai_note = None
     if ai:
         written = ai_write(step, data, ai)
-        if written:
-            data["ai"] = written
+        if written.get("written"):
+            data["ai"] = {k: written[k] for k in ("model", "overview", "seasons")}
+        ai_note = {k: written[k] for k in ("written", "pieces", "problems")}
     if images:
         data["images"] = report_images(step, data, install, graphics, fresh)
     step("Writing the report")
@@ -353,7 +358,7 @@ def job_report(step, path, staff_uid, options, images, install, fresh=False, gra
     out = REPORTS / f"{slug}.html"
     out.write_text(render(data), encoding="utf-8")
     return dict(file=out.name, manager=data["manager"]["name"], seasons=len(data["league"]),
-                clubs=[st["club"] for st in data["stints"]])
+                clubs=[st["club"] for st in data["stints"]], ai=ai_note)
 
 
 # ---- HTTP
@@ -718,7 +723,9 @@ $('generate').onclick = async () => {
       show: Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])),
       images: $('images').checked, fresh: $('fresh').checked});
     const r = await follow(job, $('genLog'));
-    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
+    const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} summaries.`
+      : ` AI wrote ${r.ai.written} of ${r.ai.pieces} summaries; the rest are plain (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
+    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
   } catch (e) { $('genState').innerHTML = `<span class="err">${esc(e.message)}</span>`; } finally { $('generate').disabled = chosenManager == null; }

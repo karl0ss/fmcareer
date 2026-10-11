@@ -12,9 +12,12 @@ import re
 import urllib.error
 import urllib.request
 
-PROMPT_VERSION = 4  # bump when the prompts or facts change, so cached text is rewritten
+PROMPT_VERSION = 5  # bump when the prompts or facts change, so cached text is rewritten
 
-SEASON_PROMPT = """You write the season review in a Football Manager career report.
+# "Reasoning: low" keeps gpt-oss style reasoning models from thinking for minutes; other
+# models ignore it. Exact word limits are avoided: reasoning models get stuck counting words.
+SEASON_PROMPT = """Reasoning: low
+You write the season review in a Football Manager career report.
 Write from the JSON facts the user gives you and nothing else: never invent players, \
 scores, dates, rounds, transfers or events, and leave out anything the facts don't say.
 Rules: every name, number, trophy and achievement you mention must be in the facts. \
@@ -22,10 +25,11 @@ Never call anything a record, historic, first or best unless the facts say so. N
 whether a match was home or away. Write every number as digits, exactly as given. \
 A manager award placing other than "Winner" means he did not win it.
 Style: British English, past tense, third person, like a club historian. Two or three \
-short paragraphs separated by blank lines, 130 words at most in all. No headings, lists, bullet points or markdown. \
+short paragraphs separated by blank lines; keep it brief. No headings, lists, bullet points or markdown. \
 Money is already written the way it should appear."""
 
-OVERVIEW_PROMPT = """You write the introduction to a Football Manager manager's career report.
+OVERVIEW_PROMPT = """Reasoning: low
+You write the introduction to a Football Manager manager's career report.
 Write from the JSON facts the user gives you and nothing else: never invent players, \
 scores, dates, clubs or events, and leave out anything the facts don't say. The \
 league_titles list is complete: no other league was won.
@@ -34,11 +38,19 @@ Never call anything a record, historic, first or best unless the facts say so. N
 whether a match was home or away. Write every number as digits, exactly as given. \
 A manager award placing other than "Winner" means he did not win it.
 Style: British English, third person, like a club historian. Exactly two short paragraphs \
-separated by a blank line (the journey, then the honours and record), 130 words at most in all. No headings, lists, bullet points or markdown."""
+separated by a blank line (the journey, then the honours and record); keep it brief. No headings, lists, bullet points or markdown."""
 
 
 class WriterError(Exception):
-    """The endpoint could not be reached or gave no usable answer."""
+    """The endpoint could not be reached or failed: writing stops."""
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status  # the HTTP status, when the endpoint answered with an error
+
+
+class UnusableAnswer(Exception):
+    """One answer had no usable text: that piece keeps its plain summary."""
 
 
 def money(n):
@@ -217,7 +229,7 @@ def _request(endpoint, token, path, body=None, timeout=300):
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         detail = e.read()[:300].decode("utf-8", "replace")
-        raise WriterError(f"the endpoint answered {e.code}: {detail}") from None
+        raise WriterError(f"the endpoint answered {e.code}: {detail}", e.code) from None
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise WriterError(f"could not reach {endpoint}: {getattr(e, 'reason', e)}") from None
     except ValueError:
@@ -237,18 +249,40 @@ def tidy(text):
     return [p for p in paras if p]
 
 
-def chat(endpoint, token, model, system, facts):
-    answer = _request(endpoint, token, "/chat/completions", {
-        "model": model, "temperature": 0.3, "max_tokens": 4000,
-        "messages": [{"role": "system", "content": system},
-                     {"role": "user", "content": json.dumps(facts, ensure_ascii=False)}]})
+TOKENS = 4000         # room for the answer (and a reasoning model's thinking)
+MORE_TOKENS = 16000   # asked again with this much when thinking used it all up
+
+
+# Endpoints and models that refused `reasoning_effort` (strict APIs reject it for models
+# that don't reason); they are asked without it from then on.
+_NO_EFFORT = set()
+
+
+def chat(endpoint, token, model, system, facts, max_tokens=TOKENS):
+    body = {"model": model, "temperature": 0.3, "max_tokens": max_tokens,
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": json.dumps(facts, ensure_ascii=False)}]}
+    if (endpoint, model) not in _NO_EFFORT:
+        # reasoning models (gpt-oss and the like) otherwise think for minutes, often until
+        # they run out of tokens, for a short piece of prose
+        body["reasoning_effort"] = "low"
     try:
-        text = answer["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
+        answer = _request(endpoint, token, "/chat/completions", body)
+    except WriterError as e:
+        if "reasoning_effort" not in body or e.status not in (400, 422):
+            raise
+        _NO_EFFORT.add((endpoint, model))
+        del body["reasoning_effort"]
+        answer = _request(endpoint, token, "/chat/completions", body)
+    try:
+        choice = answer["choices"][0]
+        text = choice["message"].get("content") or ""
+    except (KeyError, IndexError, TypeError, AttributeError):
         raise WriterError("the endpoint's answer had no message") from None
     paras = tidy(text)
     if not paras:
-        raise WriterError("the model wrote nothing (a reasoning model may need a larger token limit)")
+        out_of_room = choice.get("finish_reason") == "length"
+        raise UnusableAnswer("ran out of tokens before writing" if out_of_room else "wrote nothing")
     return paras
 
 
@@ -269,12 +303,21 @@ def unsupported_numbers(paras, facts):
 
 
 def checked_chat(endpoint, token, model, system, facts, tries=2):
-    """chat(), asked again when the text has numbers the facts don't; None if it never fits."""
+    """chat(), asked again when the text has numbers the facts don't, or when a reasoning
+    model ran out of tokens before writing. Raises UnusableAnswer when nothing fits."""
+    room, why = TOKENS, "wrote nothing"
     for _ in range(tries):
-        paras = chat(endpoint, token, model, system, facts)
+        try:
+            paras = chat(endpoint, token, model, system, facts, room)
+        except UnusableAnswer as e:
+            why = str(e)
+            if why.startswith("ran out"):
+                room = MORE_TOKENS
+            continue
         if not unsupported_numbers(paras, facts):
             return paras
-    return None
+        why = "added facts of its own"
+    raise UnusableAnswer(why)
 
 
 def text_key(model, endpoint, system, facts):
@@ -283,26 +326,33 @@ def text_key(model, endpoint, system, facts):
 
 
 def write(data, endpoint, token, model, step, known=None):
-    """The model's text for the career: {"model", "overview", "seasons": {season: [paragraphs]}}.
+    """The model's text for the career: {"model", "overview", "seasons": {season: [paragraphs]},
+    "written", "pieces", "problems"}.
 
     `known` maps text keys to paragraphs written before (updated in place), so unchanged
-    seasons are not rewritten. `step` is called once per piece of text. Raises WriterError
-    on the first failure; what was written by then is in `known`.
+    seasons are not rewritten. `step` is called once per piece. A piece the model gives no
+    usable text for keeps its plain summary and the rest carry on; WriterError (the endpoint
+    failing) stops the writing, as does a model that manages none of the first two pieces.
     """
     known = {} if known is None else known
     jobs = [("overview", OVERVIEW_PROMPT, overview_facts(data))]
     jobs += [(season, SEASON_PROMPT, facts) for season, facts in season_facts(data)]
-    out = {"model": model, "overview": None, "seasons": {}}
-    for name, system, facts in jobs:
+    out = {"model": model, "overview": None, "seasons": {}, "written": 0, "pieces": len(jobs), "problems": []}
+    for n, (name, system, facts) in enumerate(jobs):
         key = text_key(model, endpoint, system, facts)
         label = "the career introduction" if name == "overview" else f"the {name} summary"
         if key in known:
             step(f"Using {label} written before")
         else:
             step(f"Writing {label} with {model}")
-            known[key] = checked_chat(endpoint, token, model, system, facts)
-        if known[key] is None:  # it kept adding facts of its own: the plain summary stays
-            continue
+            try:
+                known[key] = checked_chat(endpoint, token, model, system, facts)
+            except UnusableAnswer as e:
+                out["problems"].append(f"{label}: {e}")
+                if n == 1 and not out["written"]:
+                    raise WriterError(f"{model} gave no usable text for the first two pieces ({e})") from None
+                continue
+        out["written"] += 1
         if name == "overview":
             out["overview"] = known[key]
         else:
