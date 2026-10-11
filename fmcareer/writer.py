@@ -16,14 +16,16 @@ from typing import Any
 
 from fmcareer._types import Record, Step
 
-PROMPT_VERSION = 6  # bump when the prompts or facts change, so cached text is rewritten
+PROMPT_VERSION = 8  # bump when the prompts or facts change, so cached text is rewritten
 
 RULES = """Write from the JSON facts the user gives you and nothing else: never invent players, \
 scores, dates, rounds, transfers, quotes or events, and leave out anything the facts don't say.
 Rules: every name, number, trophy and achievement you mention must be in the facts. \
 Never call anything a record, historic, first or best unless the facts say so. Never say \
 whether a match was home or away. Write every number as digits, exactly as given. \
-A manager award placing other than "Winner" means he did not win it. No quotes from anyone.
+A manager award placing other than "Winner" means he did not win it. No quotes from anyone. \
+Never work out or state a gap, margin, difference or comparison yourself: use the ones given \
+(such as title_race) and nothing else.
 Format: the headline on the first line (no quotation marks, no label), a blank line, then \
 the article in paragraphs separated by blank lines. No subheadings, lists, bullet points or \
 markdown. Money is already written the way it should appear."""
@@ -100,6 +102,23 @@ def comparison(prev: Record, r: Record) -> str:
     return f"{place} in the same division than the previous season, with {points}"
 
 
+def title_race(r: Record, table: list[Record]) -> Record | None:
+    """The title race from the final table, spelt out: won by how many points over whom, or
+    how far behind the champions (the model is told to state no margin it isn't given)."""
+    if len(table) < 2 or table[0].get("points") is None or table[1].get("points") is None:
+        return None
+    top, second = table[0], table[1]
+
+    def name(row: Record) -> str | None:
+        return r["club"] if row.get("me") else row.get("club")
+
+    if top.get("me"):
+        return {"won_by_points": top["points"] - second["points"], "runner_up": name(second)}
+    if name(top):
+        return {"champions": name(top), "points_behind_champions": top["points"] - r["points"]}
+    return None
+
+
 def award_phrase(a: Record) -> str:
     if a["placing"] == "Winner":
         return f"won {a['name']}"
@@ -132,7 +151,22 @@ def season_facts(data: Record) -> list[tuple[str, Record]]:
             "promoted": r["promoted"],
             "relegated": r["relegated"],
             "manager_left_for_another_club_after": r["moved"],
+            # the season's outcome in plain words, so the model needn't phrase it from the flags
+            "outcome": (
+                f"champions of the {r['competition']}, promoted"
+                if r["champion"] and r["promoted"]
+                else f"champions of the {r['competition']}"
+                if r["champion"]
+                else "promoted"
+                if r["promoted"]
+                else f"relegated from the {r['competition']}"
+                if r["relegated"]
+                else f"stayed in the {r['competition']}"
+            ),
         }
+        race = title_race(r, data.get("tables", {}).get(season) or [])
+        if race:
+            facts["title_race"] = race
         if prev:
             facts["previous_season"] = {
                 "club": prev["club"],

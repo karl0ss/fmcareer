@@ -168,3 +168,11 @@ def test_reasoning_effort_is_sent_and_dropped_where_refused(monkeypatch):
     assert "reasoning_effort" not in sent[-1]
     writer.chat("http://strict/v1", "", "m", "s", {})  # remembered: asked once, without it
     assert "reasoning_effort" not in sent[-1] and len(sent) == 4
+
+
+def test_the_title_race_is_spelt_out(sample):
+    later = dict(writer.season_facts(sample))["2032/33"]
+    assert later["title_race"] == {"champions": "Big City", "points_behind_champions": 40}
+    me_top = [{"me": True, "points": 93}, {"me": False, "club": "Millwall", "points": 88}]
+    assert writer.title_race({"club": "Example Town"}, me_top) == {"won_by_points": 5, "runner_up": "Millwall"}
+    assert writer.title_race({"club": "Example Town"}, me_top[:1]) is None
