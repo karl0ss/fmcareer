@@ -1,0 +1,73 @@
+# fmcareer
+
+A manager's career history from a Football Manager 26 save: point it at a save and a
+manager's name, and it builds one self-contained HTML page with:
+
+- **Career overview**: profile, league record, the game's own managerial stats (games,
+  money spent, record signing and sale), the climb through the league pyramid, trophy
+  cabinet, manager awards and the club legends of the era.
+- **A review of every season**: written summary, the final league table, cup runs,
+  honours and awards, full squad statistics, the season's best 18, transfers with fees
+  and notable results.
+- **Honours & cups** and **Transfers** pages covering the whole career.
+
+Everything is read from the save itself through
+[fmsave](https://github.com/karl0ss/fmsave) (branch `history-decoders`, which adds the
+history decoders this tool needs). Nothing is scraped from screenshots or the game UI.
+
+## Setup
+
+Python 3.12 or newer.
+
+```sh
+python -m venv .venv
+.venv/bin/pip install git+https://github.com/karl0ss/fmcareer.git
+```
+
+The save stores competitions and awards by id only. Build the name lists once from your
+own FM26 install (the tool reads the game's database files; nothing from the game is
+redistributed here):
+
+```sh
+.venv/bin/fmcareer-names "/path/to/Football Manager 26" names
+```
+
+This writes `names/competition_names.csv` and `names/award_names.csv`.
+
+## Usage
+
+```sh
+.venv/bin/fmcareer "/path/to/My Career.fm" "Manager Name" names -o career_report.html
+```
+
+- The manager is matched by full, first + last, or common name, ignoring case and
+  accents. Any manager in the save works, not only the human one.
+- `--json career_data.json` also writes the collected data.
+- A large save takes a few minutes and about 3 GB of memory.
+
+## How it works out the history
+
+- **Clubs managed**: from the manager's spell records, the career record's longest and
+  shortest spells, the human manager's event log and his current club.
+- **League tables**: past tables come from the save's league history. fmsave works out
+  which club each table row belongs to from fixtures, uid order and each club's
+  league-by-season record in player history.
+- **League levels**: worked out from how clubs move between leagues (finishing high in
+  one league and appearing in another the next season), so the pyramid works for any
+  country without a built-in table.
+- **Squads**: every player's season statistics, including retired players whose full
+  record the save still keeps. For players the game has cut down to a name, only the
+  season's best-18 line (appearances, goals, rating) survives; those rows are marked
+  *Partial*.
+- **Transfer fees**: from each player's statistics history, plus the human manager's
+  event log.
+
+## Limits
+
+- **Past clubs of managers with many jobs.** fmsave does not yet decode ended spells
+  from the save's manager history. So only the current club and the career record's
+  longest and shortest spells are known, and some clubs are missed for managers with
+  more than two past jobs.
+- Seasons are July–June. A spell that started mid-season counts that whole season.
+- The event log (fees, notable matches) exists only for human managers.
+- Checked against one long career save so far. Reports from other saves are welcome.

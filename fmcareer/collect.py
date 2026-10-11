@@ -1,0 +1,455 @@
+"""Collect a manager's career history from a save into one JSON-ready dict.
+
+Every value comes from fmsave decoders plus joins between them; names come from
+the competition/award CSVs fmcareer-names builds from the game install. Nothing
+here is specific to one save: the manager is found by name, his clubs from what the
+save keeps about his spells, and league levels are inferred from how clubs move
+between competitions.
+"""
+import collections
+import csv
+import datetime as dt
+import os
+import unicodedata
+import warnings
+
+import fmsave
+
+warnings.simplefilter("ignore")
+
+CUP_METHOD = {1: "", 2: "after extra time", 3: "on penalties", 7: "over two legs"}
+MOVE_TYPE = {1: "Transfer", 3: "Loan", 4: "Free", 5: "Signing", 6: "Staff joined", 7: "Trial",
+             9: "Staff left", 14: "Youth intake", 24: "Released", 37: "Retired"}
+STAFF_TYPES = {6, 9}
+PLACING = {0: "Winner", 1: "Runner-up", 2: "Third"}
+
+
+def season_label(end_year):
+    return f"{end_year - 1}/{str(end_year)[2:]}"
+
+
+def season_end_of(day):
+    """The ending year of the (July-June) season a date falls in."""
+    return day.year + 1 if day.month >= 7 else day.year
+
+
+def _norm(text):
+    text = unicodedata.normalize("NFKD", text or "")
+    return " ".join("".join(c for c in text if not unicodedata.combining(c)).casefold().split())
+
+
+def find_manager(s, manager_name):
+    """The staff member the name means: full, first+last or common name, accents ignored.
+
+    Several matches prefer the human manager, then whoever has a managerial record.
+    """
+    want = _norm(manager_name)
+    found = []
+    for x in s.staff():
+        names = {_norm(x.name), _norm(x.full_name), _norm(x.common_name),
+                 _norm(f"{x.first_name or ''} {x.last_name or ''}")}
+        if want in names:
+            found.append(x)
+    if not found:
+        raise SystemExit(f"no staff member called {manager_name!r} in this save")
+    if len(found) > 1:
+        humans = [x for x in found if x.is_human_manager]
+        managers = [x for x in found if s.manager_career(x.uid) is not None]
+        found = humans or managers or found
+    if len(found) > 1:
+        listing = ", ".join(f"{x.name} ({x.club_name}, uid {x.uid})" for x in found)
+        raise SystemExit(f"{manager_name!r} matches several people: {listing}")
+    return found[0]
+
+
+def manager_stints(s, me, record, events, club_by_team, game_date):
+    """The manager's club spells, oldest first: [{club_uid, start, end}] (end None = current).
+
+    Sources, merged per club: the save's spell table when fmsave has one for ended spells
+    (`manager_spells`), the career record's longest/shortest club spell windows, the
+    event log's team stamps (human managers), and the current managed club.
+    """
+    spans = collections.defaultdict(lambda: [None, None])
+
+    def add(club_uid, start, end):
+        if club_uid is None:
+            return
+        span = spans[club_uid]
+        if start and (span[0] is None or start < span[0]):
+            span[0] = start
+        if end and (span[1] is None or end > span[1]):
+            span[1] = end
+
+    if hasattr(s, "manager_spells"):  # decoded spell history, when available
+        for sp in s.manager_spells(me.uid):
+            add(sp.club_uid, sp.start_date, sp.end_date or game_date)
+    if record is not None:
+        for w in (record.longest_club_spell, record.shortest_club_spell):
+            if w is not None:
+                add(club_by_team.get(w.team_id), w.start_date, w.end_date)
+    for e in events:
+        if e.team_id is not None and e.event_date:
+            add(club_by_team.get(e.team_id), e.event_date, e.event_date)
+    managed = {m.manager_staff_uid: m.club_uid for m in s.managed_clubs()}
+    current = managed.get(me.uid)
+    if current is not None:
+        add(current, None, game_date)
+    stints = []
+    for club_uid, (start, end) in spans.items():
+        is_current = club_uid == current or (end is not None and game_date and end >= game_date)
+        stints.append(dict(club_uid=club_uid, start=start, end=None if is_current else end))
+    stints.sort(key=lambda x: (x["start"] or dt.date.max))
+    return stints
+
+
+def league_levels(rows):
+    """Level of every competition, inferred from clubs moving between competitions.
+
+    A club finishing in the top third of X and playing Y the next season says Y is
+    above X; the bottom third says below. Pairs keep the direction most moves agree
+    on; a competition's level is one more than the deepest competition above it.
+    Parallel divisions (two leagues feeding the same one) share a level.
+    """
+    by_list = collections.defaultdict(dict)
+    for r in rows:
+        if r.history_index is not None and r.games_played != 255:
+            by_list[r.history_index][r.season_year] = (r.competition_id, r.position, r.total_teams)
+    votes = collections.Counter()
+    for seasons in by_list.values():
+        for year, (comp, pos, teams) in seasons.items():
+            nxt = seasons.get(year + 1)
+            if not nxt or nxt[0] == comp or not teams:
+                continue
+            if pos < teams / 3:
+                votes[(nxt[0], comp)] += 1  # next competition is above
+            elif pos >= 2 * teams / 3:
+                votes[(comp, nxt[0])] += 1  # this competition is above
+    above = collections.defaultdict(set)
+    for (hi, lo), n in votes.items():
+        if n >= 2 and n > votes.get((lo, hi), 0):
+            above[lo].add(hi)
+    level = {}
+
+    def depth(comp, seen=()):
+        if comp in level:
+            return level[comp]
+        if comp in seen:  # a cycle the votes did not settle
+            return 1
+        ups = above.get(comp, ())
+        level[comp] = 1 + max((depth(u, seen + (comp,)) for u in ups), default=0)
+        return level[comp]
+
+    comps = {r.competition_id for r in rows}
+    return {c: depth(c) for c in comps}, above
+
+
+def pyramid_of(above, start):
+    """The competitions linked to `start` by club movement: one nation's pyramid."""
+    links = collections.defaultdict(set)
+    for lo, his in above.items():
+        for hi in his:
+            links[lo].add(hi)
+            links[hi].add(lo)
+    seen, todo = set(start), list(start)
+    while todo:
+        for nxt in links[todo.pop()]:
+            if nxt not in seen:
+                seen.add(nxt)
+                todo.append(nxt)
+    return seen
+
+
+def collect(save_path, manager_name, names_dir):
+    comp_csv = os.path.join(names_dir, "competition_names.csv")
+    s = fmsave.open(save_path, competition_names=comp_csv)
+    with open(comp_csv, encoding="utf-8") as f:
+        db_names = {int(r[0]): r[1] for r in csv.reader(f)}
+    with open(os.path.join(names_dir, "award_names.csv"), encoding="utf-8") as f:
+        award_names = {int(r["award_index"]): r["name"] for r in csv.DictReader(f)}
+    info = s.info
+    game_date = info.game_date
+
+    me = find_manager(s, manager_name)
+    staff_uid = me.uid
+    manager_name = me.name or manager_name
+    clubs = {c.uid: c for c in s.clubs()}
+    club_by_team = {t.team_id: c.uid for c in clubs.values() for t in c.teams if not t.is_affiliate}
+    teams = {t.team_id: c.name for c in clubs.values() for t in c.teams}
+    comps = list(s.competitions())
+    comp_name = {c.id: c.name for c in comps}
+    record = s.manager_career(staff_uid)
+    manager_ref = s.history_person_reference(staff_uid)
+    events = list(s.manager_events(staff_uid)) if me.is_human_manager else []
+    stints = manager_stints(s, me, record, events, club_by_team, game_date)
+    if not stints:
+        raise SystemExit(f"{manager_name}: the save keeps no club spell for this manager")
+    for st in stints:
+        st["club"] = clubs[st["club_uid"]].name if st["club_uid"] in clubs else f"Club {st['club_uid']}"
+
+    def stint_for(day):
+        """The stint covering a date, else None."""
+        for st in stints:
+            if st["start"] and day >= st["start"] and (st["end"] is None or day <= st["end"]):
+                return st
+        return None
+
+    def stint_for_season(end_year):
+        """The club the manager had at the end of a season (or latest in it)."""
+        last_day = dt.date(end_year, 6, 30)
+        first_day = dt.date(end_year - 1, 7, 1)
+        best = None
+        for st in stints:
+            start = st["start"] or dt.date.min
+            end = st["end"] or dt.date.max
+            if start <= last_day and end >= first_day:
+                best = st  # stints are oldest first: keep the latest overlapping
+        return best
+
+    def in_career(club_uid, end_year):
+        st = stint_for_season(end_year)
+        return st is not None and st["club_uid"] == club_uid
+
+    # people names: current players, then retired people found in game_db
+    players = {p.uid: p for p in s.players()}
+    retired = {h.reference: h.name for h in s.history_people() if h.name}
+    ref_to_uid = s.history_player_references()
+
+    def person(uid, ref, fallback=None):
+        if ref is not None and ref == manager_ref:
+            return manager_name
+        if uid is None:
+            uid = ref_to_uid.get(ref)
+        if uid in players:
+            return players[uid].name
+        return retired.get(ref) or fallback or f"Unknown player ({ref})"
+
+    # league levels, from every club's moves between competitions
+    all_rows = [r for r in s.career_league_history() if not r.imported]
+    level, above = league_levels(all_rows)
+
+    # league, per stint
+    league, tables, club_lists = [], {}, {}
+    for st in stints:
+        club_uid = st["club_uid"]
+        history = list(s.club_league_history(club_uid))
+        club_lists[club_uid] = next((r.history_index for r in history), None)
+        for r in history:
+            if r.imported or r.games_played == 255 or not in_career(club_uid, r.season_year):
+                continue
+            lv = level.get(r.competition_id)
+            league.append(dict(season=season_label(r.season_year), end_year=r.season_year,
+                               club=st["club"], club_uid=club_uid,
+                               competition=comp_name.get(r.competition_id) or f"Competition {r.competition_id}",
+                               competition_id=r.competition_id, tier=lv,
+                               position=r.position + 1, teams=r.total_teams,
+                               played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
+                               goals_for=r.goals_for, goals_against=r.goals_against, points=r.points))
+    league.sort(key=lambda r: r["end_year"])
+    # level sizes within the pyramid of the manager's latest league, then each row's overall rank
+    home = pyramid_of(above, {league[-1]["competition_id"]}) if league else set()
+    level_size = collections.defaultdict(int)
+    for r in all_rows:
+        if r.games_played != 255 and r.competition_id in home:
+            lv = level.get(r.competition_id)
+            level_size[lv] = max(level_size[lv], r.total_teams)
+    for lr in league:
+        lv = lr["tier"]
+        lr["rank"] = sum(level_size[x] for x in range(1, lv)) + lr["position"] if lv else None
+    for lr in league:
+        rows = [r for r in s.league_history_table(lr["end_year"], lr["competition_id"])
+                if not r.imported and r.games_played != 255]
+        mine = club_lists.get(lr["club_uid"])
+        tables[lr["season"]] = [dict(
+            position=r.position + 1, club=r.club_name, me=r.history_index == mine,
+            played=r.games_played, won=r.wins, drawn=r.draws, lost=r.losses,
+            goals_for=r.goals_for, goals_against=r.goals_against, points=r.points)
+            for r in sorted(rows, key=lambda r: r.position)]
+    # the levels down to the manager's lowest league, named for the chart's bands
+    deepest = max((r["tier"] for r in league if r["tier"]), default=0)
+    levels = []
+    for lv in range(1, deepest + 1):
+        names = collections.Counter(r["competition"] for r in league if r["tier"] == lv)
+        if not names:  # a level the manager never played: the competitions the save puts there
+            names = collections.Counter(comp_name.get(c) for c, l in level.items()
+                                        if l == lv and c in home and comp_name.get(c))
+        levels.append(dict(level=lv, name=names.most_common(1)[0][0] if names else f"Level {lv}",
+                           size=level_size[lv]))
+
+    honours = [dict(season=season_label(h.season), end_year=h.season, club=clubs[h.club_uid].name,
+                    name=db_names.get(h.competition_id, f"Competition {h.competition_id}"))
+               for h in sorted(s.career_honours(), key=lambda h: h.season)
+               if h.club_uid in clubs and in_career(h.club_uid, h.season)]
+
+    cups = []
+    for st in stints:
+        for c in s.club_cup_history(st["club_uid"]):
+            if not in_career(st["club_uid"], c.end_year):
+                continue
+            name = comp_name.get(c.competition_id) or f"Stage {c.stage_id}"
+            league_stage = c.result == 0 and c.opponent_team_id is None
+            cups.append(dict(season=season_label(c.end_year), end_year=c.end_year, club=st["club"],
+                             competition=name, youth=any(w in name for w in ("U18", "U19", "U21", "U23")),
+                             won=c.result == 3, league_stage=league_stage,
+                             position=c.position, opponent=teams.get(c.opponent_team_id),
+                             method=CUP_METHOD.get(c.method, "")))
+
+    awards = [dict(season=season_label(a.season_year), end_year=a.season_year,
+                   name=award_names.get(a.award_id, f"Award {a.award_id}"),
+                   placing=PLACING.get(a.placing, str(a.placing)), age=a.winner_age,
+                   club=clubs[a.club_uid].name if a.club_uid in clubs else None)
+              for a in sorted(s.career_awards(), key=lambda a: (a.season_year, a.placing))
+              if manager_ref is not None and a.winner_id == manager_ref]
+
+    # event log (human managers): fees it logged, and notable matches
+    logged_fees = {}
+    for e in events:
+        if e.event_type == 2 and e.fee and e.player_reference is not None:
+            logged_fees.setdefault((e.player_reference, e.from_team_id, e.to_team_id), []).append(
+                (e.effective_date or e.event_date, e.fee))
+    notable = []
+    for e in events:
+        if e.event_type == 8 and e.goals_for is not None and e.event_date:
+            notable.append(dict(date=e.event_date.isoformat(), season=season_label(season_end_of(e.event_date)),
+                                opponent=teams.get(e.opponent_team_id), goals_for=e.goals_for,
+                                goals_against=e.goals_against,
+                                competition=comp_name.get(e.competition_id) if e.competition_id is not None else None))
+    notable.sort(key=lambda x: x["date"])
+
+    # transfers, per stint
+    current = next((st for st in stints if st["end"] is None), None)
+    current_uids = {u for u, p in players.items() if current and p.club_uid == current["club_uid"]}
+    moves, mover_uids, gone_refs = [], set(), set()
+    for st in stints:
+        club_uid = st["club_uid"]
+        club_moves = list(s.club_player_moves(club_uid, fees=True))
+        for m in club_moves:
+            if not m.date or stint_for(m.date) is not st:
+                continue
+            end = season_end_of(m.date)
+            moves.append(dict(date=m.date.isoformat(), season=season_label(end), end_year=end, club=st["club"],
+                              direction=m.direction, type=MOVE_TYPE.get(m.record_type, f"Type {m.record_type}"),
+                              staff=m.record_type in STAFF_TYPES,
+                              fee=m.fee if m.fee else None, _key=(m.player_reference, m.from_team_id, m.to_team_id),
+                              player=person(m.player_uid, m.player_reference, m.player_name),
+                              other=(m.from_club_name if m.direction == "in" else m.to_club_name)))
+        mover_uids |= {m.player_uid for m in club_moves if m.player_uid}
+        mover_uids |= {u for u, p in players.items() if p.club_uid == club_uid}
+        gone_refs |= {m.player_reference for m in club_moves if m.player_uid is None and m.player_reference}
+    for key, logged in logged_fees.items():  # each logged fee goes to the closest unpriced move
+        for when, amount in logged:
+            if any(m["_key"] == key and m["fee"] == amount for m in moves):
+                continue
+            cands = [m for m in moves if m["_key"] == key and m["fee"] is None]
+            if cands and when:
+                min(cands, key=lambda m: abs((dt.date.fromisoformat(m["date"]) - when).days))["fee"] = amount
+    for m in moves:
+        m.pop("_key")
+        if m["staff"] and m["player"].startswith("Unknown player"):
+            m["player"] = "Staff member"
+    moves.sort(key=lambda m: m["date"])
+    bought = sum(1 for m in moves if m["direction"] == "in" and m["type"] in ("Transfer", "Free", "Signing"))
+
+    # every stats row of the clubs' players, current and gone
+    history_rows = list(s.player_season_history(sorted(mover_uids)))
+    history_rows += list(s.history_person_season_history(sorted(gone_refs)))
+    team_club = {t.team_id: st["club_uid"] for st in stints if st["club_uid"] in clubs
+                 for t in clubs[st["club_uid"]].teams if t.slot == 0}
+
+    # best eleven: the list whose players had rows at the club's first team those seasons
+    by_list = collections.defaultdict(list)
+    for r in s.career_best_eleven():
+        by_list[r.history_index].append(r)
+    at_club = collections.defaultdict(set)  # club uid -> {(reference, season start)}
+    for r in history_rows:
+        c = team_club.get(r.team_id)
+        if c is not None:
+            at_club[c].add((r.player_reference, r.season_year))
+    best_eleven = {}
+    for club_uid, seen in at_club.items():
+        score = {idx: sum(1 for r in rows if (r.player_reference, r.season_year) in seen)
+                 for idx, rows in by_list.items()}
+        idx = max(score, key=score.get, default=None)
+        if idx is None or score[idx] < 6:
+            continue
+        for r in by_list[idx]:
+            end_year = r.season_year + 1  # best-eleven years are season start years
+            if not in_career(club_uid, end_year):
+                continue
+            best_eleven.setdefault(season_label(end_year), []).append(dict(
+                slot=r.slot, name=person(r.player_uid, r.player_reference, r.player_name),
+                current=r.player_uid in current_uids, apps=r.appearances, goals=r.goals,
+                rating=round(r.average_rating, 2) if r.average_rating else None))
+    for rows in best_eleven.values():
+        rows.sort(key=lambda x: x["slot"])
+
+    # full squad statistics per season (competitive rows for the club's first team)
+    squads = collections.defaultdict(dict)
+    seen_rows = set()
+    for r in history_rows:
+        c = team_club.get(r.team_id)
+        if c is None or r.kind_code not in (1, 2, 3) or not in_career(c, r.season_year + 1):
+            continue
+        who = r.player_uid if r.player_uid is not None else ("ref", r.player_reference)
+        key = (who, r.season_year, r.team_id, r.kind, r.minutes, r.goals, r.rated_appearances, r.rating_total)
+        if key in seen_rows:  # the section stores some rows twice
+            continue
+        seen_rows.add(key)
+        p = squads[season_label(r.season_year + 1)].setdefault(who, dict(
+            name=person(r.player_uid, r.player_reference), current=r.player_uid in current_uids,
+            apps=0, starts=0, subs=0, goals=0, assists=0, minutes=0, rating_total=0, pom=0, yellow=0, red=0))
+        p["apps"] += r.rated_appearances or 0; p["starts"] += r.starts or 0; p["subs"] += r.substitute_appearances or 0
+        p["goals"] += r.goals or 0; p["assists"] += r.assists or 0; p["minutes"] += r.minutes or 0
+        p["rating_total"] += r.rating_total or 0; p["pom"] += r.player_of_the_match or 0
+        p["yellow"] += r.yellow_cards or 0; p["red"] += r.red_cards or 0
+    squad_stats = {}
+    for season, players_ in squads.items():
+        rows = []
+        for p in players_.values():
+            p["rating"] = round(p.pop("rating_total") / p["apps"] / 10, 2) if p["apps"] else None
+            rows.append(p)
+        squad_stats[season] = sorted((p for p in rows if p["apps"] > 0), key=lambda x: (-x["apps"], x["name"]))
+    # players whose stats rows are gone (retired, cut to a stub) still have their best-eleven line
+    for season, xi in best_eleven.items():
+        have = {p["name"] for p in squad_stats.get(season, [])}
+        extra = [dict(name=b["name"], current=b["current"], apps=b["apps"], goals=b["goals"], rating=b["rating"],
+                      starts=None, subs=None, assists=None, minutes=None, pom=None, yellow=None, red=None,
+                      partial=True)
+                 for b in xi if b["name"] not in have and b["apps"]]
+        if extra:
+            squad_stats[season] = sorted(squad_stats.get(season, []) + extra, key=lambda x: (-x["apps"], x["name"]))
+
+    career = None
+    if record is not None:
+        def fee(f):
+            if f is None:
+                return None
+            return dict(player=person(None, f.player_reference), fee=f.fee,
+                        date=f.transfer_date.isoformat() if f.transfer_date else None,
+                        from_club=teams.get(f.from_team_id), to_club=teams.get(f.to_team_id))
+        career = dict(games=record.games, wins=record.wins, draws=record.draws, losses=record.losses,
+                      goals_for=record.goals_for, goals_against=record.goals_against,
+                      league_titles=record.league_titles, cups=record.cups, awards=record.awards,
+                      players_bought=record.players_bought, players_sold=record.players_sold,
+                      players_released=record.players_released, money_spent=record.money_spent,
+                      agent_fees=record.agent_fees, club_jobs=record.club_jobs,
+                      record_signing=fee(record.highest_fee_paid), record_sale=fee(record.highest_fee_received))
+
+    squad = sorted((dict(name=p.name, age=p.age) for u, p in players.items() if u in current_uids),
+                   key=lambda x: x["name"])
+
+    return dict(
+        manager=dict(name=manager_name, club=current["club"] if current else None,
+                     spell_start=current["start"].year if current and current["start"] else None,
+                     game_date=game_date.isoformat() if game_date else "",
+                     birth_date=me.birth_date.isoformat() if me.birth_date else None,
+                     age=me.age, wage=me.wage if current else None,
+                     contract_start=me.contract_start.isoformat() if current and me.contract_start else None,
+                     contract_end=me.contract_end.isoformat() if current and me.contract_end else None,
+                     human=me.is_human_manager),
+        stints=[dict(club=st["club"], club_uid=st["club_uid"],
+                     start=st["start"].isoformat() if st["start"] else None,
+                     end=st["end"].isoformat() if st["end"] else None) for st in stints],
+        tables=tables, career=career, squad_stats=squad_stats, notable_matches=notable,
+        league=league, levels=levels, honours=honours, cups=cups, awards=awards,
+        best_eleven=best_eleven, transfers=moves, players_bought=bought, squad=squad,
+    )

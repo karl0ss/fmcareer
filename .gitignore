@@ -1,0 +1,10 @@
+# generated: never commit save-derived output or names built from a game install
+*.html
+*.json
+names/
+*.fm
+*.pkl
+__pycache__/
+.venv/
+*.egg-info/
+dist/
