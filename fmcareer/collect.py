@@ -10,6 +10,7 @@ between competitions.
 import collections
 import csv
 import datetime as dt
+import logging
 import os
 import re
 import unicodedata
@@ -21,6 +22,7 @@ from fmsave import LeagueHistorySeason, ManagerCareerRecord, ManagerEvent, Save,
 from fmcareer._types import Record, Step
 
 warnings.simplefilter("ignore")
+log = logging.getLogger(__name__)  # into the app's log, under "fmcareer"
 
 CUP_METHOD = {1: "", 2: "after extra time", 3: "on penalties", 7: "over two legs"}
 MOVE_TYPE = {
@@ -79,6 +81,18 @@ def find_manager(s: Save, manager_name: str) -> Staff:
         listing = ", ".join(f"{x.name} ({x.club_name}, uid {x.uid})" for x in found)
         raise SystemExit(f"{manager_name!r} matches several people: {listing}")
     return found[0]
+
+
+def manager_events(s: Save, me: Staff) -> list[ManagerEvent]:
+    """A human manager's event log; none when this save's log can't be walked. It only adds
+    the fees the game logged and the notable matches, so the report goes on without them."""
+    if not me.is_human_manager:
+        return []
+    try:
+        return list(s.manager_events(me.uid))
+    except fmsave.CorruptSaveError as e:
+        log.warning("Event log not read, so no logged fees or notable matches: %s", e)
+        return []
 
 
 def manager_stints(
@@ -376,7 +390,7 @@ class Career:
         self.comp_db: dict[int | None, int | None] = {c.id: c.database_id for c in comps}
         self.record = s.manager_career(self.staff_uid)
         self.manager_ref = s.history_person_reference(self.staff_uid)
-        self.events = list(s.manager_events(self.staff_uid)) if me.is_human_manager else []
+        self.events = manager_events(s, me)
         self.stints = manager_stints(s, me, self.record, self.events, self.club_by_team, self.game_date)
         if not self.stints:
             raise SystemExit(f"{self.manager_name}: the save keeps no club spell for this manager")

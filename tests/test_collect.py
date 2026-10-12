@@ -276,3 +276,18 @@ def test_age_groups_come_from_any_u_number_oldest_first():
     club = NS(teams=[NS(team_id=1, slot=0, is_affiliate=False), NS(team_id=2, slot=1, is_affiliate=False)])
     plays = {2: {"Example U20 Division A", "Example U18 Cup"}}
     assert team_names(club, plays)[2] == (1, "Under-20s")
+
+
+def test_an_event_log_that_cannot_be_walked_leaves_the_extras_out(caplog):
+    import fmsave
+
+    from fmcareer.collect import manager_events
+
+    def broken(uid):
+        raise fmsave.CorruptSaveError("event entry at 3350 does not carry the 0x15 mark")
+
+    human, other = NS(uid=7, is_human_manager=True), NS(uid=8, is_human_manager=False)
+    assert manager_events(NS(manager_events=broken), human) == []
+    assert "0x15 mark" in caplog.text
+    assert manager_events(NS(manager_events=lambda uid: iter(["e"])), human) == ["e"]
+    assert manager_events(NS(manager_events=broken), other) == []
