@@ -163,7 +163,7 @@ retro badge sets and small sizes are skipped.
 The version lives in `fmcareer/__init__.py`. To publish one, bump it, commit, then tag:
 
 ```sh
-git tag v0.0.11 && git push origin v0.0.11
+git tag v0.0.12 && git push origin v0.0.12
 ```
 
 GitHub Actions runs the tests, builds the exe on Windows with PyInstaller
