@@ -228,9 +228,29 @@ def log_text() -> str:
         with contextlib.suppress(OSError):
             parts.append((LOGS / name).read_text(encoding="utf-8", errors="replace"))
     text = "".join(parts) if len(parts) > 1 else parts[0] + "Nothing logged yet.\n"
-    for home in {str(HOME), HOME.as_posix()}:
-        text = text.replace(home, "~")
+    for path, label in private_paths():
+        text = text.replace(path, label)
     return text
+
+
+def private_paths() -> list[tuple[str, str]]:
+    """Where the log names the user's folders, and what the download says instead: the
+    folders set in the app (often outside the home folder, on another drive), the home
+    folder, and the user's name as a folder of any other path. Longest first."""
+    import getpass
+
+    settings = load_settings()
+    named = [(settings.get(key) or "", label) for key, label in FOLDER_LABELS.items()]
+    named += [(str(HOME), "~"), (HOME.as_posix(), "~")]
+    pairs = {path.rstrip("\\/"): label for path, label in named if len(path.rstrip("\\/")) > 3}  # never a bare drive
+    with contextlib.suppress(Exception):  # no user name to be had
+        user = getpass.getuser()
+        if len(user) > 1:
+            pairs.update({f"{sep}{user}{sep}": f"{sep}<user>{sep}" for sep in ("\\", "/")})
+    return sorted(pairs.items(), key=lambda pair: -len(pair[0]))
+
+
+FOLDER_LABELS = {"saves_dir": "<saves folder>", "install": "<game folder>", "graphics": "<graphics folder>"}
 
 
 def describe(args: tuple[Any, ...]) -> str:

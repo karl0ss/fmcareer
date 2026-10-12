@@ -355,15 +355,26 @@ def test_finished_jobs_are_dropped_beyond_the_limit(monkeypatch):
 def test_the_log_has_each_jobs_steps_and_failures_for_a_bug_report(server, monkeypatch):
     base, tmp = server
     monkeypatch.setattr(app, "LOGS", tmp / "logs")
-    monkeypatch.setattr(app, "HOME", tmp)
+    monkeypatch.setattr(app, "HOME", tmp / "home")
+    saves = tmp / "D" / "Baz" / "Documents" / "games"  # a saves folder on another drive, outside home
+    call(base + "/api/settings", {"saves_dir": str(saves), "install": str(tmp / "D" / "Games" / "FM26")})
+    monkeypatch.setattr("getpass.getuser", lambda: "Baz")
     app.start_logging()
     try:
 
-        def breaks(step, path, ai):
+        def breaks(step, path, install, other, ai):
             step("Reading the save")
             return {}[126108]
 
-        wait(app.start_job(breaks, str(tmp / "games" / "Career.fm"), {"model": "m", "token": "sekrit"}))
+        wait(
+            app.start_job(
+                breaks,
+                str(saves / "Career.fm"),
+                str(tmp / "D" / "Games" / "FM26"),
+                str(tmp / "E" / "Baz" / "elsewhere.fm"),
+                {"model": "m", "token": "sekrit"},
+            )
+        )
         code, body = call(base + "/api/log")
     finally:
         for h in app.log.handlers[:]:
@@ -373,7 +384,8 @@ def test_the_log_has_each_jobs_steps_and_failures_for_a_bug_report(server, monke
     text = body.decode()
     assert code == 200 and text.startswith(f"fmcareer {app.__version__}")
     assert "Reading the save" in text and "KeyError: 126108" in text and "Traceback" in text
-    assert "~/games/Career.fm" in text and str(tmp) not in text
+    assert "<saves folder>/Career.fm" in text and "<game folder>," in text
+    assert "/<user>/elsewhere.fm" in text and "Baz" not in text
     assert "'model': 'm'" in text and "sekrit" not in text
 
 
