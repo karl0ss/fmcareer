@@ -157,6 +157,15 @@ const view = document.getElementById('view');
 // a page's tabs: links to #<base>/<tab>, so each tab has its own address and Back works
 const tabBar = (base, tabs, cur) => `<nav class="tabs" aria-label="Sections of this page">${tabs.map(([id, label]) =>
   `<a href="#${base}/${id}"${id === cur ? ' class="on" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+// parts of the career the save couldn't give (D.problems): each page says which of its own are missing
+const LEFT_OUT = (D.problems || []).map(p => p.part);
+const PAGE_PARTS = {honours: ['Honours, cups and awards'], transfers: ['Transfers', 'Logged fees and notable matches'],
+  players: ['Player statistics'], player: ['Player statistics'], records: ['Player statistics', 'Transfers'],
+  season: ['Player statistics', 'Transfers', 'Honours, cups and awards', 'Logged fees and notable matches']};
+function leftOutNote(page) {
+  const parts = LEFT_OUT.filter(p => page === 'me' || (PAGE_PARTS[page] || []).includes(p));
+  return parts.length ? `<p class="note">Not shown, as the save couldn't be read for ${esc(parts.join(', '))}. fmcareer is still learning to read some saves; a newer version may show them.</p>` : '';
+}
 let lastBase = null;
 const TALL_ROWS = 15;  // tables longer than this get a scrolling box
 function route() {
@@ -165,6 +174,8 @@ function route() {
   if (!SECTIONS.includes(owner)) page = SECTIONS[0] || 'me';
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === (page === 'season' ? 'seasons' : page === 'player' ? 'players' : page)));
   ({me: pageMe, seasons: pageSeasons, season: () => pageSeason(arg, sub), honours: pageHonours, transfers: pageTransfers, club: () => pageClub(arg, sub), players: pagePlayers, player: () => pagePlayer(decodeURIComponent(arg || '')), records: () => pageRecords(arg)}[page] || pageMe)();
+  const note = leftOutNote(page);
+  if (note) view.insertAdjacentHTML('afterbegin', note);
   // long tables scroll inside their own box (headings stay put), so pages stay short
   view.querySelectorAll('.scroll').forEach(box => {
     const rows = box.querySelectorAll('tbody tr').length;

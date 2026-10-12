@@ -15,6 +15,8 @@ import os
 import re
 import unicodedata
 import warnings
+from collections.abc import Callable
+from typing import Any
 
 import fmsave
 from fmsave import LeagueHistorySeason, ManagerCareerRecord, ManagerEvent, Save, Staff
@@ -299,6 +301,17 @@ COLLECT_STEPS = 7  # progress steps collect reports; tests check this against th
 SIGNING_TYPES = ("Transfer", "Free", "Signing")
 
 
+def optional(part: str, problems: list[Record], fallback: Any, read: Callable[..., Any], *args: Any) -> Any:
+    """One part of the report that the rest doesn't need: when reading it fails, the report
+    goes on without it (`fallback`), the failure goes into the log and into `problems`."""
+    try:
+        return read(*args)
+    except Exception as e:
+        log.exception("%s could not be read; the report leaves it out", part)
+        problems.append(dict(part=part, error=f"{type(e).__name__}: {e}"))
+        return fallback
+
+
 def collect(
     save_path: str,
     manager_name: str | None,
@@ -313,6 +326,9 @@ def collect(
 
     The manager is `staff_uid` when given, else found by `manager_name`. `save` reuses an
     already opened Save; `options` overrides DEFAULT_OPTIONS (sections, transfer toggles).
+
+    The manager, his spells, the people and the league history are the backbone and must
+    read; every other part is `optional`, and `problems` lists the parts left out.
     """
     s = save if save is not None else open_save(save_path, names_dir)
     opts = {**DEFAULT_OPTIONS, **(options or {})}
@@ -323,18 +339,34 @@ def collect(
     c.read_people()
     progress("Reading league history")
     league, tables, levels = league_section(c)
+    problems: list[Record] = []
     progress("Reading honours, cups and awards")
-    honours, cups, awards = honours_section(c)
-    logged_fees, notable = event_log(c)
+    honours, cups, awards = optional("Honours, cups and awards", problems, ([], [], []), honours_section, c)
+    logged_fees, notable = optional("Logged fees and notable matches", problems, ({}, []), event_log, c)
     progress("Reading transfers and fees")
-    moves, mover_uids, gone_refs = transfers_section(c, logged_fees)
+    moves, mover_uids, gone_refs = optional(
+        "Transfers", problems, ([], set(), set()), transfers_section, c, logged_fees
+    )
     progress("Reading player statistics")
-    best_eleven, squad_stats = statistics_section(c, mover_uids, gone_refs)
-    career = career_record(c)
+    best_eleven, squad_stats = optional(
+        "Player statistics", problems, ({}, {}), statistics_section, c, mover_uids, gone_refs
+    )
+    career = optional("The game's managerial record", problems, None, career_record, c)
     progress("Reading the club today")
     club_today = None
     if c.current is not None and c.current["club_uid"] in c.clubs:
-        club_today = club_now(s, c.clubs, c.current["club_uid"], c.players, c.comp_name, c.comp_db)
+        club_today = optional(
+            "Club today",
+            problems,
+            None,
+            club_now,
+            s,
+            c.clubs,
+            c.current["club_uid"],
+            c.players,
+            c.comp_name,
+            c.comp_db,
+        )
     return dict(
         manager=c.manager_summary(),
         stints=[
@@ -361,6 +393,7 @@ def collect(
         squad=c.current_squad(),
         club_today=club_today if "club" in opts["sections"] else None,
         options=opts,
+        problems=problems,
     )
 
 

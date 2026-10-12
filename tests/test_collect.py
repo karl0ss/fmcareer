@@ -291,3 +291,17 @@ def test_an_event_log_that_cannot_be_walked_leaves_the_extras_out(caplog):
     assert "0x15 mark" in caplog.text
     assert manager_events(NS(manager_events=lambda uid: iter(["e"])), human) == ["e"]
     assert manager_events(NS(manager_events=broken), other) == []
+
+
+def test_an_optional_part_that_fails_is_left_out_and_named(caplog):
+    from fmcareer.collect import optional
+
+    problems = []
+
+    def breaks(c):
+        return {}[126108]
+
+    assert optional("Honours", problems, ([], [], []), breaks, None) == ([], [], [])
+    assert optional("Transfers", problems, [], lambda c: ["move"], None) == ["move"]
+    assert problems == [{"part": "Honours", "error": "KeyError: 126108"}]
+    assert "Honours could not be read" in caplog.text and "Traceback" in caplog.text

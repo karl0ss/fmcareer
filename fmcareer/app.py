@@ -474,6 +474,7 @@ def job_report(
         seasons=len(data["league"]),
         clubs=[st["club"] for st in data["stints"]],
         ai=ai_note,
+        left_out=[p["part"] for p in data.get("problems", [])],
     )
 
 

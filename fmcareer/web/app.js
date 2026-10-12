@@ -146,7 +146,8 @@ $('generate').onclick = async () => {
     const r = await follow(job, $('genLog'));
     const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} articles.`
       : ` AI wrote ${r.ai.written} of ${r.ai.pieces} articles; the report wrote the rest (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
-    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
+    const leftOut = r.left_out && r.left_out.length ? ` <span class="err">Left out, as they couldn't be read from this save: ${esc(r.left_out.join(', '))}. <a href="/api/log" download="fmcareer-log.txt">Download the log</a> and attach it to <a href="${ISSUES}" target="_blank" rel="noopener">an issue</a>.</span>` : '';
+    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span>${leftOut} <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
   } catch (e) { $('genState').innerHTML = failed(e, 'span'); } finally { $('generate').disabled = chosenManager == null; }

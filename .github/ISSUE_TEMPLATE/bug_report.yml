@@ -33,6 +33,16 @@ body:
       description: Drag and drop the downloaded log file here so it uploads with the issue.
     validations:
       required: true
+  - type: input
+    id: save
+    attributes:
+      label: Your save file (if you're happy to share it)
+      description: |
+        The log says where reading stopped; the save itself is what lets us fix it. It's the one
+        `.fm` file in Documents\Sports Interactive\Football Manager 26\games. Saves are hundreds of
+        MB, too big to attach here, so upload it to Google Drive, Dropbox, OneDrive or WeTransfer and
+        paste the link. It is only used to work out the fix.
+      placeholder: https://drive.google.com/...
   - type: textarea
     id: career
     attributes:
