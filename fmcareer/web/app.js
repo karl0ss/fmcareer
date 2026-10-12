@@ -31,6 +31,9 @@ async function follow(job, logEl) {
     await new Promise(r => setTimeout(r, 1000));
   }
 }
+// a failure, with the log to attach to a bug report
+const ISSUES = 'https://github.com/karl0ss/fmcareer/issues';
+const failed = (e, tag = 'div') => `<${tag} class="err">${esc(e.message)} <span class="muted">· <a href="/api/log" download="fmcareer-log.txt">Download the log</a> and attach it to <a href="${ISSUES}" target="_blank" rel="noopener">an issue</a>.</span></${tag}>`;
 const fmtSize = n => (n / 1048576).toFixed(0) + ' MB', fmtTime = t => new Date(t * 1000).toLocaleString();
 
 function drawSaves() {
@@ -100,7 +103,7 @@ $('saveFilter').oninput = drawSaves; $('managerFilter').oninput = drawManagers;
 $('aiSave').onclick = async () => {
   try { await api('/api/settings', aiFields()); await refresh();
     $('aiLog').innerHTML = `<div class="ok">Saved.${state.settings.ai_enabled && !(state.settings.ai_endpoint && state.settings.ai_model) ? ' Set the endpoint and model to use it.' : ''}</div>`;
-  } catch (e) { $('aiLog').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  } catch (e) { $('aiLog').innerHTML = failed(e); }
 };
 $('aiOn').onchange = () => $('aiSave').onclick();
 $('aiTest').onclick = async () => {
@@ -112,13 +115,13 @@ $('aiTest').onclick = async () => {
     $('aiModels').innerHTML = r.models.map(m => `<option value="${esc(m)}">`).join('');
     $('aiLog').innerHTML += r.reply ? `<div class="ok">It answered: “${esc(r.reply)}”</div>`
       : `<div class="ok">${r.models.length} models listed; pick one and test again.</div>`;
-  } catch (e) { $('aiLog').innerHTML += `<div class="err">${esc(e.message)}</div>`; } finally { $('aiTest').disabled = false; }
+  } catch (e) { $('aiLog').innerHTML += failed(e); } finally { $('aiTest').disabled = false; }
 };
 $('saveSettings').onclick = async () => { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh(); };
 $('buildNames').onclick = async () => {
   try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value});
     const {job} = await api('/api/names', {}); $('buildNames').disabled = true; await follow(job, $('namesLog')); await refresh();
-  } catch (e) { $('namesLog').innerHTML = `<div class="err">${esc(e.message)}</div>`; } finally { $('buildNames').disabled = false; }
+  } catch (e) { $('namesLog').innerHTML = failed(e); } finally { $('buildNames').disabled = false; }
 };
 $('loadManagers').onclick = async () => {
   $('loadManagers').disabled = true;
@@ -126,7 +129,7 @@ $('loadManagers').onclick = async () => {
     managers = r.managers; const human = managers.find(m => m.human); chosenManager = human ? human.staff_uid : null;
     $('managerFilter').disabled = false; drawManagers();
     $('managersLog').innerHTML += `<div class="ok">${managers.length === 1 ? '1 manager' : managers.length + ' managers'}.</div>`;
-  } catch (e) { $('managersLog').innerHTML += `<div class="err">${esc(e.message)}</div>`; } finally { $('loadManagers').disabled = !chosenSave; }
+  } catch (e) { $('managersLog').innerHTML += failed(e); } finally { $('loadManagers').disabled = !chosenSave; }
 };
 document.addEventListener('change', e => {
   if (e.target.dataset.sec !== undefined) remember('sections', [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec));
@@ -146,6 +149,6 @@ $('generate').onclick = async () => {
     $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
-  } catch (e) { $('genState').innerHTML = `<span class="err">${esc(e.message)}</span>`; } finally { $('generate').disabled = chosenManager == null; }
+  } catch (e) { $('genState').innerHTML = failed(e, 'span'); } finally { $('generate').disabled = chosenManager == null; }
 };
 refresh();

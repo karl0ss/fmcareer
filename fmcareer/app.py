@@ -11,8 +11,12 @@ import argparse
 import contextlib
 import http.server
 import json
+import logging
+import logging.handlers
 import os
+import platform
 import re
+import sys
 import threading
 import time
 import traceback
@@ -37,6 +41,7 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "fmcareer"
 REPORTS = CACHE / "reports"
 NAMES = CACHE / "names"
 DATA = CACHE / "data"
+LOGS = CACHE / "logs"
 
 SAVE_DIR_GUESSES = [
     HOME / "Documents" / "Sports Interactive" / "Football Manager 26" / "games",
@@ -192,6 +197,48 @@ def list_reports() -> list[Record]:
     return out
 
 
+# ---- the log: each run's jobs, steps and failures, for attaching to a bug report.
+# It rotates, so it stays small; the download hides the home folder and never has the AI token.
+
+log = logging.getLogger("fmcareer")
+log.addHandler(logging.NullHandler())  # nothing is written until the app starts the file
+log.propagate = False
+
+
+def about() -> str:
+    exe = ", exe" if getattr(sys, "frozen", False) else ""
+    return f"fmcareer {__version__} (reading code {CODE}), Python {platform.python_version()} on {platform.platform()}{exe}"
+
+
+def start_logging() -> None:
+    LOGS.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(
+        LOGS / "fmcareer.log", maxBytes=1_000_000, backupCount=2, encoding="utf-8"
+    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    log.info("Started: %s", about())
+
+
+def log_text() -> str:
+    """The log for downloading, oldest first, under a line saying which version this is."""
+    parts = [f"{about()}\n\n"]
+    for name in ("fmcareer.log.2", "fmcareer.log.1", "fmcareer.log"):
+        with contextlib.suppress(OSError):
+            parts.append((LOGS / name).read_text(encoding="utf-8", errors="replace"))
+    text = "".join(parts) if len(parts) > 1 else parts[0] + "Nothing logged yet.\n"
+    for home in {str(HOME), HOME.as_posix()}:
+        text = text.replace(home, "~")
+    return text
+
+
+def describe(args: tuple[Any, ...]) -> str:
+    """A job's arguments for the log, with the AI token left out."""
+    shown = [{k: v for k, v in a.items() if k != "token"} if isinstance(a, dict) else a for a in args]
+    return ", ".join(str(a) for a in shown)
+
+
 # ---- background jobs (one heavy job at a time; the last opened save is kept)
 
 JOBS: dict[str, Record] = {}
@@ -204,11 +251,12 @@ class Progress:
     """A job's progress, as the page shows it: call it with each step as it starts; `plan`
     says how many steps there will be, `more` adds (or takes away) steps found on the way."""
 
-    def __init__(self, job: Record) -> None:
-        self.job = job
+    def __init__(self, job: Record, job_id: str = "") -> None:
+        self.job, self.job_id = job, job_id
 
     def __call__(self, text: str) -> None:
         self.job["steps"].append(dict(text=text, at=round(time.time() - self.job["started"], 1)))
+        log.info("Job %s: %s", self.job_id, text)
 
     def plan(self, total: int) -> None:
         self.job["total"] = total
@@ -224,7 +272,8 @@ def start_job(fn: Callable[..., Any], *args: Any) -> str:
         del JOBS[old]
     job: Record = dict(status="queued", steps=[], total=None, result=None, error=None, started=time.time())
     JOBS[job_id] = job
-    step = Progress(job)
+    step = Progress(job, job_id)
+    log.info("Job %s: %s(%s)", job_id, getattr(fn, "__name__", "job"), describe(args))
 
     def run() -> None:
         with WORK:
@@ -234,9 +283,11 @@ def start_job(fn: Callable[..., Any], *args: Any) -> str:
                 job["status"] = "done"
             except SystemExit as e:  # collect's "no such manager" style errors
                 job["status"], job["error"] = "error", str(e)
+                log.warning("Job %s stopped: %s", job_id, e)
             except Exception as e:  # report the failure to the page rather than die silently
                 job["status"], job["error"] = "error", f"{type(e).__name__}: {e}"
                 traceback.print_exc()
+                log.exception("Job %s failed: %s", job_id, job["error"])
             step("Finished" if job["status"] == "done" else "Stopped")
 
     threading.Thread(target=run, daemon=True).start()
@@ -431,7 +482,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:  # keep the terminal quiet
         pass
 
-    def send(self, code: int, body: object, ctype: str = "application/json") -> None:
+    def send(
+        self, code: int, body: object, ctype: str = "application/json", headers: dict[str, str] | None = None
+    ) -> None:
         data = (
             body
             if isinstance(body, bytes)
@@ -443,6 +496,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         )
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -469,6 +524,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     themes={k: {"name": n, "swatch": sw} for k, (n, sw) in THEMES.items()},
                     defaults=DEFAULT_OPTIONS,
                 ),
+            )
+        if self.path == "/api/log":
+            return self.send(
+                200,
+                log_text(),
+                "text/plain",
+                {"Content-Disposition": 'attachment; filename="fmcareer-log.txt"'},
             )
         if self.path.startswith("/api/job/"):
             job = JOBS.get(self.path.rsplit("/", 1)[-1])
@@ -601,6 +663,8 @@ def main(argv: list[str] | None = None) -> None:
         if server is None:
             raise SystemExit(f"No free port from {a.port} on; start with --port to choose one.") from None
     url = f"http://127.0.0.1:{port}/"
+    with contextlib.suppress(OSError):  # a read-only cache folder costs the log, not the app
+        start_logging()
     print(f"fmcareer {__version__} is running at {url}")
     print("Leave this window open while you use it; close it (or press Ctrl+C) to stop.")
     if not a.no_browser:

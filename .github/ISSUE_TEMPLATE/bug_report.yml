@@ -1,0 +1,40 @@
+name: Bug report
+description: Something went wrong reading a save or building a report
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. The log is the most useful thing you can send: it shows
+        exactly where the app stopped.
+
+        **To get it:** in the app, click **Download the log** (next to the error, or at the
+        bottom of the page). That saves `fmcareer-log.txt`. Drag it into the box below.
+        Your home folder is hidden in it and any AI token is never written to it.
+  - type: input
+    id: version
+    attributes:
+      label: fmcareer version
+      description: Shown at the top of the app, e.g. v0.0.9.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: The error the app showed, and which step you were on (Load managers, Generate report, Read names…).
+      placeholder: "I clicked Generate report and got: KeyError: 126108"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: The log (fmcareer-log.txt)
+      description: Drag and drop the downloaded log file here so it uploads with the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: career
+    attributes:
+      label: About your career
+      description: Anything unusual helps, e.g. currently unemployed, managing a national team, a save carried over from an older version, lots of seasons.

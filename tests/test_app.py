@@ -350,3 +350,35 @@ def test_finished_jobs_are_dropped_beyond_the_limit(monkeypatch):
     for _ in range(6):
         wait(app.start_job(lambda step: None))
     assert len(app.JOBS) == 4  # the three latest finished jobs, plus the newest
+
+
+def test_the_log_has_each_jobs_steps_and_failures_for_a_bug_report(server, monkeypatch):
+    base, tmp = server
+    monkeypatch.setattr(app, "LOGS", tmp / "logs")
+    monkeypatch.setattr(app, "HOME", tmp)
+    app.start_logging()
+    try:
+
+        def breaks(step, path, ai):
+            step("Reading the save")
+            return {}[126108]
+
+        wait(app.start_job(breaks, str(tmp / "games" / "Career.fm"), {"model": "m", "token": "sekrit"}))
+        code, body = call(base + "/api/log")
+    finally:
+        for h in app.log.handlers[:]:
+            if not isinstance(h, app.logging.NullHandler):
+                app.log.removeHandler(h)
+                h.close()
+    text = body.decode()
+    assert code == 200 and text.startswith(f"fmcareer {app.__version__}")
+    assert "Reading the save" in text and "KeyError: 126108" in text and "Traceback" in text
+    assert "~/games/Career.fm" in text and str(tmp) not in text
+    assert "'model': 'm'" in text and "sekrit" not in text
+
+
+def test_the_log_download_works_before_anything_is_logged(server, monkeypatch):
+    base, tmp = server
+    monkeypatch.setattr(app, "LOGS", tmp / "nothing")
+    code, body = call(base + "/api/log")
+    assert code == 200 and b"Nothing logged yet." in body
