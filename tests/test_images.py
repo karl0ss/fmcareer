@@ -87,7 +87,23 @@ def test_packs_by_file_name_and_by_config(tmp_path):
     }
     pics = load_pack(str(g), want)
     assert set(pics) == {"club:716", "comp:901", "person:12345", "person:2000000001"}
-    assert all(uri.startswith("data:image/png;base64,") for uri in pics.values())
+    assert all(uri.startswith("data:image/webp;base64,") for uri in pics.values())
+
+
+def test_images_are_small_webp_that_keep_transparency():
+    import base64
+    import io
+
+    from PIL import Image
+
+    from fmcareer.images import _encode
+
+    badge = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+    badge.paste((200, 30, 30, 255), (64, 64, 192, 192))
+    uri = _encode(badge, "club")
+    out = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1])))
+    assert out.format == "WEBP" and out.size == (96, 96)
+    assert out.convert("RGBA").getpixel((2, 2))[3] == 0 and out.convert("RGBA").getpixel((48, 48))[3] == 255
 
 
 def test_pack_logo_beats_a_small_icon_and_missing_folders_are_empty(tmp_path):

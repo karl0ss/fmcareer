@@ -167,11 +167,13 @@ def pack_images(graphics: str, wanted: set[ImageKey]) -> dict[ImageKey, str]:
 
 
 def _encode(image: Any, kind: str) -> str:  # a PIL image
+    """WebP at quality 85, alpha kept: a quarter of the PNG's size, and no difference
+    to see at these sizes (images are most of a report's bytes)."""
     size = _SIZE[kind]
     image.thumbnail((size, size))
     buf = io.BytesIO()
-    image.save(buf, format="PNG", optimize=True)
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    image.save(buf, format="WEBP", quality=85)  # default effort: the slowest is 100x slower for 2%
+    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def load_pack(graphics: str, wanted: set[ImageKey]) -> dict[str, str]:
