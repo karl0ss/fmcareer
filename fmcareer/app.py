@@ -278,17 +278,19 @@ def start_job(fn: Callable[..., Any], *args: Any) -> str:
     def run() -> None:
         with WORK:
             job["status"] = "running"
+            status, error = "done", None
             try:
                 job["result"] = fn(step, *args)
-                job["status"] = "done"
             except SystemExit as e:  # collect's "no such manager" style errors
-                job["status"], job["error"] = "error", str(e)
+                status, error = "error", str(e)
                 log.warning("Job %s stopped: %s", job_id, e)
             except Exception as e:  # report the failure to the page rather than die silently
-                job["status"], job["error"] = "error", f"{type(e).__name__}: {e}"
+                status, error = "error", f"{type(e).__name__}: {e}"
                 traceback.print_exc()
-                log.exception("Job %s failed: %s", job_id, job["error"])
-            step("Finished" if job["status"] == "done" else "Stopped")
+                log.exception("Job %s failed: %s", job_id, error)
+            step("Finished" if status == "done" else "Stopped")
+            # last, so whoever sees the job finished also sees its last step and its log lines
+            job["error"], job["status"] = error, status
 
     threading.Thread(target=run, daemon=True).start()
     return job_id
