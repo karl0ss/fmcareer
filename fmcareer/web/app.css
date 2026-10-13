@@ -5,7 +5,8 @@
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Barlow", system-ui, sans-serif; }
 .bar { background: linear-gradient(180deg, #14163a, #0f1130); border-bottom: 1px solid var(--line); }
 .bar .in, .wrap { max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
-.brand { font: 700 26px var(--head); } .brand span { color: var(--text-3); font: 500 17px var(--head); margin-left: 8px; }
+.brand { font: 700 26px var(--head); display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
+.brand .mark { width: 32px; height: 36px; } .brand span { color: var(--text-3); font: 500 17px var(--head); margin-left: 8px; }
 h2 { font: 600 21px var(--head); color: var(--accent); margin: 26px 0 10px; display: flex; align-items: center; gap: 10px; }
 h2 .n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
   background: linear-gradient(135deg, #7b3cff, var(--accent-2)); color: #fff; font-size: 15px; }

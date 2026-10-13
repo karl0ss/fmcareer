@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag matching the version in fmcareer/__init__.py to publish a release:
 #   git tag v0.0.2 && git push origin v0.0.2
-# Run it by hand (Actions > Release > Run workflow) to build the exe without releasing.
+# Run it by hand (Actions > Release > Run workflow) to build the Windows, Linux and macOS programs without releasing.
 
 on:
   push:
@@ -26,9 +26,16 @@ jobs:
       - run: for f in fmcareer/web/*.js; do node --check "$f"; done
       - run: python -m pytest -q
 
-  windows-exe:
+  build:
     needs: test
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows }
+          - { os: ubuntu-22.04, name: linux-x64 }  # the oldest runner: its glibc sets the oldest Linux the build runs on
+          - { os: macos-latest, name: macos-arm64 }  # Apple silicon
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,6 +53,7 @@ jobs:
           fi
       - run: python packaging/build.py
       - name: Smoke test (the exe starts and serves the app)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           & dist\fmcareer.exe --version
@@ -62,28 +70,62 @@ jobs:
           Stop-Process -Id $p.Id -Force
           if (-not $ok) { throw 'the app did not answer' }
           if (($state.Content | ConvertFrom-Json).images -ne $true) { throw 'image support is missing from the exe' }
-      - name: Name the exe after the version
+      - name: Smoke test (the program starts and serves the app)
+        if: runner.os != 'Windows'
         shell: bash
-        run: mv dist/fmcareer.exe "dist/fmcareer-${{ steps.version.outputs.version }}-windows.exe"
+        run: |
+          dist/fmcareer --version
+          dist/fmcareer --no-browser --port 8765 & pid=$!
+          ok=
+          for i in $(seq 60); do
+            sleep 2
+            if curl -sf http://127.0.0.1:8765/ | grep -q "v${{ steps.version.outputs.version }}"; then ok=1; break; fi
+          done
+          state=$(curl -sf http://127.0.0.1:8765/api/state || true)
+          kill $pid
+          [[ $ok ]] || { echo "::error::the app did not answer"; exit 1; }
+          echo "$state" | python -c "import json, sys; sys.exit(0 if json.load(sys.stdin)['images'] else 1)" \
+            || { echo "::error::image support is missing from the build"; exit 1; }
+      - name: Name the exe after the version
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir out
+          mv dist/fmcareer.exe "out/fmcareer-${{ steps.version.outputs.version }}-windows.exe"
+      - name: Pack the program with the version in the name (a .tar.gz keeps it runnable)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir out
+          tar -czf "out/fmcareer-${{ steps.version.outputs.version }}-${{ matrix.name }}.tar.gz" -C dist fmcareer
       - uses: actions/upload-artifact@v4
         with:
-          name: fmcareer-windows
-          path: dist/*.exe
+          name: fmcareer-${{ matrix.name }}
+          path: out/*
 
   release:
     if: github.ref_type == 'tag'
-    needs: windows-exe
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: fmcareer-windows
+          pattern: fmcareer-*
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: "*.exe"
+          files: |
+            *.exe
+            *.tar.gz
           generate_release_notes: true
           body: |
-            Download `fmcareer-*-windows.exe` and double-click it: the app opens in your browser.
+            **Windows:** download `fmcareer-*-windows.exe` and double-click it: the app opens in your browser.
             Leave the black window open while you use it; close it to stop.
             Windows may warn about an unrecognised app the first time (the exe isn't code-signed):
             choose "More info" then "Run anyway".
+
+            **macOS (Apple silicon):** download `fmcareer-*-macos-arm64.tar.gz`, double-click it to unpack,
+            then in Terminal run `xattr -d com.apple.quarantine fmcareer` in that folder once (the program isn't signed),
+            and start it with `./fmcareer`. The app opens in your browser; leave Terminal open while you use it.
+
+            **Linux (x64):** download `fmcareer-*-linux-x64.tar.gz`, then `tar -xzf fmcareer-*-linux-x64.tar.gz && ./fmcareer`.

@@ -23,13 +23,19 @@ Everything is read from the save itself through our fork of
 [fmsave](https://github.com/karl0ss/fmsave) (branch `history-decoders`, which adds the
 history decoders this tool needs), pinned to a commit in `pyproject.toml`. Nothing is scraped from screenshots or the game UI.
 
-## Download (Windows)
+## Download
 
-Get `fmcareer-<version>-windows.exe` from the
-[latest release](https://github.com/karl0ss/fmcareer/releases/latest) and double-click it.
-The app opens in your browser; leave the black window open while you use it and close it
-to stop. Nothing to install. Windows may warn about an unrecognised app the first time
-(the exe isn't code-signed): choose "More info", then "Run anyway".
+Every [release](https://github.com/karl0ss/fmcareer/releases/latest) has a ready-made program
+for Windows, macOS (Apple silicon) and Linux (x64). Nothing to install.
+
+- **Windows**: double-click `fmcareer-<version>-windows.exe`. The app opens in your browser;
+  leave the black window open while you use it and close it to stop. Windows may warn about
+  an unrecognised app the first time (the exe isn't code-signed): choose "More info", then
+  "Run anyway".
+- **macOS**: double-click `fmcareer-<version>-macos-arm64.tar.gz` to unpack it. The program
+  isn't signed, so once, in Terminal in that folder, run `xattr -d com.apple.quarantine fmcareer`;
+  then start it with `./fmcareer`. Leave Terminal open while you use the app.
+- **Linux**: `tar -xzf fmcareer-<version>-linux-x64.tar.gz && ./fmcareer`.
 
 Reports are single HTML files with their images inside, so they open in any browser,
 offline, and can be kept, copied or sent on. The app has a Download link for each.
@@ -166,9 +172,10 @@ The version lives in `fmcareer/__init__.py`. To publish one, bump it, commit, th
 git tag v0.0.12 && git push origin v0.0.12
 ```
 
-GitHub Actions runs the tests, builds the exe on Windows with PyInstaller
-(`packaging/build.py`), checks that it starts and serves the app, and attaches it to a
-release. A local build: `pip install ".[images,build]"` then `python packaging/build.py`.
+GitHub Actions runs the tests, builds the program on Windows, Linux and macOS with
+PyInstaller (`packaging/build.py`), checks that each starts and serves the app, and attaches
+them to a release. The icon is `fmcareer/web/logo.svg`, rendered to `packaging/icon.png`
+and `icon.ico`. A local build: `pip install ".[images,build]"` then `python packaging/build.py`.
 
 ## Tests
 

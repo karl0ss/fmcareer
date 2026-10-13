@@ -531,6 +531,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path in ("/", "/index.html"):
             return self.send(200, web.page("app", VERSION=__version__, FOOTER=footer()), "text/html")
+        if self.path == "/logo.svg":
+            return self.send(200, web.read("logo.svg"), "image/svg+xml")
         if self.path == "/api/version":
             return self.send(200, {"app": "fmcareer", "version": __version__})
         if self.path == "/api/state":
