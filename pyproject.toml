@@ -37,6 +37,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+extend-exclude = ["*-session-*.md"]  # saved Claude session transcripts: their code is a record, not ours to format
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "RUF"]
