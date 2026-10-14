@@ -69,6 +69,16 @@ const seasonRow = s => L.find(r => r.season === s);
 const totals = L.reduce((a, r) => (['played','won','drawn','lost','goals_for','goals_against','points'].forEach(k => a[k] += r[k]), a),
   {played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0});
 const promotions = L.filter(r => r.promoted).length, titles = L.filter(r => r.champion).length;
+// the trophy cabinet: the save's honours, plus any league title they miss (fmsave can't read every
+// save's hall of fame, and then has no cup runs either); a league's honour is a league title, the rest cups
+const CABINET = (() => {
+  const have = new Set(D.honours.map(h => `${h.season}|${h.competition_db}`));
+  const missed = L.filter(r => r.champion && !have.has(`${r.season}|${r.competition_db}`))
+    .map(r => ({season: r.season, end_year: r.end_year, club: r.club, competition_db: r.competition_db, name: r.competition}));
+  return [...D.honours, ...missed].sort((a, b) => a.end_year - b.end_year);
+})();
+const leagueDbs = new Set(L.map(r => r.competition_db));
+const cupTrophies = CABINET.filter(h => !leagueDbs.has(h.competition_db)).length;
 const best = L.reduce((b, r) => (r.tier && (!b || pyramid(r) < pyramid(b)) ? r : b), null);
 const awardWins = D.awards.filter(a => a.placing === 'Winner');
 const SIGN = t => t.kind === 'signing';  // what each move counts as comes from collect
@@ -312,7 +322,7 @@ function pageMe() {
     <div class="tiles">
       <div class="card tile"><div class="v">${L.length}</div><div class="k">Seasons completed</div><div class="s">${totals.played} league games</div></div>
       <div class="card tile"><div class="v">${promotions}</div><div class="k">Promotions</div><div class="s">${plural(titles, 'league title')}</div></div>
-      <div class="card tile"><div class="v">${D.honours.length}</div><div class="k">Trophies</div><div class="s">${titles} league · ${D.honours.length - titles} cup</div></div>
+      <div class="card tile"><div class="v">${CABINET.length}</div><div class="k">Trophies</div><div class="s">${CABINET.length - cupTrophies} league · ${cupTrophies} cup</div></div>
       <div class="card tile"><div class="v">${winRate}%</div><div class="k">League win rate</div><div class="s">W${totals.won} D${totals.drawn} L${totals.lost} · ${totals.goals_for}–${totals.goals_against}</div></div>
       <div class="card tile"><div class="v">${awardWins.length}</div><div class="k">Manager awards</div><div class="s">${D.awards.length - awardWins.length} runner-up</div></div>
       <div class="card tile"><div class="v">${best ? ord(best.position) : '–'}</div><div class="k">Highest finish</div><div class="s">${best ? esc(best.competition) + ', ' + best.season : ''}</div></div>
@@ -331,7 +341,7 @@ function pageMe() {
     <div class="card chart" id="climb">${chart.html}</div>
     <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
     <h2>Trophy cabinet</h2>
-    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
+    <div class="cabinet">${CABINET.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
     <h2>Manager awards</h2>
     <div class="card"><ul class="list">${D.awards.map(a => `<li><span><a href="#season/${slug(a.season)}">${a.season}</a> · ${esc(a.name)}</span>${a.placing === 'Winner' ? '<span class="badge gold">Winner</span>' : `<span class="badge">${a.placing}</span>`}</li>`).join('')}</ul></div>
     <h2>Club legends of the era</h2>
@@ -440,7 +450,7 @@ function pageSeason(arg, tab = 'summary') {
 function pageHonours() {
   view.innerHTML = `<h1>Honours & cup runs</h1>
     <h2>Trophies</h2>
-    <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('')}</div>
+    <div class="cabinet">${CABINET.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('')}</div>
     <h2>Every cup run</h2>
     <div class="controls"><label><input type="checkbox" id="youth"> Include youth competitions</label></div>
     <div class="card scroll"><table><thead><tr><th>Season</th><th>Competition</th><th>Outcome</th></tr></thead><tbody id="cupbody"></tbody></table></div>`;
