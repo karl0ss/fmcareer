@@ -5,7 +5,7 @@ which decodes the save; fmcareer joins the decoded tables into one career and
 renders it as a self-contained HTML page.
 """
 
-__version__ = "0.0.13"
+__version__ = "0.0.14"
 
 from fmcareer.collect import collect
 from fmcareer.render import render
