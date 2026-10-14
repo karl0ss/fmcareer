@@ -114,6 +114,16 @@ def names_dir() -> str | None:
     return str(NAMES) if (NAMES / "competition_names.csv").exists() else None
 
 
+def names_needed(install: str) -> bool:
+    """Whether to read the names from the game before a report: there are none yet, or the
+    game's own files are newer (a patch can add competitions). False without an install."""
+    from fmcareer.names import lang_files
+
+    files = lang_files(install) if install else []
+    csv = NAMES / "competition_names.csv"
+    return bool(files) and (not csv.exists() or csv.stat().st_mtime < max(os.path.getmtime(f) for f in files))
+
+
 # ---- what was read from a save, kept on disk so the same save opens fast next time.
 # Keys cover the save file (path, size, modified time), the names files and the code
 # that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
@@ -324,8 +334,9 @@ def start_job(fn: Callable[..., Any], *args: Any) -> str:
     return job_id
 
 
-def save_key(path: str) -> tuple[str, float, str | None]:
-    return (path, os.path.getmtime(path), names_dir())
+def save_key(path: str) -> tuple[str, float, str | None, float | None]:
+    names = names_dir()
+    return (path, os.path.getmtime(path), names, os.path.getmtime(NAMES / "competition_names.csv") if names else None)
 
 
 def get_save(step: Progress, path: str) -> Save:
@@ -346,6 +357,31 @@ def job_names(step: Progress, install: str) -> Record:
     step("Reading competition and award names from the game")
     build_names([install, str(NAMES)])
     return dict(names=names_dir())
+
+
+def names_status(install: str) -> str:
+    """For the page: "ready", "needed" (missing, or older than the game's), "stale" (needed,
+    after a game patch), "bad_install" (not an FM26 folder) or "no_install"."""
+    from fmcareer.names import lang_files
+
+    if not install:
+        return "no_install"
+    if not lang_files(install):
+        return "bad_install"
+    if not names_needed(install):
+        return "ready"
+    return "stale" if names_dir() else "needed"
+
+
+def read_names_from_game(step: Progress, install: str) -> None:
+    """One progress step. A failure is logged and the report goes on with numbers for names."""
+    from fmcareer.names import main as build_names
+
+    step("Reading competition and award names from the game")
+    try:
+        build_names([install, str(NAMES)])
+    except (Exception, SystemExit) as e:
+        log.warning("Couldn't read the names from %s: %s", install, e)
 
 
 def job_managers(step: Progress, path: str, everyone: bool, fresh: bool = False) -> Record:
@@ -467,10 +503,15 @@ def job_report(
     graphics: str = "",
     ai: dict[str, str] | None = None,
 ) -> Record:
+    # names are read automatically, so nobody has to remember the button; new names mean a fresh read
+    names = names_needed(install)
     key = cache_key(path, "career", staff_uid)
-    data = None if fresh else cache_read(key)
+    data = None if fresh or names else cache_read(key)
     images = bool(images and (install or graphics))
-    step.plan((1 if data is not None else 1 + COLLECT_STEPS) + images + 1)  # read, images, writing
+    step.plan(names + (1 if data is not None else 1 + COLLECT_STEPS) + images + 1)  # names, read, images, writing
+    if names:
+        read_names_from_game(step, install)
+        key = cache_key(path, "career", staff_uid)  # the key covers the names files
     if data is not None:
         step("Using the career read earlier from this save")
     else:
@@ -562,6 +603,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     reports=list_reports(),
                     reports_dir=str(REPORTS),
                     names=names_dir(),
+                    names_status=names_status(settings["install"]),
                     images=images_available(),
                     themes={k: {"name": n, "swatch": sw} for k, (n, sw) in THEMES.items()},
                     defaults=DEFAULT_OPTIONS,

@@ -85,9 +85,20 @@ function drawReports() {
   $('reports').innerHTML = state.reports.length ? '<b class="muted">Reports</b>' + state.reports.map(r => `<div class="item"><a href="/reports/${encodeURIComponent(r.file)}" target="_blank">${esc(r.file.replace(/\.html$/, '').replace(/-/g, ' '))}</a><span class="m">${fmtTime(r.modified)} · ${fmtSize(r.size)} · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a></span></div>`).join('')
     + `<p class="muted" style="font-size:13px">Each report is one file with its images inside: it opens in any browser, offline, so you can keep it, copy it or send it. They are saved in ${esc(state.reports_dir)}.</p>` : '';
 }
+// the names come from the game, so a folder set by hand gets a clear prompt to read them now
+const NAMES_STATE = {
+  ready: '<span class="ok">Competition and award names are ready.</span>',
+  needed: '<span class="warn">Now read the names from the game, so competitions and awards show by name (it takes a few seconds).</span>',
+  stale: '<span class="warn">The game has been updated since the names were read: read them again.</span>',
+  bad_install: '<span class="err">That folder doesn\'t look like the Football Manager 26 install (it has no shared/data/database/db inside). With Steam it is usually …/steamapps/common/Football Manager 26.</span>',
+  no_install: 'Set the Football Manager 26 install folder above and save it, then read the names from the game.',
+};
 function drawNames() {
-  $('namesState').innerHTML = state.names ? '<span class="ok">Competition and award names are ready.</span>' : 'Names not read yet: competitions and awards will show as numbers.';
+  const st = state.names_status;
+  $('namesState').innerHTML = NAMES_STATE[st] || '';
   $('buildNames').textContent = state.names ? 'Read names again' : 'Read names from the game';
+  $('buildNames').classList.toggle('ghost', st !== 'needed' && st !== 'stale');  // the main button when it's the next thing to do
+  $('buildNames').disabled = st === 'no_install' || st === 'bad_install';
 }
 async function refresh() {
   state = await api('/api/state');
@@ -117,11 +128,15 @@ $('aiTest').onclick = async () => {
       : `<div class="ok">${r.models.length} models listed; pick one and test again.</div>`;
   } catch (e) { $('aiLog').innerHTML += failed(e); } finally { $('aiTest').disabled = false; }
 };
-$('saveSettings').onclick = async () => { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh(); };
+$('saveSettings').onclick = async () => {
+  await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh();
+  $('namesLog').innerHTML = '';
+  if (state.names_status === 'needed' || state.names_status === 'stale') $('buildNames').focus();
+};
 $('buildNames').onclick = async () => {
   try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value});
     const {job} = await api('/api/names', {}); $('buildNames').disabled = true; await follow(job, $('namesLog')); await refresh();
-  } catch (e) { $('namesLog').innerHTML = failed(e); } finally { $('buildNames').disabled = false; }
+  } catch (e) { $('namesLog').innerHTML = failed(e); } finally { drawNames(); }
 };
 $('loadManagers').onclick = async () => {
   $('loadManagers').disabled = true;
@@ -149,7 +164,7 @@ function gapsPanel(r) {
   const line = g => `<li>${g.count} ${GAP_WORDS[g.kind][g.count === 1 ? 0 : 1] || g.kind} without a name, shown as ${g.examples.map(x => `“${esc(x)}”`).join(', ')}${g.count > g.examples.length ? '…' : ''}</li>`;
   let html = '<h3>This report is missing things</h3>';
   if (theirs.length) html += `<p>Competition and award names haven't been read from the game yet, so these show as numbers:</p><ul>${theirs.map(line).join('')}</ul>
-    <p>Use <b>Read names from the game</b> in step 1, then generate the report again.</p>`;
+    <p>They are read from the game automatically, so check the <b>Football Manager 26 install folder</b> in step 1 is right, then generate the report again.</p>`;
   if (ours.length || leftOut.length) {
     const summary = [...ours.map(g => `${g.count} ${g.kind} without a name (${g.examples.join(', ')})`), ...leftOut.map(p => `left out: ${p}`)].join('\n');
     const ticket = `${ISSUES}/new?template=missing_data.yml&title=${encodeURIComponent('Missing from my report: ' + [...ours.map(g => g.kind), ...leftOut].join(', '))}`

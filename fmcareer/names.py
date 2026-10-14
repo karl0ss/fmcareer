@@ -36,6 +36,19 @@ def current_versions(folders: list[str]) -> list[str]:
     return [v for v in versions if v[:2] == newest]
 
 
+def lang_files(install: str, versions: list[str] | None = None) -> list[str]:
+    """The install's name tables, in load order; empty when it isn't an FM26 install."""
+    root = os.path.join(install, "shared", "data", "database", "db")
+    if not os.path.isdir(root):
+        return []
+    return [
+        p
+        for ver in versions or current_versions(os.listdir(root))
+        for fn in ("lang_db.dat", "lang_update_db.dat")
+        if os.path.exists(p := os.path.join(root, ver, f"{ver}_fm", fn))
+    ]
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("install")
@@ -44,21 +57,14 @@ def main(argv: list[str] | None = None) -> None:
         "--db", action="append", help="database versions in load order (default: the newest game's, ascending)"
     )
     a = ap.parse_args(argv)
-    root = os.path.join(a.install, "shared", "data", "database", "db")
-    if not os.path.isdir(root):
+    if not os.path.isdir(os.path.join(a.install, "shared", "data", "database", "db")):
         raise SystemExit(
             f"{a.install} does not look like the Football Manager 26 install folder "
             f"(no shared/data/database/db inside). With Steam it is usually "
             r"C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26"
         )
-    versions = a.db or current_versions(os.listdir(root))
     os.makedirs(a.out, exist_ok=True)
-    paths = [
-        p
-        for ver in versions
-        for fn in ("lang_db.dat", "lang_update_db.dat")
-        if os.path.exists(p := os.path.join(root, ver, f"{ver}_fm", fn))
-    ]
+    paths = lang_files(a.install, a.db)
     comps = english_names(paths, 25)
     awards = english_names(paths, 0)
     with open(os.path.join(a.out, "competition_names.csv"), "w", newline="", encoding="utf-8") as f:

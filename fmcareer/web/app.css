@@ -39,7 +39,7 @@ button:disabled { opacity: .45; cursor: default; }
 .now { color: var(--text); margin-bottom: 4px; }
 @keyframes crawl { to { background-position: 22.6px 0; } }
 @media (prefers-reduced-motion: reduce) { .prog.run { animation: none; } }
-.err { color: var(--down); margin-top: 8px; } .ok { color: var(--up); }
+.err { color: var(--down); margin-top: 8px; } .ok { color: var(--up); } .warn { color: #f2c94c; font-weight: 600; }
 .muted { color: var(--text-3); } a { color: var(--accent); }
 .gaps:not(:empty) { margin-top: 14px; padding: 12px 16px; border: 1px solid #b8862f; border-left: 4px solid #f0b445;
   border-radius: 10px; background: #2a2416; }

@@ -69,8 +69,9 @@ opens a page in your browser (served only on your own machine, at
 `http://127.0.0.1:8765/`) where you:
 
 1. set your saves folder, FM26 install folder and graphics folder (it finds the usual
-   Steam and Documents locations, and the graphics folder next to the saves) and read
-   the competition/award names from the game once;
+   Steam and Documents locations, and the graphics folder next to the saves). The
+   competition and award names are read from the game automatically the first time you
+   generate a report, and again after a game patch; "Read names again" forces it;
 2. pick a save;
 3. load its managers and pick one: the save's human managers (tick "Show all managers"
    for every manager in the save, searchable by name or club);

@@ -52,6 +52,7 @@ def test_page_and_state(server):
         "ai_token_set": False,
     }
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
+    assert state["names_status"] == "no_install"
     assert "sections" in state["defaults"] and state["defaults"]["theme"] == "fm26"
     assert state["themes"]["light"]["name"] == "Matchday light" and len(state["themes"]["pitch"]["swatch"]) == 3
 
@@ -415,3 +416,72 @@ def test_the_log_download_works_before_anything_is_logged(server, monkeypatch):
     monkeypatch.setattr(app, "LOGS", tmp / "nothing")
     code, body = call(base + "/api/log")
     assert code == 200 and b"Nothing logged yet." in body
+
+
+def test_names_are_read_from_the_game_when_missing_or_older(monkeypatch, tmp_path):
+    import os
+
+    import fmcareer.names
+
+    calls = fake_app(monkeypatch, tmp_path)
+    save, install = tmp_path / "a.fm", tmp_path / "FM26"
+    save.write_bytes(b"x")
+    lang = install / "shared" / "data" / "database" / "db" / "2600" / "2600_fm" / "lang_db.dat"
+    lang.parent.mkdir(parents=True)
+    lang.write_bytes(b"x")
+    built = []
+
+    def fake_build(argv):
+        built.append(argv)
+        os.makedirs(argv[1], exist_ok=True)
+        (tmp_path / "names" / "competition_names.csv").write_text("11,Premier League\n")
+
+    monkeypatch.setattr(fmcareer.names, "main", fake_build)
+    without = {"sections": ["me"], "show": {}}
+    job = wait(app.start_job(app.job_report, str(save), 1, without, False, str(install)))
+    assert job["status"] == "done", job["error"]
+    assert job["steps"][0]["text"] == "Reading competition and award names from the game"
+    assert built == [[str(install), str(tmp_path / "names")]] and job["result"]["names"] is True
+    wait(app.start_job(app.job_report, str(save), 1, without, False, str(install)))
+    assert len(built) == 1 and calls["collect"] == 1  # read once, and the career read is reused
+    later = os.path.getmtime(tmp_path / "names" / "competition_names.csv") + 10
+    os.utime(lang, (later, later))  # a game patch
+    wait(app.start_job(app.job_report, str(save), 1, without, False, str(install)))
+    assert len(built) == 2 and calls["collect"] == 2  # new names, so the career is read again
+
+
+def test_a_failed_names_read_still_makes_the_report(monkeypatch, tmp_path):
+    import fmcareer.names
+
+    fake_app(monkeypatch, tmp_path)
+    save, install = tmp_path / "a.fm", tmp_path / "FM26"
+    save.write_bytes(b"x")
+    lang = install / "shared" / "data" / "database" / "db" / "2600" / "2600_fm" / "lang_db.dat"
+    lang.parent.mkdir(parents=True)
+    lang.write_bytes(b"x")
+    monkeypatch.setattr(fmcareer.names, "main", lambda argv: (_ for _ in ()).throw(ValueError("bad file")))
+    job = wait(app.start_job(app.job_report, str(save), 1, {"sections": ["me"], "show": {}}, False, str(install)))
+    assert job["status"] == "done", job["error"]
+    assert job["result"]["names"] is False
+
+
+def test_names_status_says_what_to_do_next(monkeypatch, tmp_path):
+    import os
+
+    monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    install = tmp_path / "FM26"
+    assert app.names_status("") == "no_install"
+    install.mkdir()
+    assert app.names_status(str(install)) == "bad_install"  # a folder, but not the game's
+    lang = install / "shared" / "data" / "database" / "db" / "2600" / "2600_fm" / "lang_db.dat"
+    lang.parent.mkdir(parents=True)
+    lang.write_bytes(b"x")
+    assert app.names_status(str(install)) == "needed"
+    (tmp_path / "names").mkdir()
+    csv = tmp_path / "names" / "competition_names.csv"
+    csv.write_text("11,Premier League\n")
+    later = os.path.getmtime(lang) + 10
+    os.utime(csv, (later, later))
+    assert app.names_status(str(install)) == "ready"
+    os.utime(lang, (later + 10, later + 10))  # a game patch
+    assert app.names_status(str(install)) == "stale"
