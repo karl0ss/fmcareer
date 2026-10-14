@@ -16,6 +16,7 @@ from fmcareer.collect import (
     list_managers,
     manager_steps,
     manager_stints,
+    mark_seasons,
     move_kind,
     pyramid_of,
     read_names,
@@ -91,6 +92,37 @@ def test_position_only_rows_are_ignored():
     rows = [row(1, 2030, "B", 0, played=255), row(1, 2031, "A", 0)] * 3
     level, _ = league_levels(rows)
     assert level["B"] == 1
+
+
+def season(year, club, tier, position=5):
+    return dict(end_year=year, club_uid=club, tier=tier, position=position)
+
+
+def test_a_league_in_stages_is_one_level():
+    # Portugal's third division: a regional group (which the levels put at the top, as no club
+    # moves on from it), then the final stage, in the same season
+    league = [
+        season(2026, 1, 1, 10),
+        season(2026, 1, 3, 2),
+        season(2027, 1, 1, 3),
+        season(2027, 1, 3, 1),
+        season(2028, 1, 2),
+    ]
+    mark_seasons(league)
+    assert [r["tier"] for r in league] == [3, 3, 3, 3, 2]
+    assert not any(r["relegated"] for r in league)  # not "down" from the group to the final stage
+    assert [r["promoted"] for r in league] == [False, False, True, True, False]
+
+
+def test_seasons_up_down_and_moves():
+    league = [season(2030, 1, 2, 1), season(2031, 1, 1, 18), season(2032, 1, 2), season(2033, 2, 1)]
+    mark_seasons(league)
+    assert [(r["champion"], r["promoted"], r["relegated"], r["moved"]) for r in league] == [
+        (True, True, False, False),
+        (False, False, True, False),
+        (False, False, False, True),
+        (False, False, False, False),
+    ]
 
 
 class SpellSave:

@@ -547,6 +547,31 @@ class Career:
         )
 
 
+def mark_seasons(league: list[Record]) -> None:
+    """Each season's level, champion / promoted / relegated (by the club's level the next season)
+    and moved (a new club next), in place; `league` is in season order."""
+    # a league played in stages (Portugal's third division: regional groups, then a final stage)
+    # is two competitions in one season. No club moves from a first stage to another league the
+    # next season, so the levels put it at the top; but a club plays at one level a season, so
+    # a season's stages share the deepest level among them.
+    season_tier: dict[tuple[int, int], int] = {}
+    for r in league:
+        if r["tier"]:
+            key = (r["club_uid"], r["end_year"])
+            season_tier[key] = max(season_tier.get(key, 0), r["tier"])
+    for r in league:
+        r["tier"] = season_tier.get((r["club_uid"], r["end_year"]), r["tier"])
+    for i, r in enumerate(league):
+        # the next season's row: a season's other stage says nothing about going up or down
+        nxt = next((x for x in league[i + 1 :] if x["end_year"] > r["end_year"]), None)
+        same = nxt is not None and nxt["club_uid"] == r["club_uid"]
+        up_down = nxt["tier"] - r["tier"] if same and nxt and nxt["tier"] and r["tier"] else 0
+        r["champion"] = r["position"] == 1
+        r["promoted"] = up_down < 0
+        r["relegated"] = up_down > 0
+        r["moved"] = nxt is not None and not same
+
+
 def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], list[Record]]:
     """The manager's league seasons, each season's final table, and the pyramid's levels.
 
@@ -586,14 +611,7 @@ def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], li
                 )
             )
     league.sort(key=lambda r: r["end_year"])
-    for i, r in enumerate(league):
-        nxt = league[i + 1] if i + 1 < len(league) else None
-        same = nxt is not None and nxt["club_uid"] == r["club_uid"]
-        up_down = nxt["tier"] - r["tier"] if same and nxt and nxt["tier"] and r["tier"] else 0
-        r["champion"] = r["position"] == 1
-        r["promoted"] = up_down < 0
-        r["relegated"] = up_down > 0
-        r["moved"] = nxt is not None and not same
+    mark_seasons(league)
     # level sizes within the pyramid of the manager's latest league, then each row's overall rank
     home = pyramid_of(above, {league[-1]["competition_id"]}) if league else set()
     level_size = collections.defaultdict(int)
