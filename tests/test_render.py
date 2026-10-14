@@ -273,3 +273,23 @@ def test_every_theme_has_its_styles():
 
     css = web.read("report.css")
     assert all(f':root[data-theme="{t}"]' in css for t in THEMES if t != "fm26")
+
+
+def test_page_and_league_need_no_save_reader():
+    # fm-careers installs fmcareer without fmsave and imports only these two
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; sys.modules['fmsave'] = None\n"
+        "from fmcareer import league, page\n"
+        "assert 'fmcareer.collect' not in sys.modules"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_report_page_fills_like_render(sample):
+    from fmcareer import __version__, page, web
+
+    assert page.report(web.page("report"), sample, __version__) == render(sample)
+    assert page.no_em_dashes("Up \u2014 at last \u2014 in May") == "Up, at last, in May"

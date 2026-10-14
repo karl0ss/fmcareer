@@ -16,6 +16,7 @@ import urllib.request
 from typing import Any
 
 from fmcareer._types import Record, Step
+from fmcareer.page import no_em_dashes
 
 PROMPT_VERSION = 9  # bump when the prompts or facts change, so cached text is rewritten
 
@@ -341,7 +342,7 @@ def tidy(text: str | None) -> list[str]:
     """Model output as plain paragraphs: no thinking blocks, markdown or headings."""
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
     text = re.sub(r"\*\*|__|^#+\s*", "", text, flags=re.M)
-    text = re.sub(r"\s*—\s*", ", ", text)  # the report has no em dashes, whatever the model writes
+    text = no_em_dashes(text)
     paras = [re.sub(r"\s+", " ", p).strip() for p in re.split(r"\n\s*\n", text)]
     return [p for p in paras if p]
 

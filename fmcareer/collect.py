@@ -22,6 +22,7 @@ import fmsave
 from fmsave import LeagueHistorySeason, ManagerCareerRecord, ManagerEvent, Save, Staff
 
 from fmcareer._types import Record, Step
+from fmcareer.league import mark_seasons, rank
 
 warnings.simplefilter("ignore")
 log = logging.getLogger(__name__)  # into the app's log, under "fmcareer"
@@ -547,31 +548,6 @@ class Career:
         )
 
 
-def mark_seasons(league: list[Record]) -> None:
-    """Each season's level, champion / promoted / relegated (by the club's level the next season)
-    and moved (a new club next), in place; `league` is in season order."""
-    # a league played in stages (Portugal's third division: regional groups, then a final stage)
-    # is two competitions in one season. No club moves from a first stage to another league the
-    # next season, so the levels put it at the top; but a club plays at one level a season, so
-    # a season's stages share the deepest level among them.
-    season_tier: dict[tuple[int, int], int] = {}
-    for r in league:
-        if r["tier"]:
-            key = (r["club_uid"], r["end_year"])
-            season_tier[key] = max(season_tier.get(key, 0), r["tier"])
-    for r in league:
-        r["tier"] = season_tier.get((r["club_uid"], r["end_year"]), r["tier"])
-    for i, r in enumerate(league):
-        # the next season's row: a season's other stage says nothing about going up or down
-        nxt = next((x for x in league[i + 1 :] if x["end_year"] > r["end_year"]), None)
-        same = nxt is not None and nxt["club_uid"] == r["club_uid"]
-        up_down = nxt["tier"] - r["tier"] if same and nxt and nxt["tier"] and r["tier"] else 0
-        r["champion"] = r["position"] == 1
-        r["promoted"] = up_down < 0
-        r["relegated"] = up_down > 0
-        r["moved"] = nxt is not None and not same
-
-
 def countries(league: list[Record], above: dict[int, set[int]]) -> list[int]:
     """A number for each league row's country, in order of first appearance. The save gives
     competitions no nation, so a country is a league pyramid: a club's leagues, and every league
@@ -669,9 +645,7 @@ def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], li
         if r.games_played != 255 and r.competition_id in home:
             lv = level.get(r.competition_id)
             level_size[lv] = max(level_size[lv], r.total_teams)
-    for lr in league:
-        lv = lr["tier"]
-        lr["rank"] = sum(level_size[x] for x in range(1, lv)) + lr["position"] if lv else None
+    rank(league, level_size)
     # a move abroad: the chart marks where the leagues change country
     country = countries(league, above)
     for i, lr in enumerate(league):
