@@ -1,5 +1,7 @@
+/* the FM26 palette, as in the report: dark indigo with a purple-to-pink gradient on the main actions.
+   Barlow Condensed is a free condensed sans close to the game's own headings; Barlow matches it for text. */
 :root { color-scheme: dark; --bg: #0c0d24; --surface: #171936; --surface-2: #20234a; --line: #2c2f5e;
-  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #8486b4; --accent: #c77dff; --accent-2: #e04fd0;
+  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #9396c3; --accent: #c77dff; --accent-2: #c23aae;
   --up: #8be04e; --down: #ff6b7a; --head: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Barlow", system-ui, sans-serif; }
@@ -23,6 +25,7 @@ button:disabled { opacity: .45; cursor: default; }
 .item { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .item:last-child { border-bottom: 0; } .item:hover { background: var(--surface-2); }
 .item.on { background: #33275e; box-shadow: inset 3px 0 0 var(--accent); }
+.item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .item .m { color: var(--text-3); font-size: 13px; white-space: nowrap; }
 .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #33275e; color: var(--accent); margin-left: 6px; }
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }

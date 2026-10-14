@@ -20,7 +20,7 @@ const initials = name => (name || '?').replace(/\b(FC|AFC|City|Town|United)\b/g,
 const crest = (uid, name, cls = '') => pic('club', uid, cls) || `<span class="crest ${cls}">${esc(initials(name))}</span>`;
 const face = (id, cls = '') => pic('person', id, 'face ' + cls);
 
-// ---- every player who played for the manager: seasons, totals, moves
+// every player who played for the manager: seasons, totals, moves
 const pkey = p => p.person_id != null ? 'p' + p.person_id : 'n' + p.name;
 const PL = {};
 const plOf = p => PL[pkey(p)] ||= {key: pkey(p), name: p.name, person_id: p.person_id, current: false, seasons: [], moves: [],
@@ -56,7 +56,7 @@ const linkText = html => html.replace(LINKS, (m, season, name) => season
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const short = name => name.replace(/^English /, '');
 
-// ---- derived, per season
+// derived, per season
 // overall rank in the league pyramid (levels inferred from the save; 1 = top of the top division)
 const LV = D.levels || [];
 const pyramid = r => r.rank;
@@ -137,7 +137,7 @@ function seasonStory(r) {
   return groups.filter(g => g.length).map(g => g.join(' '));
 }
 
-// ---- navigation and routing
+// navigation and routing
 const SECTIONS = OPT.sections || ['me', 'seasons', 'players', 'records', 'honours', 'transfers', 'club'];
 const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Players'], ['records', 'Records'], ['honours', 'Honours & cups'], ['transfers', 'Transfers'], ['club', 'Club today']]
   .filter(([id]) => SECTIONS.includes(id) && (id !== 'club' || D.club_today));
@@ -159,7 +159,12 @@ document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? cres
       grp[0] += r; grp[1] += gg; grp[2] += b; grp[3]++;
     }
     const best = Object.values(groups).sort((x, y) => y[3] - x[3])[0];
-    if (best) document.documentElement.style.setProperty('--club', `rgb(${best[0] / best[3] | 0},${best[1] / best[3] | 0},${best[2] / best[3] | 0})`);
+    if (!best) return;
+    // darkened until white text on it reaches 4.5:1 (a yellow badge would otherwise give 2:1)
+    const lum = c => c.map(v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0);
+    let rgb = best.slice(0, 3).map(v => v / best[3]);
+    while (1.05 / (lum(rgb) + .05) < 4.5) rgb = rgb.map(v => v * .92);
+    document.documentElement.style.setProperty('--club', `rgb(${rgb.map(v => v | 0).join(',')})`);
   } catch (e) {} }; im.src = src; })();
 document.getElementById('asof').textContent = M.game_date ? 'As of ' + fmtDate(M.game_date) : '';
 document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#${id}" data-nav="${id}">${label}</a>`).join('');
@@ -203,7 +208,7 @@ document.addEventListener('click', e => {
   if (tr && !e.target.closest('a')) location.hash = tr.dataset.href;
 });
 
-// ---- climb chart (single series, inverted, tier bands; click a season to open it)
+// climb chart (single series, inverted, tier bands; click a season to open it)
 function climbChart(highlight) {
   const W = 960, H = 320, ml = 190, mr = 16, mt = 10, mb = 34;
   const maxRank = Math.max(2, LV.reduce((a, l) => a + l.size, 0), ...L.map(r => r.rank || 0));
@@ -236,19 +241,21 @@ function climbChart(highlight) {
   return {html: s, wire(box) {
     const tip = box.querySelector('.tip'), cross = box.querySelector('.cross'), svg = box.querySelector('svg');
     box.querySelectorAll('.hit').forEach(h => {
-      h.addEventListener('mouseenter', () => {
+      const show = () => {
         const r = L[+h.dataset.i], cx = x(+h.dataset.i), sc = svg.clientWidth / W;
         cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', .5);
         tip.innerHTML = `<b>${r.season}</b> · ${esc(r.club)}<br>${esc(r.competition)}${r.tier ? ` · tier ${r.tier}` : ''}<br>${ord(r.position)} of ${r.teams} · ${r.points} pts<br><span class="muted">Click to open the season review</span>`;
         tip.style.left = Math.min(Math.max(0, cx * sc - 100), svg.clientWidth - 220) + 'px';
         tip.style.top = (y(pyramid(r)) * sc + 14) + 'px'; tip.style.opacity = 1;
-      });
-      h.addEventListener('mouseleave', () => { tip.style.opacity = 0; cross.setAttribute('opacity', 0); });
+      };
+      const hide = () => { tip.style.opacity = 0; cross.setAttribute('opacity', 0); };
+      h.addEventListener('mouseenter', show); h.addEventListener('mouseleave', hide);
+      h.parentNode.addEventListener('focus', show); h.parentNode.addEventListener('blur', hide);
     });
   }};
 }
 
-// ---- the career in words: the overview's lede, and the Report page's own articles
+// the career in words: the overview's lede, and the Report page's own articles
 const stintYears = st => `${st.start ? st.start.slice(0, 4) : '?'}–${st.end ? st.end.slice(0, 4) : ''}`;
 const listing = items => items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
 function careerLede() {
@@ -293,7 +300,7 @@ const seasonArticle = r => articleFrom(AI && AI.seasons[r.season], () => ({headl
 const outcome = r => [r.champion && '<span class="badge gold">Champions</span>', r.promoted && '<span class="badge up">Promoted</span>',
   r.relegated && '<span class="badge down">Relegated</span>'].filter(Boolean).join('').replace('class="badge', 'class="badge first');
 
-// ---- page: career overview
+// page: career overview
 function pageMe() {
   const winRate = Math.round(100 * totals.won / Math.max(1, totals.played));
   const first = L[0], last = L[L.length - 1];
@@ -360,7 +367,7 @@ function pageMe() {
   chart.wire(document.getElementById('climb'));
 }
 
-// ---- page: seasons grid
+// page: seasons grid
 function pageSeasons() {
   view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge, earliest first. Open one for the full review.</p>
     <ol class="timeline" style="margin-top:20px">${L.map(s => {
@@ -371,7 +378,7 @@ function pageSeasons() {
     }).join('')}</ol>`;
 }
 
-// ---- page: season review (tabs: summary, final table, squad, transfers)
+// page: season review (tabs: summary, final table, squad, transfers)
 function pageSeason(arg, tab = 'summary') {
   const season = (arg || '').replace('-', '/'), r = seasonRow(season);
   if (!r) { view.innerHTML = `<p>Season not found. <a href="#seasons">All seasons</a></p>`; return; }
@@ -446,11 +453,11 @@ function pageSeason(arg, tab = 'summary') {
   if (climb) { const chart = climbChart(season); climb.innerHTML = chart.html; chart.wire(climb); }
 }
 
-// ---- page: honours and cups
+// page: honours and cups
 function pageHonours() {
   view.innerHTML = `<h1>Honours & cup runs</h1>
     <h2>Trophies</h2>
-    <div class="cabinet">${CABINET.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('')}</div>
+    <div class="cabinet">${CABINET.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
     <h2>Every cup run</h2>
     <div class="controls"><label><input type="checkbox" id="youth"> Include youth competitions</label></div>
     <div class="card scroll"><table><thead><tr><th>Season</th><th>Competition</th><th>Outcome</th></tr></thead><tbody id="cupbody"></tbody></table></div>`;
@@ -459,12 +466,13 @@ function pageHonours() {
     document.getElementById('cupbody').innerHTML = D.cups.filter(c => y || !c.youth).map(c => `<tr class="click" data-href="season/${slug(c.season)}"><td>${c.season}</td><td>${esc(c.competition)}</td><td>${
       c.won ? `<span class="badge gold first">Won</span> final v ${esc(c.opponent || '?')}${c.method ? ' ' + c.method : ''}` :
       c.league_stage ? `<span class="muted">League-format stage${c.position != null ? ', ' + ord(c.position + 1) : ''}</span>` :
-      `Knocked out by ${esc(c.opponent || 'unknown')}${c.method ? ' <span class="muted">' + c.method + '</span>' : ''}`}</td></tr>`).join('');
+      `Knocked out by ${esc(c.opponent || 'unknown')}${c.method ? ' <span class="muted">' + c.method + '</span>' : ''}`}</td></tr>`).join('')
+      || `<tr><td colspan="3" class="muted">${!y && D.cups.some(c => c.youth) ? 'No senior cup runs recorded. Tick Include youth competitions to see the youth ones.' : 'No cup runs recorded.'}</td></tr>`;
   };
   document.getElementById('youth').onchange = draw; draw();
 }
 
-// ---- page: transfers
+// page: transfers
 function pageTransfers() {
   const T = D.transfers, seasons = [...new Set(T.map(t => t.season))].sort();
   const count = (s, f) => T.filter(t => t.season === s && f(t)).length;
@@ -483,9 +491,9 @@ function pageTransfers() {
     </tbody></table></div>
     <h2>Every move</h2>
     <div class="controls">
-      <select id="ts"><option value="">All seasons</option>${seasons.map(s => `<option>${s}</option>`).join('')}</select>
-      <select id="td"><option value="">In and out</option><option value="in">Incoming</option><option value="out">Outgoing</option></select>
-      <select id="tt"><option value="">All types</option>${[...new Set(T.map(t => t.type))].sort().map(t => `<option>${t}</option>`).join('')}</select>
+      <select id="ts" aria-label="Season"><option value="">All seasons</option>${seasons.map(s => `<option>${s}</option>`).join('')}</select>
+      <select id="td" aria-label="Direction"><option value="">In and out</option><option value="in">Incoming</option><option value="out">Outgoing</option></select>
+      <select id="tt" aria-label="Type of move"><option value="">All types</option>${[...new Set(T.map(t => t.type))].sort().map(t => `<option>${t}</option>`).join('')}</select>
     </div>
     ${showBar()}
     <div id="moves"></div>`;
@@ -509,7 +517,7 @@ function pageTransfers() {
   [ts, td, tt].forEach(e => e.onchange = draw); draw();
 }
 
-// ---- page: the current club today
+// page: the current club today
 function balanceChart(H) {
   if (!H || H.length < 2) return '';
   const W = 960, Ht = 220, ml = 70, mr = 16, mt = 12, mb = 28;
@@ -561,28 +569,30 @@ function pageClub(tab = 'overview', team) {
       <div class="card tile"><div class="v">${money(T.sponsors.annual)}</div><div class="k">Sponsorship a year</div><div class="s">${plural(T.sponsors.count, 'deal')}</div></div>
       <div class="card tile"><div class="v">${T.staff}</div><div class="k">Staff</div><div class="s">${T.corporate_facilities ? 'Corporate facilities: ' + esc(T.corporate_facilities) : ''}</div></div>
     </div>
-    <div class="card chart" style="margin-top:12px">${balanceChart(T.balance_history)}</div>
-    <p class="note">Bank balance at each month end the save keeps (${T.balance_history.length} months).</p>` : '<p class="muted">No finance records.</p>'}
+    ${T.balance_history.length >= 2 ? `<div class="card chart" style="margin-top:12px">${balanceChart(T.balance_history)}</div>
+    <p class="note">Bank balance at each month end the save keeps (${T.balance_history.length} months).</p>`
+      : '<p class="note">The save keeps too few month-end balances to chart yet.</p>'}` : '<p class="muted">No finance records.</p>'}
     ${T.tactics.length ? `<h2>Tactics</h2><div class="card"><ul class="list">${T.tactics.map(x => `<li><span><b>${esc(x.name)}</b></span><span class="muted">${esc(x.style || '')}${x.mentality ? ' · ' + esc(x.mentality) : ''}</span></li>`).join('')}</ul></div>` : ''}` : ''}
-    ${tab === 'table' && live ? `<h2>${pic('comp', live.competition_db)}${esc(live.competition || 'League')} — live table</h2>
+    ${tab === 'table' && live ? `<h2>${pic('comp', live.competition_db)}${esc(live.competition || 'League')}: live table</h2>
     <div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n o">GF</th><th class="n o">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
       ${live.rows.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${crest(t.club_uid, t.club)}${esc(t.club || '?')}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n o">${t.goals_for}</td><td class="n o">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
     </tbody></table></div>` : ''}
     ${tab === 'squad' ? squadTabs(T, team, money) : ''}`;
 }
 
-// ---- page: all players
+// page: all players
 function pagePlayers() {
   view.innerHTML = `<h1>Players</h1><p class="lede">Everyone who played league, cup or continental football under ${esc(M.name)}: ${PLIST.length} players. Click a column to sort, a name for the full record.</p>
-    <div class="controls"><input id="pq" placeholder="Search players" style="font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px">
+    <div class="controls"><input id="pq" placeholder="Search players" aria-label="Search players" style="font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px">
     <label><input type="checkbox" id="pcur"> Current squad only</label></div>
-    <div class="card scroll"><table><thead><tr>${[['name','Player'],['seasons','Seasons'],['apps','Apps'],['goals','Goals'],['assists','Assists'],['rating','Avg'],['pom','PoM'],['paid','Fee paid'],['sold','Fee received']].map(([k, l], i) => `<th class="${i ? 'n' : ''}${['seasons', 'assists', 'pom', 'paid', 'sold'].includes(k) ? ' o' : ''}" data-k="${k}" style="cursor:pointer">${l}</th>`).join('')}</tr></thead><tbody id="pbody"></tbody></table></div>
+    <div class="card scroll"><table><thead><tr>${[['name','Player'],['seasons','Seasons'],['apps','Apps'],['goals','Goals'],['assists','Assists'],['rating','Avg'],['pom','PoM'],['paid','Fee paid'],['sold','Fee received']].map(([k, l], i) => `<th class="${i ? 'n' : ''}${['seasons', 'assists', 'pom', 'paid', 'sold'].includes(k) ? ' o' : ''}" data-k="${k}"><button type="button" class="sort">${l}</button></th>`).join('')}</tr></thead><tbody id="pbody"></tbody></table></div>
     <div id="pmore"></div>
     <p class="note">Players marked Partial have only best-18 records left for some seasons (the game deletes most statistics of retired players), so their totals are incomplete.</p>`;
   let key = 'apps', dir = -1, all = false;
   const FIRST = 30;
   const val = (P, k) => k === 'seasons' ? P.seasons.length : k === 'name' ? P.name : P[k] ?? -1;
   const draw = () => {
+    view.querySelectorAll('th[data-k]').forEach(th => th.setAttribute('aria-sort', th.dataset.k !== key ? 'none' : dir > 0 ? 'ascending' : 'descending'));
     const q = document.getElementById('pq').value.toLowerCase(), cur = document.getElementById('pcur').checked;
     const list = PLIST.filter(P => (!q || P.name.toLowerCase().includes(q)) && (!cur || P.current))
       .sort((a, b) => { const x = val(a, key), y = val(b, key); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
@@ -599,7 +609,7 @@ function pagePlayers() {
   document.getElementById('pq').oninput = draw; document.getElementById('pcur').onchange = draw; draw();
 }
 
-// ---- page: one player
+// page: one player
 function pagePlayer(key) {
   const P = PL[key];
   if (!P) { view.innerHTML = '<p>Player not found. <a href="#players">All players</a></p>'; return; }
@@ -626,15 +636,15 @@ function pagePlayer(key) {
     ${P.moves.length ? `<h2>Moves</h2><div class="card"><ul class="list">${P.moves.map(t => `<li><span>${fmtDate(t.date)} · ${t.type} ${t.direction === 'in' ? 'from' : 'to'} ${t.other ? crest(t.other_uid, t.other) + esc(t.other) : 'no club'}</span><span>${t.fee ? '<b>' + moneyShort(t.fee) + '</b>' : '<span class="muted">' + (t.type === 'Free' ? 'Free' : '–') + '</span>'}</span></li>`).join('')}</ul></div>` : ''}`;
 }
 
-// ---- page: records
+// page: records
 function pageRecords(tab) {
   if (!['players', 'seasons', 'transfers'].includes(tab)) tab = 'players';
   const top = (list, f, n = 10) => [...list].filter(x => f(x) != null && f(x) > 0).sort((a, b) => f(b) - f(a)).slice(0, n);
   const plist = (title, list, f, fmt = v => v, sub = () => '') => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((P, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(P.person_id)}<a href="#player/${encodeURIComponent(P.key)}">${esc(P.name)}</a>${P.current ? '<span class="badge accent">Current</span>' : ''}<span class="muted"> ${sub(P)}</span></td><td class="n"><b>${fmt(f(P))}</b></td></tr>`).join('') || '<tr><td class="muted">None</td></tr>'}</tbody></table></div>`;
   const seasonsRows = Object.entries(D.squad_stats || {}).flatMap(([season, rows]) => rows.map(p => ({...p, season, key: pkey(p)})));
-  const slist = (title, list, f, fmt = v => v) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((p, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(p.person_id)}<a href="#player/${encodeURIComponent(p.key)}">${esc(p.name)}</a> <a class="muted" href="#season/${slug(p.season)}">${p.season}</a></td><td class="n"><b>${fmt(f(p))}</b></td></tr>`).join('')}</tbody></table></div>`;
+  const slist = (title, list, f, fmt = v => v) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((p, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(p.person_id)}<a href="#player/${encodeURIComponent(p.key)}">${esc(p.name)}</a> <a class="muted" href="#season/${slug(p.season)}">${p.season}</a></td><td class="n"><b>${fmt(f(p))}</b></td></tr>`).join('') || '<tr><td class="muted">None</td></tr>'}</tbody></table></div>`;
   const moves = (D.transfers || []).filter(t => t.fee && !t.staff);
-  const mlist = (title, list) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((t, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(t.person_id)}${plink({...t, name: t.player})} <span class="muted">${t.direction === 'in' ? 'from' : 'to'} ${esc(t.other || '?')}, ${t.season}</span></td><td class="n"><b>${moneyShort(t.fee)}</b></td></tr>`).join('')}</tbody></table></div>`;
+  const mlist = (title, list) => `<div class="card scroll"><b>${title}</b><table><tbody>${list.map((t, i) => `<tr><td class="n muted" style="width:28px">${i + 1}</td><td>${face(t.person_id)}${plink({...t, name: t.player})} <span class="muted">${t.direction === 'in' ? 'from' : 'to'} ${esc(t.other || '?')}, ${t.season}</span></td><td class="n"><b>${moneyShort(t.fee)}</b></td></tr>`).join('') || '<tr><td class="muted">None</td></tr>'}</tbody></table></div>`;
   const byPts = [...L].sort((a, b) => b.points / b.played - a.points / a.played);
   const tile = (v, k, s) => `<div class="card tile"><div class="v">${v}</div><div class="k">${k}</div><div class="s">${s}</div></div>`;
   const gdBest = [...L].sort((a, b) => (b.goals_for - b.goals_against) - (a.goals_for - a.goals_against))[0];

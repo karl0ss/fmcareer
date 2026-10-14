@@ -17,7 +17,7 @@ from typing import Any
 
 from fmcareer._types import Record, Step
 
-PROMPT_VERSION = 8  # bump when the prompts or facts change, so cached text is rewritten
+PROMPT_VERSION = 9  # bump when the prompts or facts change, so cached text is rewritten
 
 RULES = """Write from the JSON facts the user gives you and nothing else: never invent players, \
 scores, dates, rounds, transfers, quotes or events, and leave out anything the facts don't say.
@@ -29,7 +29,7 @@ Never work out or state a gap, margin, difference or comparison yourself: use th
 (such as title_race) and nothing else.
 Format: the headline on the first line (no quotation marks, no label), a blank line, then \
 the article in paragraphs separated by blank lines. No subheadings, lists, bullet points or \
-markdown. Money is already written the way it should appear."""
+markdown, and no em dashes (use a comma, colon or full stop). Money is already written the way it should appear."""
 
 # "Reasoning: low" keeps gpt-oss style reasoning models from thinking for minutes; other
 # models ignore it. Exact word limits are avoided: reasoning models get stuck counting words.
@@ -76,7 +76,7 @@ def ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
-# ---- facts
+# facts
 
 
 def comparison(prev: Record, r: Record) -> str:
@@ -307,7 +307,7 @@ def career_facts(data: Record) -> Record:
     return facts
 
 
-# ---- the endpoint
+# the endpoint
 
 
 def _base(endpoint: str) -> str:
@@ -341,6 +341,7 @@ def tidy(text: str | None) -> list[str]:
     """Model output as plain paragraphs: no thinking blocks, markdown or headings."""
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
     text = re.sub(r"\*\*|__|^#+\s*", "", text, flags=re.M)
+    text = re.sub(r"\s*—\s*", ", ", text)  # the report has no em dashes, whatever the model writes
     paras = [re.sub(r"\s+", " ", p).strip() for p in re.split(r"\n\s*\n", text)]
     return [p for p in paras if p]
 

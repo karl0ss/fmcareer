@@ -39,7 +39,7 @@ const fmtSize = n => (n / 1048576).toFixed(0) + ' MB', fmtTime = t => new Date(t
 function drawSaves() {
   const q = $('saveFilter').value.toLowerCase();
   const list = state.saves.filter(s => s.name.toLowerCase().includes(q));
-  $('saves').innerHTML = list.map(s => `<div class="item ${chosenSave === s.path ? 'on' : ''}" data-path="${esc(s.path)}"><span>${esc(s.name)}</span><span class="m">${fmtTime(s.modified)} · ${fmtSize(s.size)}</span></div>`).join('')
+  $('saves').innerHTML = list.map(s => `<div class="item ${chosenSave === s.path ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${chosenSave === s.path}" data-path="${esc(s.path)}"><span>${esc(s.name)}</span><span class="m">${fmtTime(s.modified)} · ${fmtSize(s.size)}</span></div>`).join('')
     || `<div class="item muted">No .fm files in that folder.</div>`;
   $('loadManagers').disabled = !chosenSave;
   $('saveChosen').textContent = chosenSave ? chosenSave : '';
@@ -47,7 +47,7 @@ function drawSaves() {
 function drawManagers() {
   const q = $('managerFilter').value.toLowerCase();
   const list = managers.filter(m => !q || m.name.toLowerCase().includes(q) || (m.club || '').toLowerCase().includes(q)).slice(0, 300);
-  $('managers').innerHTML = list.map(m => `<div class="item ${chosenManager === m.staff_uid ? 'on' : ''}" data-uid="${m.staff_uid}"><span>${esc(m.name)}${m.human ? '<span class="badge">You</span>' : ''} <span class="muted">${esc(m.club || '')}</span></span><span class="m">${m.games} games · W${m.wins} D${m.draws} L${m.losses}</span></div>`).join('')
+  $('managers').innerHTML = list.map(m => `<div class="item ${chosenManager === m.staff_uid ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${chosenManager === m.staff_uid}" data-uid="${m.staff_uid}"><span>${esc(m.name)}${m.human ? '<span class="badge">You</span>' : ''} <span class="muted">${esc(m.club || '')}</span></span><span class="m">${m.games} games · W${m.wins} D${m.draws} L${m.losses}</span></div>`).join('')
     || `<div class="item muted">No manager matches.</div>`;
   $('generate').disabled = chosenManager == null;
 }
@@ -108,8 +108,14 @@ async function refresh() {
   drawSaves(); drawOptions(); drawReports(); drawNames(); drawThemes(); drawAI();
 }
 $('saves').onclick = e => { const it = e.target.closest('[data-path]'); if (!it) return; chosenSave = it.dataset.path; remember('save', chosenSave);
-  managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers(); };
-$('managers').onclick = e => { const it = e.target.closest('[data-uid]'); if (!it) return; chosenManager = +it.dataset.uid; drawManagers(); };
+  managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers();
+  $('saves').querySelector(`[data-path="${CSS.escape(chosenSave)}"]`)?.focus(); };
+$('managers').onclick = e => { const it = e.target.closest('[data-uid]'); if (!it) return; chosenManager = +it.dataset.uid; drawManagers();
+  $('managers').querySelector(`[data-uid="${chosenManager}"]`)?.focus(); };
+// the save and manager rows are picked with Enter or Space too
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.item[role=button]')) { e.preventDefault(); e.target.click(); }
+});
 $('saveFilter').oninput = drawSaves; $('managerFilter').oninput = drawManagers;
 $('aiSave').onclick = async () => {
   try { await api('/api/settings', aiFields()); await refresh();

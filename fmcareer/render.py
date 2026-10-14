@@ -31,6 +31,6 @@ def footer() -> str:
 
 def render(data: Record) -> str:
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    title = html.escape(f"{data['manager']['name']} — Career History")
+    title = html.escape(f"{data['manager']['name']}: career history")
     theme = (data.get("options") or {}).get("theme")
     return web.page("report", THEME=theme if theme in THEMES else "fm26", TITLE=title, FOOTER=footer(), DATA=payload)

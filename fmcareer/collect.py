@@ -467,7 +467,7 @@ class Career:
             st["from"] = st["start"] or history_start
         self.current = next((st for st in self.stints if st["end"] is None), None)
 
-    # ---- spells
+    # spells
 
     def stint_for(self, day: dt.date) -> Record | None:
         """The stint covering a date, else None."""
@@ -489,7 +489,7 @@ class Career:
         st = self.stint_for_season(end_year)
         return st is not None and st["club_uid"] == club_uid
 
-    # ---- people
+    # people
 
     def read_people(self) -> None:
         """Names and photo ids: current players, then retired people found in game_db."""

@@ -65,7 +65,7 @@ INSTALL_GUESSES = [
 ]
 
 
-# ---- settings
+# settings
 
 
 def load_settings() -> Record:
@@ -124,7 +124,7 @@ def names_needed(install: str) -> bool:
     return bool(files) and (not csv.exists() or csv.stat().st_mtime < max(os.path.getmtime(f) for f in files))
 
 
-# ---- what was read from a save, kept on disk so the same save opens fast next time.
+# what was read from a save, kept on disk so the same save opens fast next time.
 # Keys cover the save file (path, size, modified time), the names files and the code
 # that reads it, so a new save, new names or a new fmcareer/fmsave never reuse old data.
 
@@ -215,7 +215,7 @@ def list_reports() -> list[Record]:
     return out
 
 
-# ---- the log: each run's jobs, steps and failures, for attaching to a bug report.
+# the log: each run's jobs, steps and failures, for attaching to a bug report.
 # It rotates, so it stays small; the download hides the home folder and never has the AI token.
 
 log = logging.getLogger("fmcareer")
@@ -277,7 +277,7 @@ def describe(args: tuple[Any, ...]) -> str:
     return ", ".join(str(a) for a in shown)
 
 
-# ---- background jobs (one heavy job at a time; the last opened save is kept)
+# background jobs (one heavy job at a time; the last opened save is kept)
 
 JOBS: dict[str, Record] = {}
 KEEP_JOBS = 50  # finished jobs kept for the page to read; older ones are dropped
@@ -556,7 +556,7 @@ def job_report(
     )
 
 
-# ---- HTTP
+# HTTP
 
 
 class Handler(http.server.BaseHTTPRequestHandler):

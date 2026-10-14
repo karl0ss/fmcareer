@@ -17,9 +17,9 @@ __STYLE__
   <h2><span class="n">1</span>Folders</h2>
   <div class="card">
     <div class="row">
-      <div><label class="f">Saves folder (where your .fm files are)</label><input type="text" id="savesDir"></div>
-      <div><label class="f">Football Manager 26 install folder (for names, badges and photos)</label><input type="text" id="install"></div>
-      <div><label class="f">Graphics folder (logo and face packs; optional)</label><input type="text" id="graphics"></div>
+      <div><label class="f" for="savesDir">Saves folder (where your .fm files are)</label><input type="text" id="savesDir"></div>
+      <div><label class="f" for="install">Football Manager 26 install folder (for names, badges and photos)</label><input type="text" id="install"></div>
+      <div><label class="f" for="graphics">Graphics folder (logo and face packs; optional)</label><input type="text" id="graphics"></div>
       <button class="ghost" id="saveSettings">Save folders</button>
     </div>
     <div class="actions"><span id="namesState" class="muted"></span><button class="ghost" id="buildNames">Read names from the game</button></div>
@@ -28,7 +28,7 @@ __STYLE__
 
   <h2><span class="n">2</span>Save</h2>
   <div class="card">
-    <input type="search" id="saveFilter" placeholder="Filter saves">
+    <input type="search" id="saveFilter" placeholder="Filter saves" aria-label="Filter saves">
     <div class="list" id="saves"></div>
     <div class="actions"><button id="loadManagers" disabled>Load managers</button>
       <label class="muted"><input type="checkbox" id="everyone"> Show all managers, not just human ones (slower)</label>
@@ -39,7 +39,7 @@ __STYLE__
 
   <h2><span class="n">3</span>Manager</h2>
   <div class="card">
-    <input type="search" id="managerFilter" placeholder="Search managers by name or club" disabled>
+    <input type="search" id="managerFilter" placeholder="Search managers by name or club" aria-label="Search managers by name or club" disabled>
     <div class="list" id="managers"><div class="item muted">Load a save's managers first.</div></div>
   </div>
 
@@ -58,9 +58,9 @@ __STYLE__
     <b class="group">AI writing</b>
     <label><input type="checkbox" id="aiOn"> Write the career feature (Career overview) and each season's article (season reviews) with an AI model</label>
     <div class="row" style="margin-top:12px">
-      <div><label class="f">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
-      <div><label class="f">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off"></div>
-      <div><label class="f">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist></div>
+      <div><label class="f" for="aiEndpoint">Endpoint (OpenAI-compatible)</label><input type="text" id="aiEndpoint" placeholder="http://localhost:11434/v1"></div>
+      <div><label class="f" for="aiToken">Token (if the endpoint needs one)</label><input type="password" id="aiToken" autocomplete="off"></div>
+      <div><label class="f" for="aiModel">Model</label><input type="text" id="aiModel" list="aiModels" autocomplete="off"><datalist id="aiModels"></datalist></div>
       <div class="actions" style="margin:0"><button class="ghost" id="aiSave">Save</button><button class="ghost" id="aiTest">Test</button></div>
     </div>
     <p class="muted" style="font-size:13px;margin:10px 0 0">Off, or where the model fails, the report writes its own articles from the same facts. Each season's facts, including names from your save, are sent to this endpoint. Text already written is reused.</p>

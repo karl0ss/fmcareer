@@ -1,9 +1,10 @@
 :root {
-  /* FM26-style palette: deep indigo panels, purple headings, lime and gold highlights */
+  /* FM26-style palette: deep indigo panels, purple headings, lime and gold highlights.
+     Barlow Condensed is a free condensed sans close to the game's own headings; Barlow matches it for text. */
   color-scheme: dark;
   --bg: #0c0d24; --surface: #171936; --surface-2: #20234a; --line: #2c2f5e;
-  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #8486b4;
-  --accent: #c77dff; --accent-soft: #33275e; --accent-2: #e04fd0;
+  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #9396c3;
+  --accent: #c77dff; --accent-soft: #33275e; --accent-2: #c23aae;
   --gold: #f4c54d; --gold-soft: #3b3220; --up: #8be04e; --up-soft: #23391f;
   --down: #ff6b7a; --down-soft: #3e1d2c; --band: #1c1e40; --club: #6b4bd6;
   --accent-3: #7b3cff; --bar-1: #14163a; --bar-2: #0f1130; --crest-end: #2a1f63;
@@ -13,20 +14,20 @@
 :root[data-theme="midnight"] {
   --bg: #07111f; --surface: #0f1e33; --surface-2: #162a45; --line: #23395a;
   --text: #eef4fb; --text-2: #a9bdd6; --text-3: #8199b8;
-  --accent: #5cc8ff; --accent-soft: #12324a; --accent-2: #2f7fff; --accent-3: #1f6fe0;
+  --accent: #5cc8ff; --accent-soft: #12324a; --accent-2: #1e66e0; --accent-3: #1f6fe0;
   --band: #0d1a2d; --bar-1: #0d1b30; --bar-2: #081426; --crest-end: #12325a;
 }
 :root[data-theme="pitch"] {
   --bg: #07150e; --surface: #0e2318; --surface-2: #153222; --line: #21452f;
   --text: #eefaf2; --text-2: #a9cdb6; --text-3: #82aa92;
-  --accent: #8ee67c; --accent-soft: #1c3a20; --accent-2: #2fbf71; --accent-3: #1f9e5c;
+  --accent: #8ee67c; --accent-soft: #1c3a20; --accent-2: #1a7f49; --accent-3: #17713f;
   --up: #5ee0b0; --up-soft: #15382d;
   --band: #0b1d13; --bar-1: #0d2418; --bar-2: #08180f; --crest-end: #14402a;
 }
 :root[data-theme="crimson"] {
   --bg: #120b0d; --surface: #1e1416; --surface-2: #2a1c1f; --line: #3b2a2d;
   --text: #f8f1f2; --text-2: #d1b9bd; --text-3: #a88d91;
-  --accent: #ff7a7a; --accent-soft: #3d1d22; --accent-2: #e8364f; --accent-3: #c41e3a;
+  --accent: #ff7a7a; --accent-soft: #3d1d22; --accent-2: #d42c46; --accent-3: #c41e3a;
   --down: #ffa94d; --down-soft: #3d2a17;
   --band: #1a1113; --bar-1: #22161a; --bar-2: #150d10; --crest-end: #4a1820;
 }
@@ -118,13 +119,14 @@ tr.click:hover td { background: var(--surface-2); }
 .list li:last-child { border-bottom: 0; }
 .list li > span:last-child { flex-shrink: 0; text-align: right; }
 .cabinet { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.trophy { border-left: 3px solid var(--gold); }
 .trophy .yr { color: var(--text-3); font-size: 13px; }
 .trophy .pic { display: block; margin: 6px 0 8px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+button.sort { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .chart { position: relative; overflow-x: auto; overflow-y: hidden; }
 .chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.chart a:focus-visible .hit { stroke: var(--accent); stroke-width: 2; }
 .tip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
   opacity: 0; transition: opacity .1s; white-space: nowrap; }

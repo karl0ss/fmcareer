@@ -176,3 +176,7 @@ def test_the_title_race_is_spelt_out(sample):
     me_top = [{"me": True, "points": 93}, {"me": False, "club": "Millwall", "points": 88}]
     assert writer.title_race({"club": "Example Town"}, me_top) == {"won_by_points": 5, "runner_up": "Millwall"}
     assert writer.title_race({"club": "Example Town"}, me_top[:1]) is None
+
+
+def test_tidy_replaces_em_dashes():
+    assert writer.tidy("Promoted — again—in style.") == ["Promoted, again, in style."]

@@ -92,7 +92,7 @@ def load(install: str, wanted: Iterable[ImageKey]) -> dict[str, str]:
     return out
 
 
-# ---- graphics packs
+# graphics packs
 
 _MAP = re.compile(r'<record\s+from="([^"]+)"\s+to="graphics/pictures/(club|person|comp)/(?:r-)?(\d+)/(\w+)"')
 _IMAGE_EXT = (".png", ".jpg", ".jpeg")
