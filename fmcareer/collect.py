@@ -15,7 +15,7 @@ import os
 import re
 import unicodedata
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import fmsave
@@ -1057,6 +1057,14 @@ def _label(coded: object) -> str | None:
     return label.name.replace("_", " ").capitalize()
 
 
+def running_sponsors(
+    rows: Iterable[fmsave.Sponsorship], club_uid: int, today: dt.date | None
+) -> list[fmsave.Sponsorship]:
+    """The club's sponsorship contracts still running on the save's date: ended ones often keep
+    an annual value, so summing every row overstates the income."""
+    return [x for x in rows if x.club_uid == club_uid and (today is None or x.end is None or x.end > today)]
+
+
 def club_now(
     s: Save,
     clubs: dict[int, fmsave.Club],
@@ -1074,7 +1082,7 @@ def club_now(
     stadium = next((x for x in s.stadiums() if club_uid in (x.home_club_uids or ())), None)
     months = sorted((f for f in s.finances() if f.club_uid == club_uid), key=lambda f: f.month)
     latest = months[-1] if months else None
-    sponsors = [x for x in s.sponsorships() if x.club_uid == club_uid]
+    sponsors = running_sponsors(s.sponsorships(), club_uid, s.info.game_date)
     facilities = next((x for x in s.facilities() if x.club_uid == club_uid), None)
     tactics = [
         dict(name=x.name, style=x.style_name, mentality=_label(x.mentality))

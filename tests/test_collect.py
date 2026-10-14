@@ -23,6 +23,7 @@ from fmcareer.collect import (
     pyramid_of,
     read_names,
     report_gaps,
+    running_sponsors,
     season_end_of,
     season_label,
     team_competitions,
@@ -394,3 +395,14 @@ def test_report_gaps_count_each_unnamed_thing_once():
     assert gaps["awards"]["count"] == gaps["clubs"]["count"] == gaps["players"]["count"] == 1
     assert "managers" not in gaps
     assert report_gaps({"league": [{"competition": "Premier League 2"}]}) == []
+
+
+def test_sponsorship_income_counts_only_running_contracts():
+    today = dt.date(2033, 12, 1)
+    rows = [
+        NS(club_uid=1, end=dt.date(2035, 6, 30), annual_value=400),  # running
+        NS(club_uid=1, end=dt.date(2031, 6, 30), annual_value=900),  # ended, value kept
+        NS(club_uid=1, end=None, annual_value=100),  # no end date: kept
+        NS(club_uid=2, end=dt.date(2035, 6, 30), annual_value=50),  # another club
+    ]
+    assert [x.annual_value for x in running_sponsors(rows, 1, today)] == [400, 100]
