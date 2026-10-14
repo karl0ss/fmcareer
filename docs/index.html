@@ -14,7 +14,7 @@
 <header class="bar"><div class="in">
   <a class="brand" href="#top"><img src="logo.svg" alt="">fmcareer</a>
   <nav aria-label="Sections">
-    <a href="#example">Example</a><a href="#download">Download</a><a href="#how">How to use</a><a href="https://github.com/karl0ss/fmcareer">GitHub</a>
+    <a href="#features">Features</a><a href="#example">Example</a><a href="#download">Download</a><a href="#how">How to use</a><a href="https://github.com/karl0ss/fmcareer">GitHub</a>
   </nav>
 </div></header>
 
@@ -32,13 +32,51 @@
     <p class="meta">Version __VERSION__ · Windows, macOS (Apple silicon) and Linux · <a href="#download">all downloads</a></p>
   </section>
 
-  <section id="example">
-    <h2>An example report</h2>
-    <p>This is a report fmcareer __VERSION__ made from a small made-up career (Alex Example, three seasons at
-      Old Rovers and Example Town), so you can click through every page. A report from your save also has
-      club badges, player photos and competition logos, read from your own game install.</p>
-    <div class="frame"><iframe src="example.html" title="Example fmcareer report" loading="lazy"></iframe></div>
-    <p class="note"><a href="example.html">Open the example on its own</a></p>
+  <section id="features">
+    <h2>What it does</h2>
+    <div class="features">
+      <article class="lead">
+        <h3>Straight from your save</h3>
+        <p>fmcareer reads the .fm file itself: every spell in charge, past league tables, squads, transfers with fees,
+          cup runs and awards. Nothing to type in, no screenshots. It works for any manager in the save, not just yours,
+          in any country, because it works out the league pyramid from how clubs move between leagues.</p>
+      </article>
+      <article>
+        <h3>Every season, reviewed</h3>
+        <p>Each season gets its own review: an article, the final league table, cup runs, honours, the whole squad's
+          statistics, the season's best 18 and its transfers.</p>
+        <a class="see" href="example.html#season/2031-32" target="example" data-see="#season/2031-32">See a season review</a>
+      </article>
+      <article>
+        <h3>Written up like the back pages</h3>
+        <p>A newspaper-style feature on the whole career and an article on every season, written from the facts.
+          Or connect a language model you choose, local or online, to write them; it is given only facts from your save.</p>
+        <a class="see" href="example.html#me" target="example" data-see="#me">See the career feature</a>
+      </article>
+      <article>
+        <h3>Your badges, your faces</h3>
+        <p>Club badges, player photos and competition logos come from your own game install, and from the logo and
+          face packs in your graphics folder, which win over the game's own, as they do in the game.</p>
+      </article>
+      <article>
+        <h3>The players and the records</h3>
+        <p>Everyone who played for you, with a page each, the club legends of your era, top scorers, best ratings,
+          and the biggest signings and sales.</p>
+        <a class="see" href="example.html#records" target="example" data-see="#records">See the records</a>
+      </article>
+      <article>
+        <h3>One file, any screen</h3>
+        <p>A report is a single HTML file with its images inside. It opens offline in any browser, on a phone too,
+          and you can keep it or send it to anyone. Six colour themes, one taken from your club's badge.</p>
+        <a class="see" href="#example">Try the themes</a>
+      </article>
+      <article id="share">
+        <h3>Share it</h3>
+        <p>Make a profile on fm-careers.co.uk and upload your report to give your career its own page and link.
+          Upload a newer report over it as the save goes on, and the link stays the same.</p>
+        <a class="see" href="https://fm-careers.co.uk">Go to fm-careers.co.uk</a>
+      </article>
+    </div>
   </section>
 
   <section id="pages">
@@ -52,8 +90,17 @@
       <dt>Transfers</dt><dd>Every move in and out, season by season, filterable by type.</dd>
       <dt>Club today</dt><dd>Finances with a bank balance chart, tactics, the live league table, and the squad by team.</dd>
     </dl>
-    <p class="note">A report is one HTML file with its images inside. It opens in any browser, offline, on a phone too,
-      so you can keep it or send it to someone. Six colour themes, including a light one and one taken from your club's badge.</p>
+  </section>
+
+  <section id="example">
+    <h2>An example report</h2>
+    <p>This is a report fmcareer __VERSION__ made from a small made-up career (Alex Example, three seasons at
+      Old Rovers and Example Town), so you can click through every page. A report from your save also has
+      club badges, player photos and competition logos, read from your own game install.</p>
+    <nav class="themes" aria-label="Colour theme of the example">__THEMES__</nav>
+    <div class="frame"><iframe src="example.html" name="example" title="Example fmcareer report" loading="lazy"></iframe></div>
+    <p class="note">You pick the theme when you make a report. Club colours takes its colour from your club's badge;
+      the example has no badge, so it shows the default. <a id="alone" href="example.html">Open the example on its own</a></p>
   </section>
 
   <section id="download">
@@ -105,11 +152,6 @@
       again, then the report's own article is used. Those facts, including names from your save, go only to the endpoint you set.</p>
   </section>
 
-  <section id="share">
-    <h2>Share it</h2>
-    <p>Make a profile on <a href="https://fm-careers.co.uk">fm-careers.co.uk</a> and upload your report to give your career
-      its own page and link. Upload a newer report over it as the save goes on, and the link stays the same.</p>
-  </section>
 </main>
 
 <footer><div class="in">
@@ -117,5 +159,23 @@
     <a href="https://github.com/karl0ss/fmcareer/issues">report a problem</a></span>
   <span>A fan-made tool, not affiliated with Sports Interactive or SEGA. Nothing from the game is distributed with it.</span>
 </div></footer>
+<script>
+// switching theme keeps the example on the page you were reading, and the "on its own" link follows the theme
+const frame = document.querySelector('iframe[name=example]'), alone = document.getElementById('alone');
+let file = 'example.html';
+document.querySelector('.themes').addEventListener('click', e => {
+  const a = e.target.closest('a[data-theme]'); if (!a) return;
+  e.preventDefault();
+  let hash = ''; try { hash = frame.contentWindow.location.hash; } catch (err) {}
+  file = a.getAttribute('href'); frame.src = file + hash; alone.href = file;
+  document.querySelectorAll('.themes a').forEach(x => x.toggleAttribute('aria-current', x === a));
+});
+// a feature's "See it" link opens that page of the example, in the theme picked, and brings it into view
+document.querySelectorAll('a[data-see]').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  frame.src = file + a.dataset.see;
+  document.getElementById('example').scrollIntoView();
+}));
+</script>
 </body>
 </html>

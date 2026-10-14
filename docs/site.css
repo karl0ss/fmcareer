@@ -77,3 +77,26 @@ footer .in { display: flex; flex-direction: column; gap: 4px; padding-top: 18px;
   .dl .row .btn { white-space: normal; overflow-wrap: anywhere; }
   .frame iframe { height: 70vh; }
 }
+
+/* the example's theme switcher: the report's own theme swatches */
+.themes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.themes a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px;
+  border: 1px solid var(--line); border-radius: 6px; color: var(--text-2); text-decoration: none; font: 600 15px var(--head); }
+.themes a:hover { border-color: var(--text-3); color: var(--text); }
+.themes a[aria-current] { border-color: var(--accent); color: var(--text); }
+.themes i { position: relative; width: 26px; height: 18px; border-radius: 3px; border: 1px solid rgba(255,255,255,.2); }
+.themes b { position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px; }
+
+/* features: ruled rows, two to a row, the first across the page as the lead */
+.features { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
+.features article { padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
+.features h3 { font: 700 24px/1.2 var(--head); margin: 0 0 6px; }
+.features p { margin: 0; color: var(--text-2); max-width: 60ch; }
+.features .lead { grid-column: 1 / -1; padding-bottom: 24px; }
+.features .lead h3 { font-size: clamp(30px, 4vw, 40px); }
+.features .lead p { font-size: 18px; max-width: 70ch; }
+.see { display: inline-block; margin-top: 10px; padding: 4px 0; font: 600 16px var(--head); }
+@media (max-width: 720px) {
+  .features { grid-template-columns: 1fr; }
+  .features .lead p { font-size: 16px; }
+}
