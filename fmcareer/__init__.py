@@ -5,7 +5,7 @@ which decodes the save; fmcareer joins the decoded tables into one career and
 renders it as a self-contained HTML page.
 """
 
-__version__ = "0.0.21"
+__version__ = "0.0.22"
 
 from typing import TYPE_CHECKING
 
