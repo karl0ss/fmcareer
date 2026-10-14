@@ -327,9 +327,9 @@ function pageMe() {
     ${(() => { const c = careerFeature(); return `<article class="card story news"><h2>${c.headline}</h2>${c.paragraphs.map(p => `<p>${linkText(p)}</p>`).join('')}</article>`; })()}
     <h2>League record</h2>
     <div class="tiles">
+      <div class="card tile"><div class="v">${CABINET.length}</div><div class="k">Trophies</div><div class="s">${CABINET.length - cupTrophies} league · ${cupTrophies} cup</div></div>
       <div class="card tile"><div class="v">${L.length}</div><div class="k">Seasons completed</div><div class="s">${totals.played} league games</div></div>
       <div class="card tile"><div class="v">${promotions}</div><div class="k">Promotions</div><div class="s">${plural(titles, 'league title')}</div></div>
-      <div class="card tile"><div class="v">${CABINET.length}</div><div class="k">Trophies</div><div class="s">${CABINET.length - cupTrophies} league · ${cupTrophies} cup</div></div>
       <div class="card tile"><div class="v">${winRate}%</div><div class="k">League win rate</div><div class="s">W${totals.won} D${totals.drawn} L${totals.lost} · ${totals.goals_for}–${totals.goals_against}</div></div>
       <div class="card tile"><div class="v">${awardWins.length}</div><div class="k">Manager awards</div><div class="s">${D.awards.length - awardWins.length} runner-up</div></div>
       <div class="card tile"><div class="v">${best ? ord(best.position) : '–'}</div><div class="k">Highest finish</div><div class="s">${best ? esc(best.competition) + ', ' + best.season : ''}</div></div>
@@ -344,7 +344,7 @@ function pageMe() {
       ${C.record_sale ? `<div class="card tile"><div class="v">${moneyShort(C.record_sale.fee)}</div><div class="k">Record sale</div><div class="s">${esc(C.record_sale.player)} to ${esc(C.record_sale.to_club || '?')}, ${fmtDate(C.record_sale.date)}</div></div>` : ''}
     </div>
     <p class="note">The game's own managerial stats. Agent fees paid: ${money(C.agent_fees)}.</p>` : ''}
-    <h2>The climb</h2>
+    <h2>League position by season</h2>
     <div class="card chart" id="climb">${chart.html}</div>
     <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
     <h2>Trophy cabinet</h2>
@@ -425,14 +425,14 @@ function pageSeason(arg, tab = 'summary') {
     <div class="card chart" id="climb"></div>`;
   };
 
-  const finalTable = () => table.length ? `<div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n o">GF</th><th class="n o">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-      ${table.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${t.me ? crest(r.club_uid, r.club) + esc(r.club) : t.club ? crest(t.club_uid, t.club) + esc(t.club) : '<span class="crest">?</span><span class="muted">Not yet identified</span>'}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n o">${t.goals_for}</td><td class="n o">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
+  const finalTable = () => table.length ? `<div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+      ${table.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${t.me ? crest(r.club_uid, r.club) + esc(r.club) : t.club ? crest(t.club_uid, t.club) + esc(t.club) : '<span class="crest">?</span><span class="muted">Not yet identified</span>'}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.goals_for}</td><td class="n">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
     </tbody></table></div>${unnamed ? `<p class="note">${plural(unnamed, 'club')} not identified yet: the save doesn't label past table rows with clubs, and naming them is work in progress.</p>` : ''}`
     : '<p class="muted">Table not available.</p>';
 
   const squad = () => `${squadRows.length ? `<h2>Full squad statistics</h2>
-    <div class="card scroll"><table><thead><tr><th>Player</th><th class="n">Apps</th><th class="n o">Starts</th><th class="n o">Sub</th><th class="n">Goals</th><th class="n">Assists</th><th class="n o">Mins</th><th class="n">Avg</th><th class="n o">PoM</th><th class="n o">YC</th><th class="n o">RC</th></tr></thead><tbody>
-      ${squadRows.map(p => `<tr><td>${face(p.person_id)}${plink(p)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n o">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n o">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n o">${num(p[k])}</td>`).join('')}</tr>`).join('')}
+    <div class="card scroll"><table><thead><tr><th>Player</th><th class="n">Apps</th><th class="n">Starts</th><th class="n">Sub</th><th class="n">Goals</th><th class="n">Assists</th><th class="n">Mins</th><th class="n">Avg</th><th class="n">PoM</th><th class="n">YC</th><th class="n">RC</th></tr></thead><tbody>
+      ${squadRows.map(p => `<tr><td>${face(p.person_id)}${plink(p)}${p.current ? '<span class="badge accent">Current</span>' : ''}${p.partial ? '<span class="badge" title="Only the best-eleven record survives for this player">Partial</span>' : ''}</td><td class="n">${p.apps}</td>${['starts', 'subs'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}<td class="n">${p.goals}</td><td class="n">${num(p.assists)}</td><td class="n">${p.minutes != null ? p.minutes.toLocaleString('en-GB') : '–'}</td><td class="n">${p.rating != null ? p.rating.toFixed(2) : '–'}</td>${['pom', 'yellow', 'red'].map(k => `<td class="n">${num(p[k])}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
     <p class="note">League, cup and continental games. ${squadRows.some(p => p.partial) ? 'The game deletes most of a player\'s statistics when he retires. Players marked Partial keep only their appearances, goals and rating from the season\'s best-18 record; retired players outside the best 18 are missing.' : 'Players who retired since may be missing.'}</p>` : ''}
     <h2>The season's best 18</h2>
@@ -486,8 +486,8 @@ function pageTransfers() {
       <div class="card tile"><div class="v">${T.filter(t => t.type === 'Loan' && t.direction === 'out').length}</div><div class="k">Loaned out</div></div>
     </div>
     <h2>By season</h2>
-    <div class="card scroll"><table><thead><tr><th>Season</th><th class="n">Signed</th><th class="n">Sold</th><th class="n o">Free to club</th><th class="n o">Released</th><th class="n o">Loaned out</th><th class="n">Spent</th><th class="n">Received</th></tr></thead><tbody>
-      ${seasons.map(s => `<tr class="click" data-href="season/${slug(s)}/transfers"><td>${s}</td><td class="n">${count(s, SIGN)}</td><td class="n">${count(s, SOLD)}</td><td class="n o">${count(s, FREE_OUT)}</td><td class="n o">${count(s, t => t.type === 'Released')}</td><td class="n o">${count(s, t => t.type === 'Loan' && t.direction === 'out')}</td><td class="n">${moneyShort(T.filter(t => t.season === s && t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0))}</td><td class="n">${moneyShort(T.filter(t => t.season === s && t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0))}</td></tr>`).join('')}
+    <div class="card scroll"><table><thead><tr><th>Season</th><th class="n">Signed</th><th class="n">Sold</th><th class="n">Free to club</th><th class="n">Released</th><th class="n">Loaned out</th><th class="n">Spent</th><th class="n">Received</th></tr></thead><tbody>
+      ${seasons.map(s => `<tr class="click" data-href="season/${slug(s)}/transfers"><td>${s}</td><td class="n">${count(s, SIGN)}</td><td class="n">${count(s, SOLD)}</td><td class="n">${count(s, FREE_OUT)}</td><td class="n">${count(s, t => t.type === 'Released')}</td><td class="n">${count(s, t => t.type === 'Loan' && t.direction === 'out')}</td><td class="n">${moneyShort(T.filter(t => t.season === s && t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0))}</td><td class="n">${moneyShort(T.filter(t => t.season === s && t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0))}</td></tr>`).join('')}
     </tbody></table></div>
     <h2>Every move</h2>
     <div class="controls">
@@ -499,8 +499,8 @@ function pageTransfers() {
     <div id="moves"></div>`;
   const ts = document.getElementById('ts'), td = document.getElementById('td'), tt = document.getElementById('tt'),
         out = document.getElementById('moves');
-  const row = t => `<tr><td class="o">${fmtDate(t.date)}</td><td>${t.direction === 'in' ? '<span class="badge up first">In</span>' : t.direction === 'out' ? '<span class="badge first">Out</span>' : '<span class="badge first">Internal</span>'}</td>
-        <td>${face(t.person_id)}${plink({...t, name: t.player})}</td><td class="o">${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`;
+  const row = t => `<tr><td>${fmtDate(t.date)}</td><td>${t.direction === 'in' ? '<span class="badge up first">In</span>' : t.direction === 'out' ? '<span class="badge first">Out</span>' : '<span class="badge first">Internal</span>'}</td>
+        <td>${face(t.person_id)}${plink({...t, name: t.player})}</td><td>${t.type}</td><td>${t.other ? crest(t.other_uid, t.other) : ''}${esc(t.other || (t.direction === 'out' ? 'No club' : '–'))}</td><td class="n">${t.fee ? moneyShort(t.fee) : '<span class="muted">–</span>'}</td></tr>`;
   // one folding section per season, newest first; only the newest (or the chosen season) starts open
   const draw = () => {
     const fs = ts.value, fd = td.value, ft = tt.value;
@@ -510,7 +510,7 @@ function pageTransfers() {
       const list = shown.filter(t => t.season === s), ins = list.filter(t => t.direction === 'in').length;
       const spent = list.filter(t => t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0);
       return `<details class="card fold"${i === 0 || fs ? ' open' : ''}><summary><b>${s}</b><span class="muted">${ins} in · ${list.length - ins} out${spent ? ' · ' + moneyShort(spent) + ' spent' : ''}</span></summary>
-        <div class="scroll"><table><thead><tr><th class="o">Date</th><th></th><th>Player</th><th class="o">Type</th><th>Club</th><th class="n">Fee</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div></details>`;
+        <div class="scroll"><table><thead><tr><th>Date</th><th></th><th>Player</th><th>Type</th><th>Club</th><th class="n">Fee</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div></details>`;
     }).join('') || '<p class="muted">No moves match.</p>';
     out.querySelectorAll('.scroll').forEach(box => box.classList.toggle('tall', box.querySelectorAll('tbody tr').length > TALL_ROWS));
   };
@@ -543,9 +543,9 @@ function squadTabs(T, team, money) {
   const cur = groups.find(g => teamSlug(g.name) === team) || groups[0];
   if (!cur) return '<p class="muted">No players.</p>';
   return `${groups.length > 1 ? tabBar('club/squad', groups.map(g => [teamSlug(g.name), `${esc(g.name)} <span class="count">${g.players.length}</span>`]), teamSlug(cur.name)).replace('class="tabs"', 'class="tabs sub"') : ''}
-    <div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n o">Potential</th><th class="n">Value</th><th class="n o">Wage p/w</th><th class="o">Contract</th><th class="o">Status</th></tr></thead><tbody>
+    <div class="card scroll"><table><thead><tr><th>Player</th><th>Pos</th><th class="n">Age</th><th class="n">Ability</th><th class="n">Potential</th><th class="n">Value</th><th class="n">Wage p/w</th><th>Contract</th><th>Status</th></tr></thead><tbody>
       ${cur.players.map(p => `<tr><td>${face(p.person_id)}${plink(p)}${p.on_loan ? '<span class="badge">On loan</span>' : ''}</td><td class="muted">${esc(p.positions || '')}</td><td class="n">${num(p.age)}</td>
-        <td class="n">${num(p.ability)}</td><td class="n o">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n o">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td class="o">${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted o">${esc(p.status || '')}</td></tr>`).join('')}
+        <td class="n">${num(p.ability)}</td><td class="n">${num(p.potential)}</td><td class="n">${money(p.value)}</td><td class="n">${p.wage ? '£' + p.wage.toLocaleString('en-GB') : '–'}</td><td>${p.contract_end ? fmtDate(p.contract_end) : '–'}</td><td class="muted">${esc(p.status || '')}</td></tr>`).join('')}
     </tbody></table></div>
     <p class="note">Ability and potential are the game's hidden 1–200 ratings, read straight from the save. Teams are named from the competitions they play in.</p>`;
 }
@@ -574,8 +574,8 @@ function pageClub(tab = 'overview', team) {
       : '<p class="note">The save keeps too few month-end balances to chart yet.</p>'}` : '<p class="muted">No finance records.</p>'}
     ${T.tactics.length ? `<h2>Tactics</h2><div class="card"><ul class="list">${T.tactics.map(x => `<li><span><b>${esc(x.name)}</b></span><span class="muted">${esc(x.style || '')}${x.mentality ? ' · ' + esc(x.mentality) : ''}</span></li>`).join('')}</ul></div>` : ''}` : ''}
     ${tab === 'table' && live ? `<h2>${pic('comp', live.competition_db)}${esc(live.competition || 'League')}: live table</h2>
-    <div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n o">GF</th><th class="n o">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
-      ${live.rows.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${crest(t.club_uid, t.club)}${esc(t.club || '?')}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n o">${t.goals_for}</td><td class="n o">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
+    <div class="card scroll"><table><thead><tr><th class="n">#</th><th>Club</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GF</th><th class="n">GA</th><th class="n">GD</th><th class="n">Pts</th></tr></thead><tbody>
+      ${live.rows.map(t => `<tr class="${t.me ? 'me' : ''}"><td class="n">${t.position}</td><td>${crest(t.club_uid, t.club)}${esc(t.club || '?')}</td><td class="n">${t.played}</td><td class="n">${t.won}</td><td class="n">${t.drawn}</td><td class="n">${t.lost}</td><td class="n">${t.goals_for}</td><td class="n">${t.goals_against}</td><td class="n">${t.goals_for - t.goals_against >= 0 ? '+' : ''}${t.goals_for - t.goals_against}</td><td class="n"><b>${t.points}</b></td></tr>`).join('')}
     </tbody></table></div>` : ''}
     ${tab === 'squad' ? squadTabs(T, team, money) : ''}`;
 }
@@ -585,7 +585,7 @@ function pagePlayers() {
   view.innerHTML = `<h1>Players</h1><p class="lede">Everyone who played league, cup or continental football under ${esc(M.name)}: ${PLIST.length} players. Click a column to sort, a name for the full record.</p>
     <div class="controls"><input id="pq" placeholder="Search players" aria-label="Search players" style="font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px">
     <label><input type="checkbox" id="pcur"> Current squad only</label></div>
-    <div class="card scroll"><table><thead><tr>${[['name','Player'],['seasons','Seasons'],['apps','Apps'],['goals','Goals'],['assists','Assists'],['rating','Avg'],['pom','PoM'],['paid','Fee paid'],['sold','Fee received']].map(([k, l], i) => `<th class="${i ? 'n' : ''}${['seasons', 'assists', 'pom', 'paid', 'sold'].includes(k) ? ' o' : ''}" data-k="${k}"><button type="button" class="sort">${l}</button></th>`).join('')}</tr></thead><tbody id="pbody"></tbody></table></div>
+    <div class="card scroll"><table><thead><tr>${[['name','Player'],['seasons','Seasons'],['apps','Apps'],['goals','Goals'],['assists','Assists'],['rating','Avg'],['pom','PoM'],['paid','Fee paid'],['sold','Fee received']].map(([k, l], i) => `<th class="${i ? 'n' : ''}" data-k="${k}"><button type="button" class="sort">${l}</button></th>`).join('')}</tr></thead><tbody id="pbody"></tbody></table></div>
     <div id="pmore"></div>
     <p class="note">Players marked Partial have only best-18 records left for some seasons (the game deletes most statistics of retired players), so their totals are incomplete.</p>`;
   let key = 'apps', dir = -1, all = false;
@@ -603,7 +603,7 @@ function pagePlayers() {
     document.getElementById('pbody').closest('.scroll').classList.toggle('tall', cut.length > TALL_ROWS);
     document.getElementById('pbody').innerHTML = cut
       .map(P => `<tr class="click" data-href="player/${encodeURIComponent(P.key)}"><td>${face(P.person_id)}<a href="#player/${encodeURIComponent(P.key)}">${esc(P.name)}</a>${P.current ? '<span class="badge accent">Current</span>' : ''}${P.partial ? '<span class="badge">Partial</span>' : ''}</td>
-        <td class="n o">${P.seasons.length}</td><td class="n">${P.apps}</td><td class="n">${P.goals}</td><td class="n o">${P.partial && !P.assists ? '–' : P.assists}</td><td class="n">${P.rating ? P.rating.toFixed(2) : '–'}</td><td class="n o">${P.partial && !P.pom ? '–' : P.pom}</td><td class="n o">${moneyShort(P.paid)}</td><td class="n o">${moneyShort(P.sold)}</td></tr>`).join('');
+        <td class="n">${P.seasons.length}</td><td class="n">${P.apps}</td><td class="n">${P.goals}</td><td class="n">${P.partial && !P.assists ? '–' : P.assists}</td><td class="n">${P.rating ? P.rating.toFixed(2) : '–'}</td><td class="n">${P.partial && !P.pom ? '–' : P.pom}</td><td class="n">${moneyShort(P.paid)}</td><td class="n">${moneyShort(P.sold)}</td></tr>`).join('');
   };
   view.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => { dir = key === th.dataset.k ? -dir : (th.dataset.k === 'name' ? 1 : -1); key = th.dataset.k; draw(); });
   document.getElementById('pq').oninput = draw; document.getElementById('pcur').onchange = draw; draw();

@@ -78,7 +78,7 @@ def view_of(text):
 
 
 PAGES = {
-    "me": ["Alex Example", "2 clubs so far", "The climb", "Second Division Manager of the Season"],
+    "me": ["Alex Example", "2 clubs so far", "League position by season", "Second Division Manager of the Season"],
     "seasons": ["2032/33", "First Division"],
     "season/2032-33": ["2032/33 season review", "Summary", "Out to Big City", "Where this season sits"],
     "season/2032-33/table": ["Final table", "Big City", "Not yet identified"],
@@ -111,7 +111,7 @@ def test_left_out_sections_leave_the_nav_and_fall_back(tmp_path, sample):
     text = dom(tmp_path, render(sample), "records")
     nav = text[text.find('id="nav"') : text.find("</nav>")]
     assert "Records" not in nav and "Seasons" in nav
-    assert "The climb" in view_of(text)  # the hidden page falls back to the first section
+    assert "League position by season" in view_of(text)  # the hidden page falls back to the first section
 
 
 @needs_chrome
