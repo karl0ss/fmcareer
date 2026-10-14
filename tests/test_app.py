@@ -142,6 +142,27 @@ def test_report_and_manager_jobs_plan_the_steps_they_report(monkeypatch, tmp_pat
         assert len(job["steps"]) - 1 == job["total"]  # every planned step, then Finished
 
 
+def test_a_report_says_what_it_has_without_a_name(monkeypatch, tmp_path):
+    fake_app(monkeypatch, tmp_path)
+    save = tmp_path / "a.fm"
+    save.write_bytes(b"x")
+    data = {
+        "manager": {"name": "Alex"},
+        "league": [{"competition": "Competition 5"}],
+        "stints": [],
+        "club_today": None,
+        "problems": [{"part": "Transfers", "error": "KeyError: 1"}],
+    }
+    monkeypatch.setattr(
+        app, "collect", lambda *a, progress, **k: [progress("x") for _ in range(app.COLLECT_STEPS)] and data
+    )
+    job = wait(app.start_job(app.job_report, str(save), 1, {"sections": ["me"], "show": {}}, False, None))
+    assert job["status"] == "done", job["error"]
+    r = job["result"]
+    assert r["gaps"] == [{"kind": "competitions", "count": 1, "examples": ["Competition 5"]}]
+    assert r["left_out"] == ["Transfers"] and r["names"] is False and r["version"] == app.__version__
+
+
 def fake_app(monkeypatch, tmp_path):
     """Jobs over a fake save: counts how often the slow readers run."""
     calls = {"open": 0, "collect": 0, "list": 0, "render": []}

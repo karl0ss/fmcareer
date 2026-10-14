@@ -1,0 +1,53 @@
+name: Something missing from my report
+description: The report was made, but has competitions, awards, players or clubs without names, or left a part out
+labels: [missing data]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sending this in. When fmcareer shows a number instead of a name (like
+        "Competition 1234" or "Award 56"), or leaves a part out, it's because it can't read
+        that part of your save yet. The fix comes from your save, so it and the log are
+        what we need.
+
+        If you used the **Open a ticket** link in the app, what's missing is already filled in below.
+  - type: input
+    id: version
+    attributes:
+      label: fmcareer version
+      description: Shown at the top of the app, e.g. v0.0.12.
+    validations:
+      required: true
+  - type: textarea
+    id: missing
+    attributes:
+      label: What's missing
+      description: What the app listed as missing, or what you noticed in the report (which page, which season).
+      placeholder: "3 competitions without a name (Competition 1301392, Stage 412, ...)"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: The log (fmcareer-log.txt)
+      description: |
+        In the app, click **Download the log**, then drag the file in here. Your home folder is
+        hidden in it and any AI token is never written to it.
+    validations:
+      required: true
+  - type: input
+    id: save
+    attributes:
+      label: Your save file
+      description: |
+        The `.fm` file in Documents\Sports Interactive\Football Manager 26\games. Saves are hundreds
+        of MB, too big to attach here, so upload it to Google Drive, Dropbox, OneDrive or WeTransfer
+        and paste the link. It is only used to work out the fix.
+      placeholder: https://drive.google.com/...
+    validations:
+      required: true
+  - type: textarea
+    id: career
+    attributes:
+      label: About your career
+      description: Anything unusual helps, e.g. which country's leagues, a national team job, a save carried over from an older version, lots of seasons.

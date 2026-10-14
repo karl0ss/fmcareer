@@ -312,6 +312,38 @@ def optional(part: str, problems: list[Record], fallback: Any, read: Callable[..
         return fallback
 
 
+# what the report shows when the save gives an id but no name (see the fallbacks below)
+PLACEHOLDERS = [
+    ("competitions", re.compile(r"(Competition|Stage|Level) -?\d+")),
+    ("awards", re.compile(r"Award -?\d+")),
+    ("clubs", re.compile(r"Club -?\d+")),
+    ("players", re.compile(r"Unknown player \(.*\)")),
+    ("managers", re.compile(r"Staff -?\d+")),
+]
+
+
+def report_gaps(data: Record) -> list[Record]:
+    """What made it into the report without a name: [{kind, count, examples}], one entry per
+    kind of placeholder, counting each distinct placeholder once. Articles, images and
+    options are left out of the search."""
+    found: dict[str, dict[str, None]] = {kind: {} for kind, _ in PLACEHOLDERS}
+
+    def walk(value: Any) -> None:
+        if isinstance(value, str):
+            for kind, pattern in PLACEHOLDERS:
+                if pattern.fullmatch(value):
+                    found[kind][value] = None
+        elif isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, list | tuple):
+            for v in value:
+                walk(v)
+
+    walk({k: v for k, v in data.items() if k not in ("ai", "images", "options")})
+    return [dict(kind=kind, count=len(seen), examples=list(seen)[:3]) for kind, seen in found.items() if seen]
+
+
 def collect(
     save_path: str,
     manager_name: str | None,

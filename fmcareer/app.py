@@ -32,7 +32,15 @@ from fmsave import Save
 
 from fmcareer import __version__, web
 from fmcareer._types import Record
-from fmcareer.collect import COLLECT_STEPS, DEFAULT_OPTIONS, collect, list_managers, manager_steps, open_save
+from fmcareer.collect import (
+    COLLECT_STEPS,
+    DEFAULT_OPTIONS,
+    collect,
+    list_managers,
+    manager_steps,
+    open_save,
+    report_gaps,
+)
 from fmcareer.render import THEMES, footer, render
 
 HOME = Path.home()
@@ -488,6 +496,12 @@ def job_report(
     slug = re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-")[:90]
     out = REPORTS / f"{slug}.html"
     out.write_text(render(data), encoding="utf-8")
+    # what the report shows without a name, so the user can see it and send it in
+    gaps = report_gaps(data)
+    for g in gaps:
+        log.warning("Report gap: %d %s without a name, e.g. %s", g["count"], g["kind"], ", ".join(g["examples"]))
+    for p in data.get("problems", []):
+        log.warning("Report left out %s: %s", p["part"], p.get("error", ""))
     return dict(
         file=out.name,
         manager=data["manager"]["name"],
@@ -495,6 +509,9 @@ def job_report(
         clubs=[st["club"] for st in data["stints"]],
         ai=ai_note,
         left_out=[p["part"] for p in data.get("problems", [])],
+        gaps=gaps,
+        names=names_dir() is not None,
+        version=__version__,
     )
 
 

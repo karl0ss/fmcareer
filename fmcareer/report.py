@@ -11,7 +11,7 @@ import argparse
 import json
 import time
 
-from fmcareer.collect import collect
+from fmcareer.collect import collect, report_gaps
 from fmcareer.render import THEMES, render
 
 SHOW_WORDS = {"Loan": "loans", "Trial": "trials", "Youth intake": "youth", "Released": "released", "staff": "staff"}
@@ -75,6 +75,10 @@ def main() -> None:
         f"{len(data['awards'])} awards, {len(data['best_eleven'])} best XIs, {len(data['transfers'])} moves "
         f"-> {a.out} ({time.time() - t:.0f}s)"
     )
+    for g in report_gaps(data):
+        print(f"Missing: {g['count']} {g['kind']} without a name, e.g. {', '.join(g['examples'])}")
+    for p in data.get("problems", []):
+        print(f"Missing: {p['part']} left out ({p['error']})")
 
 
 if __name__ == "__main__":

@@ -136,8 +136,34 @@ document.addEventListener('change', e => {
   if (e.target.dataset.show !== undefined) remember('show', Object.fromEntries([...document.querySelectorAll('#show [data-show]')].map(x => [x.dataset.show, x.checked])));
   if (e.target.id === 'images') remember('images', e.target.checked);
 });
+// What the report has without a name, or left out: shown big, with how to send it in.
+// Competitions and awards are only numbers until the names are read from the game, so
+// then the fix is in the user's hands; anything else is ours to fix, from their save.
+const GAP_WORDS = {competitions: ['competition', 'competitions'], awards: ['award', 'awards'], clubs: ['club', 'clubs'],
+  players: ['player', 'players'], managers: ['manager', 'managers']};
+function gapsPanel(r) {
+  const fromNames = g => !r.names && (g.kind === 'competitions' || g.kind === 'awards');
+  const ours = (r.gaps || []).filter(g => !fromNames(g)), theirs = (r.gaps || []).filter(fromNames);
+  const leftOut = r.left_out || [];
+  if (!ours.length && !theirs.length && !leftOut.length) return '';
+  const line = g => `<li>${g.count} ${GAP_WORDS[g.kind][g.count === 1 ? 0 : 1] || g.kind} without a name, shown as ${g.examples.map(x => `“${esc(x)}”`).join(', ')}${g.count > g.examples.length ? '…' : ''}</li>`;
+  let html = '<h3>This report is missing things</h3>';
+  if (theirs.length) html += `<p>Competition and award names haven't been read from the game yet, so these show as numbers:</p><ul>${theirs.map(line).join('')}</ul>
+    <p>Use <b>Read names from the game</b> in step 1, then generate the report again.</p>`;
+  if (ours.length || leftOut.length) {
+    const summary = [...ours.map(g => `${g.count} ${g.kind} without a name (${g.examples.join(', ')})`), ...leftOut.map(p => `left out: ${p}`)].join('\n');
+    const ticket = `${ISSUES}/new?template=missing_data.yml&title=${encodeURIComponent('Missing from my report: ' + [...ours.map(g => g.kind), ...leftOut].join(', '))}`
+      + `&version=${encodeURIComponent('v' + r.version)}&missing=${encodeURIComponent(summary)}`;
+    html += `<p>fmcareer couldn't read these from your save:</p><ul>${ours.map(line).join('')}${leftOut.map(p => `<li>${esc(p)}: left out of the report</li>`).join('')}</ul>
+      <p>That's something we can fix, but we need your save to do it. Please:</p>
+      <ol><li><a href="/api/log" download="fmcareer-log.txt">Download the log</a> (your home folder is hidden in it).</li>
+      <li>Upload your save (the <code>.fm</code> file) to Google Drive, Dropbox, OneDrive or WeTransfer and copy the link.</li>
+      <li><a href="${ticket}" target="_blank" rel="noopener">Open a ticket</a>: it's filled in with what's missing; drop the log in and paste the save's link.</li></ol>`;
+  }
+  return html;
+}
 $('generate').onclick = async () => {
-  $('generate').disabled = true; $('genState').textContent = 'Working…';
+  $('generate').disabled = true; $('genState').textContent = 'Working…'; $('gaps').innerHTML = '';
   try {
     const {job} = await api('/api/report', {save: chosenSave, staff_uid: chosenManager,
       sections: [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec),
@@ -146,8 +172,8 @@ $('generate').onclick = async () => {
     const r = await follow(job, $('genLog'));
     const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} articles.`
       : ` AI wrote ${r.ai.written} of ${r.ai.pieces} articles; the report wrote the rest (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
-    const leftOut = r.left_out && r.left_out.length ? ` <span class="err">Left out, as they couldn't be read from this save: ${esc(r.left_out.join(', '))}. <a href="/api/log" download="fmcareer-log.txt">Download the log</a> and attach it to <a href="${ISSUES}" target="_blank" rel="noopener">an issue</a>.</span>` : '';
-    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span>${leftOut} <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
+    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
+    $('gaps').innerHTML = gapsPanel(r);
     window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
   } catch (e) { $('genState').innerHTML = failed(e, 'span'); } finally { $('generate').disabled = chosenManager == null; }

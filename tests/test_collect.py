@@ -19,6 +19,7 @@ from fmcareer.collect import (
     move_kind,
     pyramid_of,
     read_names,
+    report_gaps,
     season_end_of,
     season_label,
     team_competitions,
@@ -305,3 +306,21 @@ def test_an_optional_part_that_fails_is_left_out_and_named(caplog):
     assert optional("Transfers", problems, [], lambda c: ["move"], None) == ["move"]
     assert problems == [{"part": "Honours", "error": "KeyError: 126108"}]
     assert "Honours could not be read" in caplog.text and "Traceback" in caplog.text
+
+
+def test_report_gaps_count_each_unnamed_thing_once():
+    data = {
+        "manager": {"name": "Alex"},
+        "league": [{"competition": "Competition 1301392"}, {"competition": "Competition 1301392"}],
+        "cups": [{"competition": "Stage 412", "opponent": "Club 7"}, {"competition": "FA Cup"}],
+        "awards": [{"name": "Award 56"}],
+        "transfers": [{"player": "Unknown player (881)"}],
+        "levels": [{"name": "Level 3"}],
+        "ai": {"career": {"paragraphs": ["Competition 99"]}},  # articles aren't searched
+    }
+    gaps = {g["kind"]: g for g in report_gaps(data)}
+    assert gaps["competitions"]["count"] == 3
+    assert gaps["competitions"]["examples"] == ["Competition 1301392", "Stage 412", "Level 3"]
+    assert gaps["awards"]["count"] == gaps["clubs"]["count"] == gaps["players"]["count"] == 1
+    assert "managers" not in gaps
+    assert report_gaps({"league": [{"competition": "Premier League 2"}]}) == []
