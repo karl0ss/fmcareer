@@ -21,6 +21,7 @@ import os
 import sys
 
 from fmcareer.gamedb import english_names
+from fmcareer.install import database_dir
 
 
 def current_versions(folders: list[str]) -> list[str]:
@@ -38,8 +39,8 @@ def current_versions(folders: list[str]) -> list[str]:
 
 def lang_files(install: str, versions: list[str] | None = None) -> list[str]:
     """The install's name tables, in load order; empty when it isn't an FM26 install."""
-    root = os.path.join(install, "shared", "data", "database", "db")
-    if not os.path.isdir(root):
+    root = database_dir(install)
+    if not root:
         return []
     return [
         p
@@ -57,11 +58,12 @@ def main(argv: list[str] | None = None) -> None:
         "--db", action="append", help="database versions in load order (default: the newest game's, ascending)"
     )
     a = ap.parse_args(argv)
-    if not os.path.isdir(os.path.join(a.install, "shared", "data", "database", "db")):
+    if not database_dir(a.install):
         raise SystemExit(
-            f"{a.install} does not look like the Football Manager 26 install folder "
-            f"(no shared/data/database/db inside). With Steam it is usually "
-            r"C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26"
+            f"{a.install} does not look like the Football Manager 26 install folder (its game database "
+            "wasn't found). With Steam it is usually "
+            r"C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26, or on a Mac "
+            "~/Library/Application Support/Steam/steamapps/common/Football Manager 26"
         )
     os.makedirs(a.out, exist_ok=True)
     paths = lang_files(a.install, a.db)

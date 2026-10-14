@@ -41,6 +41,7 @@ from fmcareer.collect import (
     open_save,
     report_gaps,
 )
+from fmcareer.install import clean_path, looks_like_saves
 from fmcareer.render import THEMES, footer, render
 
 HOME = Path.home()
@@ -62,6 +63,7 @@ INSTALL_GUESSES = [
     HOME / ".steam" / "steam" / "steamapps" / "common" / "Football Manager 26",
     HOME / ".local" / "share" / "Steam" / "steamapps" / "common" / "Football Manager 26",
     HOME / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "Football Manager 26",
+    Path("/Users/Shared/Epic Games/FootballManager26"),
 ]
 
 
@@ -361,13 +363,14 @@ def job_names(step: Progress, install: str) -> Record:
 
 def names_status(install: str) -> str:
     """For the page: "ready", "needed" (missing, or older than the game's), "stale" (needed,
-    after a game patch), "bad_install" (not an FM26 folder) or "no_install"."""
+    after a game patch), "saves_folder" (the game's user folder, not its install), "bad_install"
+    (not an FM26 folder) or "no_install"."""
     from fmcareer.names import lang_files
 
     if not install:
         return "no_install"
     if not lang_files(install):
-        return "bad_install"
+        return "saves_folder" if looks_like_saves(install) else "bad_install"
     if not names_needed(install):
         return "ready"
     return "stale" if names_dir() else "needed"
@@ -635,12 +638,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "bad JSON"})
         settings = load_settings()
         if self.path == "/api/settings":
-            settings.update(
-                {
-                    k: str(req.get(k, settings[k])).strip()
-                    for k in ("saves_dir", "install", "graphics", "ai_endpoint", "ai_model")
-                }
-            )
+            settings.update({k: str(req.get(k, settings[k])).strip() for k in ("ai_endpoint", "ai_model")})
+            settings.update({k: clean_path(str(req.get(k, settings[k]))) for k in ("saves_dir", "install", "graphics")})
             if "ai_enabled" in req:
                 settings["ai_enabled"] = bool(req["ai_enabled"])
             if req.get("ai_token"):  # a blank field keeps the saved token

@@ -32,6 +32,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from fmcareer._types import ImageKey, Record
+from fmcareer.install import licensed_data_dir
 
 KINDS = {"club": "club-", "person": "players-", "comp": "comp-"}
 _ADDRESS = re.compile(rb"([a-z_]+?)_(\d+)\x20\x00\x00\x00([0-9a-f]{32})")
@@ -39,8 +40,8 @@ _SIZE = {"club": 96, "person": 96, "comp": 64}
 
 
 def _folders(install: str) -> list[str]:
-    root = os.path.join(install, "fm_Data", "StreamingAssets", "LicensedData")
-    return [os.path.join(root, f) for f in ("Core", "Extra") if os.path.isdir(os.path.join(root, f))]
+    root = licensed_data_dir(install)
+    return [os.path.join(root, f) for f in ("Core", "Extra") if os.path.isdir(os.path.join(root, f))] if root else []
 
 
 def catalog(install: str) -> dict[ImageKey, tuple[str, str]]:

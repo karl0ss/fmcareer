@@ -61,6 +61,12 @@ redistributed here):
 
 This writes `names/competition_names.csv` and `names/award_names.csv`.
 
+The install folder is where Steam put the game, not the folder with your saves. With Steam it is
+usually `C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26`, or on a Mac
+`~/Library/Application Support/Steam/steamapps/common/Football Manager 26`. On a Mac the game's
+files are inside `fm.app`; give the folder that holds it (fmcareer also finds them from `fm.app`
+itself or a folder inside it).
+
 ## The app
 
 ```sh

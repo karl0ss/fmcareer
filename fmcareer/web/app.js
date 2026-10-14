@@ -91,7 +91,8 @@ const NAMES_STATE = {
   ready: '<span class="ok">Competition and award names are ready.</span>',
   needed: '<span class="warn">Now read the names from the game, so competitions and awards show by name (it takes a few seconds).</span>',
   stale: '<span class="warn">The game has been updated since the names were read: read them again.</span>',
-  bad_install: '<span class="err">That folder doesn\'t look like the Football Manager 26 install (it has no shared/data/database/db inside). With Steam it is usually …/steamapps/common/Football Manager 26.</span>',
+  bad_install: '<span class="err">That folder doesn\'t look like the Football Manager 26 install: the game\'s database isn\'t in it. With Steam it is usually …/steamapps/common/Football Manager 26 (on a Mac, ~/Library/Application Support/Steam/steamapps/common/Football Manager 26).</span>',
+  saves_folder: '<span class="err">That is the game\'s own folder for saves and graphics, not where the game is installed. The install is where Steam put the game: usually …/steamapps/common/Football Manager 26 (on a Mac, ~/Library/Application Support/Steam/steamapps/common/Football Manager 26).</span>',
   no_install: 'Set the Football Manager 26 install folder above and save it, then read the names from the game.',
 };
 function drawNames() {
@@ -99,7 +100,7 @@ function drawNames() {
   $('namesState').innerHTML = NAMES_STATE[st] || '';
   $('buildNames').textContent = state.names ? 'Read names again' : 'Read names from the game';
   $('buildNames').classList.toggle('ghost', st !== 'needed' && st !== 'stale');  // the main button when it's the next thing to do
-  $('buildNames').disabled = st === 'no_install' || st === 'bad_install';
+  $('buildNames').disabled = st === 'no_install' || st === 'bad_install' || st === 'saves_folder';
 }
 async function refresh() {
   state = await api('/api/state');
