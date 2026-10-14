@@ -25,12 +25,12 @@ def test_data_round_trips_and_cannot_close_the_script_tag(sample):
     assert "<title>Evil &lt;/script&gt;" in html
 
 
-def test_footer_shows_the_version_and_links_the_repository(sample):
+def test_footer_shows_the_version_and_links_the_site(sample):
     import fmcareer
 
     html = render(sample)
     foot = html[html.find("<footer>") : html.find("</footer>")]
-    assert f"v{fmcareer.__version__}" in foot and "https://github.com/karl0ss/fmcareer" in foot
+    assert f"v{fmcareer.__version__}" in foot and "https://karl0ss.github.io/fmcareer/" in foot
     assert "fmsave" not in foot and "Built entirely" not in html and "since retired" not in html
 
 

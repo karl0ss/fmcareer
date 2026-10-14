@@ -36,8 +36,8 @@ def fill(page: str, values: dict[str, str]) -> str:
 
 
 def footer(version: str) -> str:
-    """fmcareer's version, linked to its repository."""
-    return f'<a href="https://github.com/karl0ss/fmcareer">fmcareer</a> v{html.escape(version)}'
+    """fmcareer's version, linked to its site (downloads and an example report)."""
+    return f'<a href="https://karl0ss.github.io/fmcareer/">fmcareer</a> v{html.escape(version)}'
 
 
 def report(shell: str, data: Record, version: str) -> str:

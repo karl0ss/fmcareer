@@ -13,7 +13,7 @@ __all__ = ["THEMES", "footer", "render"]
 
 
 def footer() -> str:
-    """fmcareer's version, linked to its repository."""
+    """fmcareer's version, linked to its site."""
     from fmcareer import __version__
 
     return page.footer(__version__)
