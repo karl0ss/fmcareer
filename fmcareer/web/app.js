@@ -33,6 +33,7 @@ async function follow(job, logEl) {
 }
 // a failure, with the log to attach to a bug report
 const ISSUES = 'https://github.com/karl0ss/fmcareer/issues';
+const SITE = 'https://fm-careers.co.uk';  // where people share their reports
 const failed = (e, tag = 'div') => `<${tag} class="err">${esc(e.message)} <span class="muted">· <a href="/api/log" download="fmcareer-log.txt">Download the log</a> and attach it to <a href="${ISSUES}" target="_blank" rel="noopener">an issue</a>.</span></${tag}>`;
 const fmtSize = n => (n / 1048576).toFixed(0) + ' MB', fmtTime = t => new Date(t * 1000).toLocaleString();
 
@@ -184,7 +185,7 @@ function gapsPanel(r) {
   return html;
 }
 $('generate').onclick = async () => {
-  $('generate').disabled = true; $('genState').textContent = 'Working…'; $('gaps').innerHTML = '';
+  $('generate').disabled = true; $('genState').textContent = 'Working…'; $('gaps').innerHTML = ''; $('done').innerHTML = '';
   try {
     const {job} = await api('/api/report', {save: chosenSave, staff_uid: chosenManager,
       sections: [...document.querySelectorAll('[data-sec]:checked')].map(x => x.dataset.sec),
@@ -193,9 +194,11 @@ $('generate').onclick = async () => {
     const r = await follow(job, $('genLog'));
     const aiNote = !r.ai ? '' : r.ai.written === r.ai.pieces ? ` AI wrote all ${r.ai.pieces} articles.`
       : ` AI wrote ${r.ai.written} of ${r.ai.pieces} articles; the report wrote the rest (${esc(r.ai.problems.slice(0, 3).join('; '))}${r.ai.problems.length > 3 ? '; …' : ''}).`;
-    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span> <a href="/reports/${encodeURIComponent(r.file)}" target="_blank">Open the report</a> · <a href="/reports/${encodeURIComponent(r.file)}" download="${esc(r.file)}">Download</a>`;
+    $('genState').innerHTML = `<span class="ok">Done: ${esc(r.manager)}, ${r.seasons} seasons (${r.clubs.map(esc).join(', ')}).</span><span class="muted">${aiNote}</span>`;
+    const url = '/reports/' + encodeURIComponent(r.file);
+    $('done').innerHTML = `<div class="actions"><a class="btn" href="${url}" target="_blank">Open the report</a><a class="btn ghost" href="${url}" download="${esc(r.file)}">Download</a></div>
+      <p class="muted" style="font-size:13px;margin:10px 0 0">To share it, <a href="${SITE}/signup" target="_blank" rel="noopener">create an account on fm-careers.co.uk</a> and upload the downloaded file. Already have one? <a href="${SITE}/upload" target="_blank" rel="noopener">Upload it</a>.</p>`;
     $('gaps').innerHTML = gapsPanel(r);
-    window.open('/reports/' + encodeURIComponent(r.file), '_blank');
     await refresh();
   } catch (e) { $('genState').innerHTML = failed(e, 'span'); } finally { $('generate').disabled = chosenManager == null; }
 };

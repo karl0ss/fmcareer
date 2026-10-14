@@ -20,6 +20,9 @@ input[type=text], input[type=search], input[type=password] { width: 100%; font: 
 button { font: 600 16px var(--head); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer;
   background: linear-gradient(90deg, #7b3cff, var(--accent-2)); }
 button.ghost { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
+a.btn { display: inline-block; font: 600 16px var(--head); color: #fff; border-radius: 8px; padding: 9px 18px; text-decoration: none;
+  background: linear-gradient(90deg, #7b3cff, var(--accent-2)); }
+a.btn.ghost { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); padding: 8px 17px; }
 button:disabled { opacity: .45; cursor: default; }
 .list { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 10px; }
 .item { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
