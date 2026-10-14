@@ -1,6 +1,7 @@
 # generated: never commit save-derived output or names built from a game install
 *.html
 !fmcareer/web/*.html
+!docs/*.html
 *.json
 names/
 *.fm
@@ -11,3 +12,4 @@ __pycache__/
 dist/
 build/
 *.spec
+_site/

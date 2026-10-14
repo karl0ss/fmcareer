@@ -1,0 +1,79 @@
+/* fmcareer's site wears the report's FM26 look (as fm-careers.co.uk does, see its DESIGN.md): the report's
+   colours and Barlow fonts, headings ruled like a table caption, content in ruled rows rather than cards.
+   Dials: ENERGY 2 / RHYTHM 2 / MOTION 1 (hover only). Dark, like the game and the report it shows. */
+:root {
+  color-scheme: dark;
+  --bg: #0c0d24; --surface: #171936; --surface-2: #20234a; --line: #2c2f5e;
+  --text: #f3f3fb; --text-2: #b9bbdc; --text-3: #9396c3;
+  --accent: #c77dff; --btn: #7b3cff;  /* white on --btn is 5.34:1 */
+  --head: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 "Barlow", system-ui, sans-serif; }
+a { color: var(--accent); }
+code { font-size: .9em; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+.in, main { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+.bar { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+.bar .in { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 700 24px var(--head); color: var(--text); text-decoration: none; }
+.brand img { width: 28px; height: 32px; }
+nav { display: flex; gap: 4px 18px; flex-wrap: wrap; }
+nav a { font: 600 17px var(--head); color: var(--text-2); text-decoration: none; padding: 10px 0; }
+nav a:hover { color: var(--text); }
+
+/* the one focal point: the headline and the Windows download */
+.hero { padding: 64px 0 40px; }
+h1 { font: 700 clamp(34px, 6vw, 56px)/1.05 var(--head); margin: 0; max-width: 18ch; }
+.lede { font-size: 18px; color: var(--text-2); max-width: 62ch; margin: 18px 0 0; }
+.meta { color: var(--text-3); font-size: 14px; margin: 14px 0 0; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.btn { display: inline-block; font: 600 17px var(--head); color: #fff; background: var(--btn); border: 1px solid var(--btn);
+  border-radius: 6px; padding: 10px 20px; text-decoration: none; }
+.btn:hover { filter: brightness(1.12); }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--text); }
+.btn.ghost:hover { border-color: var(--accent); filter: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* section headings ruled like a league table's caption */
+section { padding: 34px 0 10px; }
+h2 { font: 700 28px/1.2 var(--head); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--text); }
+section > p { max-width: 70ch; color: var(--text-2); }
+.note { color: var(--text-3); font-size: 14px; }
+
+.frame { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.frame iframe { display: block; width: 100%; height: min(78vh, 760px); border: 0; }
+
+/* ruled rows: the report's pages, the downloads */
+.rows { margin: 0; }
+dl.rows { display: grid; grid-template-columns: 170px 1fr; }
+dl.rows dt, dl.rows dd { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+dl.rows dt { font: 600 19px var(--head); }
+dl.rows dd { color: var(--text-2); }
+.dl .row { display: grid; grid-template-columns: 170px auto 1fr; gap: 6px 24px; align-items: start;
+  padding: 16px 0; border-bottom: 1px solid var(--line); }
+.dl .row b { font: 700 22px/1.2 var(--head); }
+.dl .row b span { display: block; font: 500 14px "Barlow", sans-serif; color: var(--text-3); }
+.dl .row .btn { font-size: 15px; white-space: nowrap; }
+.dl .row p { margin: 0; color: var(--text-2); font-size: 15px; }
+
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
+.steps li { counter-increment: step; position: relative; padding: 12px 0 12px 48px;
+  border-bottom: 1px solid var(--line); color: var(--text-2); }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 12px; font: 700 28px/1 var(--head); color: var(--text); }
+.steps b { color: var(--text); }
+
+footer { margin-top: 48px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 14px; }
+footer .in { display: flex; flex-direction: column; gap: 4px; padding-top: 18px; padding-bottom: 28px; }
+
+@media (max-width: 720px) {
+  .hero { padding: 36px 0 24px; }
+  .lede { font-size: 16px; }
+  dl.rows { grid-template-columns: 1fr; }
+  dl.rows dt { border-bottom: 0; padding-bottom: 0; }
+  .dl .row { grid-template-columns: 1fr; }
+  .dl .row .btn { white-space: normal; overflow-wrap: anywhere; }
+  .frame iframe { height: 70vh; }
+}

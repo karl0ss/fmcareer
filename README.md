@@ -1,5 +1,7 @@
 # fmcareer
 
+**Site, downloads and an example report: https://karl0ss.github.io/fmcareer/**
+
 A manager's career history from a Football Manager 26 save: point it at a save and a
 manager's name, and it builds one self-contained HTML page with:
 
@@ -79,8 +81,9 @@ opens a page in your browser (served only on your own machine, at
    (loans, trials, youth intake, released players, staff), and whether to embed images;
 5. set options: the report's colour theme (FM26, Midnight, Pitch, Crimson, Club colours
    from the club's badge, or Matchday light) and AI-written articles (below);
-6. generate: a progress bar counts the steps, and the report opens in a new tab with a
-   Download link beside it. Reports are kept in `~/.cache/fmcareer/reports`.
+6. generate: a progress bar counts the steps, then Open and Download buttons appear, with a
+   link to share the report on [fm-careers.co.uk](https://fm-careers.co.uk). Reports are kept
+   in `~/.cache/fmcareer/reports`.
 
 The Windows exe is this same app. On Windows `~` is your user folder
 (`C:\Users\<you>`), so settings are in `C:\Users\<you>\.config\fmcareer` and reports in
@@ -177,6 +180,10 @@ GitHub Actions runs the tests, builds the program on Windows, Linux and macOS wi
 PyInstaller (`packaging/build.py`), checks that each starts and serves the app, and attaches
 them to a release. The icon is `fmcareer/web/logo.svg`, rendered to `packaging/icon.png`
 and `icon.ico`. A local build: `pip install ".[images,build]"` then `python packaging/build.py`.
+
+The site (`docs/`: a landing page, plus an example report made from the tests' made-up career)
+is rebuilt and published to GitHub Pages by the Pages workflow once a release succeeds. Build it
+locally with `python docs/build.py` and open `_site/index.html`.
 
 ## Tests
 

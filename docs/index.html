@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fmcareer: your Football Manager 26 career, from the save</title>
+<meta name="description" content="fmcareer reads a Football Manager 26 save and builds one HTML page with every season of a manager's career: league tables, cup runs, squads, transfers and records.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<header class="bar"><div class="in">
+  <a class="brand" href="#top"><img src="logo.svg" alt="">fmcareer</a>
+  <nav aria-label="Sections">
+    <a href="#example">Example</a><a href="#download">Download</a><a href="#how">How to use</a><a href="https://github.com/karl0ss/fmcareer">GitHub</a>
+  </nav>
+</div></header>
+
+<main id="top">
+  <section class="hero">
+    <h1>Your Football Manager 26 career, written up from the save</h1>
+    <p class="lede">Point fmcareer at a save and a manager, and it builds one page with the whole career:
+      every season's final table, cup runs, squad statistics and transfers, a newspaper-style review of each
+      season, and the players and records of the era. It reads the save file itself, so nothing is typed in
+      or copied from screenshots.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/karl0ss/fmcareer/releases/download/v__VERSION__/fmcareer-__VERSION__-windows.exe">Download for Windows</a>
+      <a class="btn ghost" href="#example">See an example report</a>
+    </div>
+    <p class="meta">Version __VERSION__ · Windows, macOS (Apple silicon) and Linux · <a href="#download">all downloads</a></p>
+  </section>
+
+  <section id="example">
+    <h2>An example report</h2>
+    <p>This is a report fmcareer __VERSION__ made from a small made-up career (Alex Example, three seasons at
+      Old Rovers and Example Town), so you can click through every page. A report from your save also has
+      club badges, player photos and competition logos, read from your own game install.</p>
+    <div class="frame"><iframe src="example.html" title="Example fmcareer report" loading="lazy"></iframe></div>
+    <p class="note"><a href="example.html">Open the example on its own</a></p>
+  </section>
+
+  <section id="pages">
+    <h2>What a report holds</h2>
+    <dl class="rows">
+      <dt>Career overview</dt><dd>A feature on the whole career, the manager's profile, league and managerial record, the climb through the league pyramid, the trophy cabinet, manager awards and the club legends of the era.</dd>
+      <dt>Seasons</dt><dd>A timeline of every season, then a review of each: the article, the final league table, cup runs, honours, full squad statistics, the season's best 18 and transfers with fees.</dd>
+      <dt>Players</dt><dd>Everyone who played under the manager, sortable, each with a page of their seasons and moves.</dd>
+      <dt>Records</dt><dd>Most appearances, goals and assists, best ratings, best single seasons, and the biggest signings and sales.</dd>
+      <dt>Honours &amp; cups</dt><dd>Every trophy and every cup run, with who knocked you out.</dd>
+      <dt>Transfers</dt><dd>Every move in and out, season by season, filterable by type.</dd>
+      <dt>Club today</dt><dd>Finances with a bank balance chart, tactics, the live league table, and the squad by team.</dd>
+    </dl>
+    <p class="note">A report is one HTML file with its images inside. It opens in any browser, offline, on a phone too,
+      so you can keep it or send it to someone. Six colour themes, including a light one and one taken from your club's badge.</p>
+  </section>
+
+  <section id="download">
+    <h2>Download</h2>
+    <div class="rows dl">
+      <div class="row">
+        <b>Windows</b>
+        <a class="btn" href="https://github.com/karl0ss/fmcareer/releases/download/v__VERSION__/fmcareer-__VERSION__-windows.exe">fmcareer-__VERSION__-windows.exe</a>
+        <p>Double-click it and the app opens in your browser. Leave the black window open while you use it. The first time,
+          Windows may warn about an unrecognised app because it isn't code-signed: choose "More info", then "Run anyway".</p>
+      </div>
+      <div class="row">
+        <b>macOS<span>Apple silicon</span></b>
+        <a class="btn ghost" href="https://github.com/karl0ss/fmcareer/releases/download/v__VERSION__/fmcareer-__VERSION__-macos-arm64.tar.gz">fmcareer-__VERSION__-macos-arm64.tar.gz</a>
+        <p>Double-click it to unpack. It isn't signed, so once, in Terminal in that folder, run
+          <code>xattr -d com.apple.quarantine fmcareer</code>, then start it with <code>./fmcareer</code>.</p>
+      </div>
+      <div class="row">
+        <b>Linux<span>x64</span></b>
+        <a class="btn ghost" href="https://github.com/karl0ss/fmcareer/releases/download/v__VERSION__/fmcareer-__VERSION__-linux-x64.tar.gz">fmcareer-__VERSION__-linux-x64.tar.gz</a>
+        <p><code>tar -xzf fmcareer-__VERSION__-linux-x64.tar.gz &amp;&amp; ./fmcareer</code></p>
+      </div>
+    </div>
+    <p class="note">Nothing to install. With Python 3.12 or newer you can also install it with pip and use the command line:
+      see the <a href="https://github.com/karl0ss/fmcareer#install-with-python-any-system">README</a>.
+      Older versions are on the <a href="https://github.com/karl0ss/fmcareer/releases">releases page</a>.</p>
+  </section>
+
+  <section id="how">
+    <h2>How to use it</h2>
+    <ol class="steps">
+      <li><b>Folders.</b> Set your saves folder and the Football Manager 26 install folder. The app finds the usual Steam and
+        Documents locations, and your graphics folder for logo and face packs.</li>
+      <li><b>Save.</b> Pick a save.</li>
+      <li><b>Manager.</b> Load its managers and pick one: your own, or tick "Show all managers" for anyone in the save.</li>
+      <li><b>What to include.</b> Choose the pages, which kinds of transfer to list at first, and whether to embed images.</li>
+      <li><b>Options.</b> Pick a colour theme, and optionally have an AI model write the articles.</li>
+      <li><b>Report.</b> Generate it, then open or download the file.</li>
+    </ol>
+    <p class="note">The first report from a save takes a few minutes, and a large save needs about 3 GB of memory.
+      What was read is kept, so the same save opens quickly next time.</p>
+  </section>
+
+  <section id="ai">
+    <h2>AI-written articles (optional)</h2>
+    <p>The report writes its own articles from the data. If you'd rather, give the app any OpenAI-compatible endpoint
+      (OpenAI, Ollama, LM Studio, llama.cpp and others) and a model, and it has the model write them as news reports.
+      The model is given only facts from your save. Any number in its text that the facts don't hold gets the piece asked
+      again, then the report's own article is used. Those facts, including names from your save, go only to the endpoint you set.</p>
+  </section>
+
+  <section id="share">
+    <h2>Share it</h2>
+    <p>Make a profile on <a href="https://fm-careers.co.uk">fm-careers.co.uk</a> and upload your report to give your career
+      its own page and link. Upload a newer report over it as the save goes on, and the link stays the same.</p>
+  </section>
+</main>
+
+<footer><div class="in">
+  <span>fmcareer __VERSION__ · <a href="https://github.com/karl0ss/fmcareer">source on GitHub</a> ·
+    <a href="https://github.com/karl0ss/fmcareer/issues">report a problem</a></span>
+  <span>A fan-made tool, not affiliated with Sports Interactive or SEGA. Nothing from the game is distributed with it.</span>
+</div></footer>
+</body>
+</html>
