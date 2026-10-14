@@ -572,6 +572,56 @@ def mark_seasons(league: list[Record]) -> None:
         r["moved"] = nxt is not None and not same
 
 
+def countries(league: list[Record], above: dict[int, set[int]]) -> list[int]:
+    """A number for each league row's country, in order of first appearance. The save gives
+    competitions no nation, so a country is a league pyramid: a club's leagues, and every league
+    clubs move to and from them. A club never changes country, so a split season's stages
+    (which no club moves between) stay together."""
+    groups: list[set[int]] = []
+    club_group: dict[int, int] = {}
+    for r in league:
+        if r["club_uid"] in club_group:
+            continue
+        pyramid = pyramid_of(above, {x["competition_id"] for x in league if x["club_uid"] == r["club_uid"]})
+        g = next((i for i, grp in enumerate(groups) if grp & pyramid), None)
+        if g is None:
+            groups.append(set(pyramid))
+            g = len(groups) - 1
+        else:
+            groups[g] |= pyramid
+        club_group[r["club_uid"]] = g
+    return [club_group[r["club_uid"]] for r in league]
+
+
+def name_levels(
+    league: list[Record], country: list[int], sizes: dict[int, int], fallback: Callable[[int], tuple[Any, Any]]
+) -> list[Record]:
+    """The chart's bands, one a level down to the deepest the manager played. Each is named for
+    the leagues the manager played at that level, one a country, the latest country's first
+    ("Spanish First Division / Primeira Liga"); a level never played, for what `fallback` says
+    the save puts there: (name or None, database id)."""
+    deepest = max((r["tier"] for r in league if r["tier"]), default=0)
+    latest = country[-1] if country else 0
+    levels = []
+    for lv in range(1, deepest + 1):
+        names: dict[int, collections.Counter] = collections.defaultdict(collections.Counter)
+        dbs: dict[str, Any] = {}
+        last: dict[int, int] = {}
+        for i, r in enumerate(league):
+            if r["tier"] == lv:
+                names[country[i]][r["competition"]] += 1
+                dbs.setdefault(r["competition"], r.get("competition_db"))
+                last[country[i]] = i
+        # in a country, the league played most (on a tie the shorter name: a split season's final stage)
+        picks = [
+            min(names[k].items(), key=lambda kv: (-kv[1], len(kv[0])))[0]
+            for k in sorted(names, key=lambda k: (k != latest, -last[k]))
+        ]
+        name, db = (" / ".join(picks), dbs[picks[0]]) if picks else fallback(lv)
+        levels.append(dict(level=lv, name=name or f"Level {lv}", competition_db=db, size=sizes.get(lv, 0)))
+    return levels
+
+
 def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], list[Record]]:
     """The manager's league seasons, each season's final table, and the pyramid's levels.
 
@@ -622,6 +672,10 @@ def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], li
     for lr in league:
         lv = lr["tier"]
         lr["rank"] = sum(level_size[x] for x in range(1, lv)) + lr["position"] if lv else None
+    # a move abroad: the chart marks where the leagues change country
+    country = countries(league, above)
+    for i, lr in enumerate(league):
+        lr["country_change"] = i > 0 and country[i] != country[i - 1]
     tables = {}
     for lr in league:
         rows = [
@@ -646,16 +700,17 @@ def league_section(c: Career) -> tuple[list[Record], dict[str, list[Record]], li
             )
             for r in sorted(rows, key=lambda r: r.position)
         ]
-    # the levels down to the manager's lowest league, named for the chart's bands
-    deepest = max((r["tier"] for r in league if r["tier"]), default=0)
-    levels = []
-    for lv in range(1, deepest + 1):
-        names = collections.Counter(r["competition"] for r in league if r["tier"] == lv)
-        if not names:  # a level the manager never played: the competitions the save puts there
-            names = collections.Counter(
-                c.comp_name.get(x) for x, n in level.items() if n == lv and x in home and c.comp_name.get(x)
-            )
-        levels.append(dict(level=lv, name=names.most_common(1)[0][0] if names else f"Level {lv}", size=level_size[lv]))
+
+    # the levels down to the manager's lowest league, named for the chart's bands; a level never
+    # played takes the league the save has most seasons of there, in the latest league's pyramid
+    def at_level(lv: int) -> tuple[str | None, int | None]:
+        there = collections.Counter(
+            r.competition_id for r in all_rows if r.competition_id in home and level.get(r.competition_id) == lv
+        )
+        best = max(there, key=lambda x: (there[x], c.comp_name.get(x) is not None), default=None)
+        return c.comp_name.get(best), c.comp_db.get(best)
+
+    levels = name_levels(league, country, level_size, at_level)
     return league, tables, levels
 
 

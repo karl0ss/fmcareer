@@ -11,6 +11,7 @@ from fmcareer.collect import (
     COLLECT_STEPS,
     _norm,
     collect,
+    countries,
     find_manager,
     league_levels,
     list_managers,
@@ -18,6 +19,7 @@ from fmcareer.collect import (
     manager_stints,
     mark_seasons,
     move_kind,
+    name_levels,
     pyramid_of,
     read_names,
     report_gaps,
@@ -122,6 +124,42 @@ def test_seasons_up_down_and_moves():
         (False, False, True, False),
         (False, False, False, True),
         (False, False, False, False),
+    ]
+
+
+def played(year, club, comp, tier, name=None, db=None):
+    return dict(
+        end_year=year, club_uid=club, competition_id=comp, tier=tier, competition=name or comp, competition_db=db
+    )
+
+
+def test_a_move_abroad_is_a_new_country():
+    # Portugal: a regional group G and the final stage P3, which no club moves between; Spain: S1
+    above = {"G": {"P2"}, "P3": {"P2"}, "S2": {"S1"}}
+    league = [
+        played(2026, 1, "G", 3),
+        played(2026, 1, "P3", 3),
+        played(2027, 1, "P3", 3),
+        played(2031, 2, "S1", 1),
+        played(2032, 3, "S2", 2),
+    ]
+    assert countries(league, above) == [0, 0, 0, 1, 1]  # S2's club is another Spanish club
+
+
+def test_levels_are_named_per_country_latest_first():
+    league = [
+        played(2026, 1, "G", 3, "Third Division - South", 900),
+        played(2026, 1, "P3", 3, "Third Division", 901),
+        played(2027, 1, "P1", 1, "Primeira Liga", 902),
+        played(2031, 2, "S1", 1, "Spanish First Division", 67),
+    ]
+    levels = name_levels(
+        league, [0, 0, 0, 1], {1: 20, 2: 22, 3: 20}, lambda lv: (None, 68) if lv == 2 else (None, None)
+    )
+    assert levels == [
+        dict(level=1, name="Spanish First Division / Primeira Liga", competition_db=67, size=20),
+        dict(level=2, name="Level 2", competition_db=68, size=22),  # never played: the save's league there, unnamed
+        dict(level=3, name="Third Division", competition_db=901, size=20),  # a tie: the shorter, the final stage
     ]
 
 

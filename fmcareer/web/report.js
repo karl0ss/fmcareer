@@ -203,11 +203,18 @@ function climbChart(highlight) {
   LV.forEach((l, t) => {
     const top = y(off + 1), bot = y(off + l.size);
     if (t % 2 === 0) s += `<rect x="${ml}" y="${top}" width="${W - ml - mr}" height="${bot - top}" fill="var(--band)"/>`;
-    const label = short(l.name).length > 26 ? short(l.name).slice(0, 25) + '…' : short(l.name);
-    if (bot - top >= 12) s += `<text x="${ml - 10}" y="${(top + bot) / 2 + 4}" text-anchor="end" font-size="11.5" fill="var(--text-2)"><title>${esc(l.name)}</title>${esc(label)}</text>`;
+    // a level played in two countries is named for both ("Spanish First Division / Primeira Liga"): a line each, room allowing
+    const cut = n => short(n).length > 26 ? short(n).slice(0, 25) + '…' : short(n);
+    const parts = l.name.split(' / '), lines = bot - top >= 14 * parts.length ? parts.map(cut) : [cut(parts[0]) + (parts.length > 1 ? ' +' : '')];
+    if (bot - top >= 12) s += `<text x="${ml - 10}" y="${(top + bot) / 2 + 4 - 7 * (lines.length - 1)}" text-anchor="end" font-size="11.5" fill="var(--text-2)"><title>${esc(l.name)}</title>${lines.map((t, k) => `<tspan x="${ml - 10}" dy="${k ? 14 : 0}">${esc(t)}</tspan>`).join('')}</text>`;
     off += l.size;
   });
   L.forEach((r, i) => { s += `<text x="${x(i)}" y="${H - 11}" text-anchor="middle" font-size="11" fill="var(--text-3)">${r.season.slice(2)}</text>`; });
+  // a move abroad: a dotted line between the seasons, with the new club
+  L.forEach((r, i) => { if (!r.country_change || !i) return;
+    const cx = (x(i - 1) + x(i)) / 2;
+    s += `<line x1="${cx}" x2="${cx}" y1="${mt}" y2="${H - mb}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3 4"/>`
+      + `<text x="${cx + 5}" y="${mt + 12}" font-size="11" fill="var(--text-3)">→ ${esc(short(r.club))}</text>`; });
   const pts = L.map((r, i) => r.tier ? [x(i), y(pyramid(r))] : null).filter(Boolean);
   s += `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
   L.forEach((r, i) => { if (!r.tier) return;
@@ -222,7 +229,7 @@ function climbChart(highlight) {
       h.addEventListener('mouseenter', () => {
         const r = L[+h.dataset.i], cx = x(+h.dataset.i), sc = svg.clientWidth / W;
         cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', .5);
-        tip.innerHTML = `<b>${r.season}</b> · ${esc(r.club)}<br>${esc(r.competition)}<br>${ord(r.position)} of ${r.teams} · ${r.points} pts<br><span class="muted">Click to open the season review</span>`;
+        tip.innerHTML = `<b>${r.season}</b> · ${esc(r.club)}<br>${esc(r.competition)}${r.tier ? ` · tier ${r.tier}` : ''}<br>${ord(r.position)} of ${r.teams} · ${r.points} pts<br><span class="muted">Click to open the season review</span>`;
         tip.style.left = Math.min(Math.max(0, cx * sc - 100), svg.clientWidth - 220) + 'px';
         tip.style.top = (y(pyramid(r)) * sc + 14) + 'px'; tip.style.opacity = 1;
       });
@@ -322,7 +329,7 @@ function pageMe() {
     <p class="note">The game's own managerial stats. Agent fees paid: ${money(C.agent_fees)}.</p>` : ''}
     <h2>The climb</h2>
     <div class="card chart" id="climb">${chart.html}</div>
-    <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
+    <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
     <h2>Trophy cabinet</h2>
     <div class="cabinet">${D.honours.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
     <h2>Manager awards</h2>
