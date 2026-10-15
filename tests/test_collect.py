@@ -305,6 +305,35 @@ def test_step_counts_match_the_progress_calls():
         assert len(seen) == manager_steps(everyone)
 
 
+def test_a_new_saves_manager_is_listed_before_his_first_game():
+    """Pre-season, the record holds no games (friendlies don't count) but he is still there."""
+
+    def person(uid, human, unique_id):
+        return NS(uid=uid, name=f"P{uid}", club_name="C", is_human_manager=human, unique_id=unique_id)
+
+    def rec(ref, games):
+        return NS(reference=ref, games=games, wins=0, draws=0, losses=0, club_jobs=1)
+
+    me, other = person(1, True, 11), person(2, False, 22)
+    records = {1: rec(101, 0), 2: rec(102, 0)}
+
+    class Save:
+        def staff(self):
+            return [me, other]
+
+        def manager_career(self, uid):
+            return records[uid]
+
+        def career_manager_records(self):
+            return list(records.values())
+
+        def history_people(self):
+            return [NS(reference=101, unique_id=11), NS(reference=102, unique_id=22)]
+
+    for everyone in (False, True):
+        assert [m["staff_uid"] for m in list_managers(Save(), everyone=everyone)] == [1]
+
+
 def test_move_kinds():
     assert move_kind("in", "Transfer", "Big City") == "signing"
     assert move_kind("in", "Free", None) == "signing"

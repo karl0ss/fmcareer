@@ -292,7 +292,7 @@ def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = 
             human=x.is_human_manager,
         )
         for x, rec in found.values()
-        if x.name and rec.games
+        if x.name and (rec.games or x.is_human_manager)  # a new save's manager has no games yet
     ]
     out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
     return out
