@@ -261,6 +261,7 @@ const listing = items => items.length < 2 ? items.join('') : items.slice(0, -1).
 function careerLede() {
   const S = D.stints || [], first = L[0], last = L[L.length - 1];
   const lastLine = last ? (last.tier === 1 ? `is in the top division, the ${esc(last.competition)}` : `plays in the ${esc(last.competition)}`) : '';
+  if (S.length === 1 && !last) return `Took charge of ${esc(S[0].club)} in ${stintYears(S[0]).slice(0, 4)}. The first season is still under way.`;
   return S.length === 1
     ? `Took charge of ${esc(S[0].club)} in ${stintYears(S[0]).slice(0, 4)}${first ? `, in the ${esc(first.competition)}` : ''}. ${promotions ? `${plural(promotions, 'promotion')} later` : 'Since then'}, the club ${lastLine}${best ? `, with a best finish of ${ord(best.position)} in the ${esc(best.competition)} (${best.season})` : ''}.`
     : `${plural(S.length, 'club')} so far: ${S.map(st => `${esc(st.club)} (${stintYears(st)})`).join(', ')}.${best ? ` Best league finish: ${ord(best.position)} in the ${esc(best.competition)} with ${esc(best.club)} (${best.season}).` : ''}`;
@@ -285,7 +286,7 @@ function careerArticle() {
   if (awardWon.length) paras.push(`${esc(M.name)} was named ${listing(awardWon)}.`);
   if (C.games) paras.push(`In all, ${C.games} games in charge: ${C.wins} won, ${C.draws} drawn and ${C.losses} lost.${C.record_signing ? ` The record signing was ${esc(C.record_signing.player)} for ${moneyShort(C.record_signing.fee)}` + (C.record_sale ? `, the record sale ${esc(C.record_sale.player)} for ${moneyShort(C.record_sale.fee)}.` : '.') : ''}`);
   if (last) paras.push(`The latest completed season, ${last.season}, ended ${ord(last.position)} in the ${esc(last.competition)}${M.club ? `, and ${esc(M.name)} remains in charge of ${esc(M.club)}` : ''}.`);
-  const headline = `${esc(M.name)}: ${plural(L.length, 'season')}${promotions ? `, ${plural(promotions, 'promotion')}` : ''}${titles ? ` and ${plural(titles, 'title')}` : ''}`;
+  const headline = !L.length ? `${esc(M.name)}: the first season${M.club ? ` at ${esc(M.club)}` : ''}` : `${esc(M.name)}: ${plural(L.length, 'season')}${promotions ? `, ${plural(promotions, 'promotion')}` : ''}${titles ? ` and ${plural(titles, 'title')}` : ''}`;
   return {headline, paragraphs: paras};
 }
 
@@ -337,7 +338,7 @@ function pageMe() {
     ${C ? `<h2>Managerial record (all competitions)</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${C.games}</div><div class="k">Games managed</div><div class="s">W${C.wins} D${C.draws} L${C.losses} · ${Math.round(100 * C.wins / Math.max(1, C.games))}% won</div></div>
-      <div class="card tile"><div class="v">+${C.goals_for - C.goals_against}</div><div class="k">Goal difference</div><div class="s">${C.goals_for} scored · ${C.goals_against} conceded</div></div>
+      <div class="card tile"><div class="v">${C.goals_for - C.goals_against > 0 ? '+' : ''}${C.goals_for - C.goals_against}</div><div class="k">Goal difference</div><div class="s">${C.goals_for} scored · ${C.goals_against} conceded</div></div>
       <div class="card tile"><div class="v">${C.awards}</div><div class="k">Awards (incl. monthly)</div><div class="s">${C.league_titles} league titles · ${C.cups} cup</div></div>
       <div class="card tile"><div class="v">${moneyShort(C.money_spent)}</div><div class="k">Spent on transfers</div><div class="s">${C.players_bought} bought · ${C.players_sold} sold · ${C.players_released} released</div></div>
       ${C.record_signing ? `<div class="card tile"><div class="v">${moneyShort(C.record_signing.fee)}</div><div class="k">Record signing</div><div class="s">${esc(C.record_signing.player)} from ${esc(C.record_signing.from_club || '?')}, ${fmtDate(C.record_signing.date)}</div></div>` : ''}
@@ -345,30 +346,35 @@ function pageMe() {
     </div>
     <p class="note">The game's own managerial stats. Agent fees paid: ${money(C.agent_fees)}.${C.womens ? ` Includes ${plural(C.womens.games, 'game')} in women's football (W${C.womens.wins} D${C.womens.draws} L${C.womens.losses}).` : ''}</p>` : ''}
     <h2>League position by season</h2>
-    <div class="card chart" id="climb">${chart.html}</div>
-    <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>
+    ${!L.length ? '<p class="muted">The chart starts once the first season is complete.</p>' : `<div class="card chart" id="climb">${chart.html}</div>
+    <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>`}
     <h2>Trophy cabinet</h2>
     <div class="cabinet">${CABINET.map(h => `<a class="card trophy scard" href="#season/${slug(h.season)}"><div class="yr">${h.season}</div>${pic('comp', h.competition_db, 'md')}<b>${esc(h.name)}</b></a>`).join('') || '<p class="muted">No trophies yet.</p>'}</div>
     <h2>Manager awards</h2>
-    <div class="card"><ul class="list">${D.awards.map(a => `<li><span><a href="#season/${slug(a.season)}">${a.season}</a> · ${esc(a.name)}</span>${a.placing === 'Winner' ? '<span class="badge gold">Winner</span>' : `<span class="badge">${a.placing}</span>`}</li>`).join('')}</ul></div>
+    ${D.awards.length ? `<div class="card"><ul class="list">${D.awards.map(a => `<li><span><a href="#season/${slug(a.season)}">${a.season}</a> · ${esc(a.name)}</span>${a.placing === 'Winner' ? '<span class="badge gold">Winner</span>' : `<span class="badge">${a.placing}</span>`}</li>`).join('')}</ul></div>` : '<p class="muted">No manager awards yet.</p>'}
     <h2>Club legends of the era</h2>
+    ${!legends.length ? '<p class="muted">Club legends are counted from completed seasons, so none yet.</p>' : `
     <div class="grid2">
       <div class="card scroll"><b>Most appearances</b><table><thead><tr><th>Player</th><th class="n">Seasons</th><th class="n">Apps</th></tr></thead><tbody>
         ${legends.map(p => `<tr><td>${byName(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.apps}</td></tr>`).join('')}</tbody></table></div>
       <div class="card scroll"><b>Top scorers</b><table><thead><tr><th>Player</th><th class="n">Seasons</th><th class="n">Goals</th></tr></thead><tbody>
         ${scorers.map(p => `<tr><td>${byName(p.name)}${p.current ? '<span class="badge accent">Current</span>' : ''}</td><td class="n">${p.seasons.length}</td><td class="n">${p.goals}</td></tr>`).join('')}</tbody></table></div>
     </div>
-    <p class="note">Counted from each season's best-18 table, so seasons a player spent outside the 18 most-used aren't included.</p>
-    <details class="card fold" style="margin-top:30px"><summary><b>Season by season</b><span class="muted">${plural(L.length, 'season')}</span></summary>
+    <p class="note">Counted from each season's best-18 table, so seasons a player spent outside the 18 most-used aren't included.</p>`}
+    ${!L.length ? '' : `<details class="card fold" style="margin-top:30px"><summary><b>Season by season</b><span class="muted">${plural(L.length, 'season')}</span></summary>
     <div class="scroll"><table><thead><tr><th>Season</th><th>League</th><th class="n">Pos</th><th class="n">Pts</th><th>Highlights</th></tr></thead><tbody>
       ${L.map(r => `<tr class="click" data-href="season/${slug(r.season)}"><td><a href="#season/${slug(r.season)}">${r.season}</a></td><td>${esc(r.competition)}</td><td class="n">${ord(r.position)}</td><td class="n">${r.points}</td>
         <td>${r.champion ? '<span class="badge gold first">Champions</span>' : ''}${r.promoted ? '<span class="badge up">Promoted</span>' : ''}${extraBadges(r)}${(awardsBy[r.season] || []).filter(a => a.placing === 'Winner').map(() => '<span class="badge accent">Manager award</span>').join('')}</td></tr>`).join('')}
-    </tbody></table></div></details>`;
-  chart.wire(document.getElementById('climb'));
+    </tbody></table></div></details>`}`;
+  if (L.length) chart.wire(document.getElementById('climb'));
 }
 
 // page: seasons grid
 function pageSeasons() {
+  if (!L.length) {
+    view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge appears here, with its full review. The first is still under way.</p>`;
+    return;
+  }
   view.innerHTML = `<h1>Seasons</h1><p class="lede">Every completed season in charge, earliest first. Open one for the full review.</p>
     <ol class="timeline" style="margin-top:20px">${L.map(s => {
       const a = seasonArticle(s);
@@ -480,7 +486,7 @@ function pageTransfers() {
     <h2>Totals</h2>
     <div class="tiles">
       <div class="card tile"><div class="v">${D.players_bought}</div><div class="k">Players signed</div><div class="s">transfers, frees and signings</div></div>
-      <div class="card tile"><div class="v">${moneyShort(T.filter(t => t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0))}</div><div class="k">Fees paid (known)</div><div class="s">${T.filter(t => t.direction === 'in' && t.fee).length} paid signings</div></div>
+      <div class="card tile"><div class="v">${moneyShort(T.filter(t => t.direction === 'in' && t.fee).reduce((a, t) => a + t.fee, 0))}</div><div class="k">Fees paid (known)</div><div class="s">${plural(T.filter(t => t.direction === 'in' && t.fee).length, 'paid signing')}</div></div>
       <div class="card tile"><div class="v">${moneyShort(T.filter(t => t.direction === 'out' && t.fee).reduce((a, t) => a + t.fee, 0))}</div><div class="k">Fees received</div><div class="s">${T.filter(SOLD).length} sold · ${T.filter(FREE_OUT).length} free to clubs</div></div>
       <div class="card tile"><div class="v">${T.filter(t => t.type === 'Released').length}</div><div class="k">Released</div></div>
       <div class="card tile"><div class="v">${T.filter(t => t.type === 'Loan' && t.direction === 'out').length}</div><div class="k">Loaned out</div></div>
@@ -525,7 +531,7 @@ function balanceChart(H) {
   const x = i => ml + (W - ml - mr) * i / (H.length - 1), y = v => mt + (Ht - mt - mb) * (1 - (v - lo) / ((hi - lo) || 1));
   let s = `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Club bank balance by month">`;
   [lo, (lo + hi) / 2, hi].forEach(v => { s += `<line x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${ml - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-3)">${moneyShort(v) === '–' ? '£0' : moneyShort(v)}</text>`; });
-  H.forEach((h, i) => { if (h.month.endsWith('-07-01') || i === 0) s += `<text x="${x(i)}" y="${Ht - 8}" text-anchor="middle" font-size="11" fill="var(--text-3)">${h.month.slice(0, 7)}</text>`; });
+  H.forEach((h, i) => { if (h.month.endsWith('-07-01') || i === 0) s += `<text x="${x(i)}" y="${Ht - 8}" text-anchor="${i === 0 ? 'start' : i === H.length - 1 ? 'end' : 'middle'}" font-size="11" fill="var(--text-3)">${h.month.slice(0, 7)}</text>`; });
   s += `<polyline points="${H.map((h, i) => x(i) + ',' + y(h.balance)).join(' ')}" fill="none" stroke="var(--up)" stroke-width="2"/>`;
   return s + '</svg>';
 }
@@ -582,6 +588,10 @@ function pageClub(tab = 'overview', team) {
 
 // page: all players
 function pagePlayers() {
+  if (!PLIST.length) {
+    view.innerHTML = `<h1>Players</h1><p class="lede">Everyone who plays league, cup or continental football under ${esc(M.name)} appears here, once the first competitive game is played.</p>`;
+    return;
+  }
   view.innerHTML = `<h1>Players</h1><p class="lede">Everyone who played league, cup or continental football under ${esc(M.name)}: ${PLIST.length} players. Click a column to sort, a name for the full record.</p>
     <div class="controls"><input id="pq" placeholder="Search players" aria-label="Search players" style="font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px">
     <label><input type="checkbox" id="pcur"> Current squad only</label></div>
