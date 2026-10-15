@@ -254,6 +254,36 @@ def manager_steps(everyone: bool) -> int:
     return 3 if everyone else 1
 
 
+# the game's career totals; the men's and women's careers' are added together
+CAREER_TOTALS = (
+    "games",
+    "wins",
+    "draws",
+    "losses",
+    "goals_for",
+    "goals_against",
+    "league_titles",
+    "cups",
+    "awards",
+    "players_bought",
+    "players_sold",
+    "players_released",
+    "money_spent",
+    "agent_fees",
+    "club_jobs",
+)
+
+
+def career_parts(record: ManagerCareerRecord) -> list[Any]:
+    """The men's career (the record's own fields) and the women's, when he has one (FM26)."""
+    womens = getattr(record, "womens_career", None)
+    return [record] if womens is None else [record, womens]
+
+
+def career_total(record: ManagerCareerRecord, field: str) -> int:
+    return sum(getattr(part, field) for part in career_parts(record))
+
+
 def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = False) -> list[Record]:
     """Managers to report on: the save's human managers, or with `everyone` every current
     staff member with a managerial record (human managers first, then by games).
@@ -284,15 +314,11 @@ def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = 
             staff_uid=x.uid,
             name=x.name,
             club=x.club_name,
-            games=rec.games,
-            wins=rec.wins,
-            draws=rec.draws,
-            losses=rec.losses,
-            club_jobs=rec.club_jobs,
+            **{k: career_total(rec, k) for k in ("games", "wins", "draws", "losses", "club_jobs")},
             human=x.is_human_manager,
         )
         for x, rec in found.values()
-        if x.name and (rec.games or x.is_human_manager)  # a new save's manager has no games yet
+        if x.name and (career_total(rec, "games") or x.is_human_manager)  # pre-season: no games yet
     ]
     out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
     return out
@@ -968,7 +994,9 @@ def _squad_stats(
 
 
 def career_record(c: Career) -> Record | None:
-    """The game's own managerial record (games, money, record signing and sale), or None."""
+    """The game's own managerial record (games, money, record signing and sale), or None.
+
+    Men's and women's football together; `womens` is the women's share, or None."""
     record = c.record
     if record is None:
         return None
@@ -985,24 +1013,21 @@ def career_record(c: Career) -> Record | None:
             to_club=c.teams.get(f.to_team_id),
         )
 
+    parts = career_parts(record)
+
+    def highest(attr: str) -> Record | None:
+        fees = [getattr(p, attr) for p in parts if getattr(p, attr) is not None]
+        return fee(max(fees, key=lambda f: f.fee)) if fees else None
+
+    womens = getattr(record, "womens_career", None)
     return dict(
-        games=record.games,
-        wins=record.wins,
-        draws=record.draws,
-        losses=record.losses,
-        goals_for=record.goals_for,
-        goals_against=record.goals_against,
-        league_titles=record.league_titles,
-        cups=record.cups,
-        awards=record.awards,
-        players_bought=record.players_bought,
-        players_sold=record.players_sold,
-        players_released=record.players_released,
-        money_spent=record.money_spent,
-        agent_fees=record.agent_fees,
-        club_jobs=record.club_jobs,
-        record_signing=fee(record.highest_fee_paid),
-        record_sale=fee(record.highest_fee_received),
+        **{k: career_total(record, k) for k in CAREER_TOTALS},
+        record_signing=highest("highest_fee_paid"),
+        record_sale=highest("highest_fee_received"),
+        # the women's-football share of the totals, when he has managed there
+        womens=dict(games=womens.games, wins=womens.wins, draws=womens.draws, losses=womens.losses)
+        if womens is not None and womens.games
+        else None,
     )
 
 

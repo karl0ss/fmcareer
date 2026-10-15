@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 # fmsave is our fork (branch history-decoders), pinned to a commit so every build reads saves the
 # same way; move the pin forward deliberately when the fork changes.
 dependencies = [
-    "fmsave @ git+https://github.com/karl0ss/fmsave.git@21da17bb8e80b29fa3f0e7668660a710e3a7196a",
+    "fmsave @ git+https://github.com/karl0ss/fmsave.git@089cd8a93388bc2ae429b1ee69d40b610a1fc4db",
     "backports.zstd>=1.0; python_version < '3.14'",  # reading the game's database files (gamedb)
 ]
 

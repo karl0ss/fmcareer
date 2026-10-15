@@ -343,7 +343,7 @@ function pageMe() {
       ${C.record_signing ? `<div class="card tile"><div class="v">${moneyShort(C.record_signing.fee)}</div><div class="k">Record signing</div><div class="s">${esc(C.record_signing.player)} from ${esc(C.record_signing.from_club || '?')}, ${fmtDate(C.record_signing.date)}</div></div>` : ''}
       ${C.record_sale ? `<div class="card tile"><div class="v">${moneyShort(C.record_sale.fee)}</div><div class="k">Record sale</div><div class="s">${esc(C.record_sale.player)} to ${esc(C.record_sale.to_club || '?')}, ${fmtDate(C.record_sale.date)}</div></div>` : ''}
     </div>
-    <p class="note">The game's own managerial stats. Agent fees paid: ${money(C.agent_fees)}.</p>` : ''}
+    <p class="note">The game's own managerial stats. Agent fees paid: ${money(C.agent_fees)}.${C.womens ? ` Includes ${plural(C.womens.games, 'game')} in women's football (W${C.womens.wins} D${C.womens.draws} L${C.womens.losses}).` : ''}</p>` : ''}
     <h2>League position by season</h2>
     <div class="card chart" id="climb">${chart.html}</div>
     <p class="note">Overall position in the league pyramid (1 = top of the ${esc(LV[0] ? LV[0].name.split(' / ')[0] : 'top division')}); levels are worked out from how clubs move between leagues. Click any season to open its review.</p>

@@ -8,8 +8,10 @@ from types import SimpleNamespace as NS
 import pytest
 
 from fmcareer.collect import (
+    CAREER_TOTALS,
     COLLECT_STEPS,
     _norm,
+    career_record,
     collect,
     countries,
     find_manager,
@@ -332,6 +334,30 @@ def test_a_new_saves_manager_is_listed_before_his_first_game():
 
     for everyone in (False, True):
         assert [m["staff_uid"] for m in list_managers(Save(), everyone=everyone)] == [1]
+
+
+def totals(games, wins, draws, losses, signing=None):
+    return NS(
+        **(dict.fromkeys(CAREER_TOTALS, 0) | dict(games=games, wins=wins, draws=draws, losses=losses, club_jobs=1)),
+        highest_fee_paid=signing,
+        highest_fee_received=None,
+    )
+
+
+def test_the_record_adds_the_womens_career_to_the_mens():
+    def fee(amount):
+        return NS(player_reference=1, fee=amount, transfer_date=None, from_team_id=None, to_team_id=None)
+
+    womens = totals(10, 6, 2, 2, fee(500))
+    record = NS(**vars(totals(100, 50, 30, 20, fee(200))), womens_career=womens)
+    c = NS(record=record, person=lambda uid, ref: "P", person_id=lambda uid, ref: 1, teams={})
+
+    out = career_record(c)
+    assert (out["games"], out["wins"], out["draws"], out["losses"], out["club_jobs"]) == (110, 56, 32, 22, 2)
+    assert out["record_signing"]["fee"] == 500  # the larger of the two careers'
+    assert out["womens"] == dict(games=10, wins=6, draws=2, losses=2)
+    record.womens_career = None
+    assert career_record(c)["womens"] is None and career_record(c)["games"] == 100
 
 
 def test_move_kinds():
