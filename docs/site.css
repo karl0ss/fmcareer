@@ -80,10 +80,11 @@ footer .in { display: flex; flex-direction: column; gap: 4px; padding-top: 18px;
 
 /* the example's theme switcher: the report's own theme swatches */
 .themes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
-.themes a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px;
-  border: 1px solid var(--line); border-radius: 6px; color: var(--text-2); text-decoration: none; font: 600 15px var(--head); }
-.themes a:hover { border-color: var(--text-3); color: var(--text); }
-.themes a[aria-current] { border-color: var(--accent); color: var(--text); }
+.themes button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; cursor: pointer;
+  background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--text-2); font: 600 15px var(--head); }
+.themes button:hover { border-color: var(--text-3); color: var(--text); }
+.themes button[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+.themes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .themes i { position: relative; width: 26px; height: 18px; border-radius: 3px; border: 1px solid rgba(255,255,255,.2); }
 .themes b { position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px; }
 

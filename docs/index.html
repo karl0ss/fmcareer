@@ -95,13 +95,14 @@
 
   <section id="example">
     <h2>An example report</h2>
-    <p>This is a report fmcareer __VERSION__ made from a small made-up career (Alex Example, three seasons at
-      Old Rovers and Example Town), so you can click through every page. A report from your save also has
-      club badges, player photos and competition logos, read from your own game install.</p>
+    <p>A real career, shared by its manager: Karl0ss at St. Albans City, fourteen seasons from the Enterprise National
+      League South to the Premier League, with the badges, faces and logos from the game install it was made with.
+      It's shown in fmcareer __VERSION__'s report page; click through every page, and try the themes.</p>
     <nav class="themes" aria-label="Colour theme of the example">__THEMES__</nav>
     <div class="frame"><iframe src="example.html" name="example" title="Example fmcareer report" loading="lazy"></iframe></div>
-    <p class="note">You pick the theme when you make a report. Club colours takes its colour from your club's badge;
-      the example has no badge, so it shows the default. <a id="alone" href="example.html">Open the example on its own</a></p>
+    <p class="note">You pick the theme when you make a report. Club colours takes its colour from your club's badge,
+      here St. Albans City's. <a href="example.html">Open the example on its own</a> or
+      <a href="https://fm-careers.co.uk/u/karl0ss/q0HcLz5GTxcD">see it on fm-careers.co.uk</a>.</p>
   </section>
 
   <section id="download">
@@ -164,20 +165,18 @@
   <span>A fan-made tool, not affiliated with Sports Interactive or SEGA. Nothing from the game is distributed with it.</span>
 </div></footer>
 <script>
-// switching theme keeps the example on the page you were reading, and the "on its own" link follows the theme
-const frame = document.querySelector('iframe[name=example]'), alone = document.getElementById('alone');
-let file = 'example.html';
+// the report's themes are only its <html data-theme>, so switching sets that inside the frame:
+// no reload, and you stay on the page you were reading
+const frame = document.querySelector('iframe[name=example]');
 document.querySelector('.themes').addEventListener('click', e => {
-  const a = e.target.closest('a[data-theme]'); if (!a) return;
-  e.preventDefault();
-  let hash = ''; try { hash = frame.contentWindow.location.hash; } catch (err) {}
-  file = a.getAttribute('href'); frame.src = file + hash; alone.href = file;
-  document.querySelectorAll('.themes a').forEach(x => x.toggleAttribute('aria-current', x === a));
+  const b = e.target.closest('button[data-theme]'); if (!b) return;
+  frame.contentDocument.documentElement.dataset.theme = b.dataset.theme;
+  document.querySelectorAll('.themes button').forEach(x => x.setAttribute('aria-pressed', x === b));
 });
-// a feature's "See it" link opens that page of the example, in the theme picked, and brings it into view
+// a feature's "See it" link opens that page of the example and brings it into view
 document.querySelectorAll('a[data-see]').forEach(a => a.addEventListener('click', e => {
   e.preventDefault();
-  frame.src = file + a.dataset.see;
+  frame.contentWindow.location.hash = a.dataset.see;
   document.getElementById('example').scrollIntoView();
 }));
 </script>

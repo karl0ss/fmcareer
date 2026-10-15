@@ -1,14 +1,15 @@
 """Build the GitHub Pages site into _site/: the landing page and an example report.
 
-The example is the tests' made-up career (`SAMPLE` in tests/conftest.py) rendered by this
-fmcareer, so the site always shows what the current version makes: once per colour theme
-(example-<theme>.html, with example.html the default), for the page's theme switcher.
+The example is a real career, Karl0ss at St. Albans City, shared by its manager: its data
+(docs/example.json.gz, as fm-careers.co.uk stores it) rendered by this fmcareer, so the site
+always shows the current report page. It's one file; the page's theme switcher changes the
+theme inside the frame, as the report's themes are only its <html data-theme>.
 
 Usage: python docs/build.py [OUT_DIR]   (default: _site)
 """
 
-import copy
-import importlib.util
+import gzip
+import json
 import shutil
 import sys
 from html import escape
@@ -20,37 +21,29 @@ from fmcareer.render import THEMES, render
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def sample() -> dict:
-    spec = importlib.util.spec_from_file_location("conftest", ROOT / "tests" / "conftest.py")
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return copy.deepcopy(module.SAMPLE)
+def example() -> dict:
+    return json.loads(gzip.decompress((ROOT / "docs" / "example.json.gz").read_bytes()))
 
 
 def build(out: Path) -> None:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     page = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
-    page = page.replace("__THEMES__", theme_links()).replace("__VERSION__", __version__)
+    data = example()
+    theme = (data.get("options") or {}).get("theme")
+    theme = theme if theme in THEMES else "fm26"
+    page = page.replace("__THEMES__", theme_buttons(theme)).replace("__VERSION__", __version__)
     (out / "index.html").write_text(page, encoding="utf-8")
     shutil.copy(ROOT / "docs" / "site.css", out)
     shutil.copy(ROOT / "fmcareer" / "web" / "logo.svg", out)
-    for theme in THEMES:
-        data = sample()
-        data.setdefault("options", {})["theme"] = theme
-        html = render(data)
-        (out / f"example-{theme}.html").write_text(html, encoding="utf-8")
-        if theme == "fm26":
-            (out / "example.html").write_text(html, encoding="utf-8")
+    (out / "example.html").write_text(render(data), encoding="utf-8")
 
 
-def theme_links() -> str:
-    """The switcher: a link per theme that loads its example into the frame named "example"."""
+def theme_buttons(current: str) -> str:
+    """The switcher: a button per theme, the example's own theme pressed."""
     return "".join(
-        f'<a href="example-{theme}.html" target="example" data-theme="{theme}"'
-        f"{' aria-current="true"' if theme == 'fm26' else ''}>"
-        f'<i style="background:{page}"><b style="background:{accent}"></b></i>{escape(name)}</a>'
+        f'<button type="button" data-theme="{theme}" aria-pressed="{"true" if theme == current else "false"}">'
+        f'<i style="background:{page}"><b style="background:{accent}"></b></i>{escape(name)}</button>'
         for theme, (name, (page, _card, accent)) in THEMES.items()
     )
 
