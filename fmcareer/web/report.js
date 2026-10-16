@@ -152,13 +152,14 @@ document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? cres
     while (1.05 / (lum(rgb) + .05) < 4.5) rgb = rgb.map(v => v * .92);
     document.documentElement.style.setProperty('--club', `rgb(${rgb.map(v => v | 0).join(',')})`);
   };
-  const chroma = rgb => Math.max(...rgb) - Math.min(...rgb);
+  const chroma = rgb => Math.max(...rgb) - Math.min(...rgb), reads = rgb => 1.05 / (lum(rgb) + .05) >= 4.5;
   const stored = CUR && (D.club_colours || {})[CUR.club_uid];
   if (stored) {
-    // the more colourful of the two: a club stored white first (Celtic) is tinted green
-    const [a, b] = stored.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
-    const pick = chroma(b) > chroma(a) ? b : a;
-    if (chroma(pick) >= 40 || lum(pick) < .3) return tint(pick);
+    // of the coloured or dark ones (not white), one white text already reads on, else the more
+    // colourful darkened: Celtic's green, St Albans' blue rather than its yellow turned olive
+    const usable = stored.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))).filter(c => chroma(c) >= 40 || lum(c) < .3);
+    const pool = usable.filter(reads).length ? usable.filter(reads) : usable;
+    if (pool.length) return tint(pool.reduce((x, y) => chroma(y) > chroma(x) ? y : x));
   }
   const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
   const im = new Image(); im.onload = () => { try {

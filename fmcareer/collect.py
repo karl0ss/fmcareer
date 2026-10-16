@@ -252,7 +252,7 @@ def open_save(save_path: str, names_dir: str | None = None) -> Save:
 
 def manager_steps(everyone: bool) -> int:
     """How many progress steps list_managers reports."""
-    return 3 if everyone else 1
+    return 4 if everyone else 2
 
 
 # the game's career totals; the men's and women's careers' are added together
@@ -310,11 +310,12 @@ def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = 
             x = by_unique.get(h.unique_id) if h else None
             if x is not None and x.uid not in found:
                 found[x.uid] = (x, rec)
-    out = [
+    out: list[Record] = [
         dict(
             staff_uid=x.uid,
             name=x.name,
             club=x.club_name,
+            club_uid=x.club_uid,
             **{k: career_total(rec, k) for k in ("games", "wins", "draws", "losses", "club_jobs")},
             human=x.is_human_manager,
         )
@@ -322,7 +323,47 @@ def list_managers(s: Save, progress: Step = lambda text: None, everyone: bool = 
         if x.name and (career_total(rec, "games") or x.is_human_manager)  # pre-season: no games yet
     ]
     out.sort(key=lambda m: (not m["human"], -m["games"], m["name"]))
+    # the club colours theme's swatch: the colour each manager's report would take
+    progress("Reading club colours")
+    try:
+        colours = {row.club_uid: [row.first_colour, row.second_colour] for row in s.club_colours()}
+    except Exception as e:  # the colours are a nicety: a list without them still works
+        log.warning("Club colours not read: %s", e)
+        colours = {}
+    for m in out:
+        m["colours"] = colours.get(m["club_uid"])
+        m["tint"] = club_tint(*m["colours"]) if m["colours"] else None
     return out
+
+
+def _channels(colour: str) -> list[float]:
+    return [int(colour[i : i + 2], 16) for i in (1, 3, 5)]
+
+
+def _luminance(rgb: list[float]) -> float:
+    lin = [(v / 255) / 12.92 if v / 255 <= 0.03928 else ((v / 255 + 0.055) / 1.055) ** 2.4 for v in rgb]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def club_tint(first: str, second: str) -> str | None:
+    """The colour the report's club colours theme takes from a club's two colours, as its page
+    works it out: of the colours that are coloured or dark (not a white or a pale grey), one
+    white text already reads on (4.5:1), the more colourful if both do; else the more colourful,
+    darkened until it reads. None for two whites or pale greys: the page uses the badge then."""
+
+    def chroma(rgb: list[float]) -> float:
+        return max(rgb) - min(rgb)
+
+    def reads(rgb: list[float]) -> bool:
+        return 1.05 / (_luminance(rgb) + 0.05) >= 4.5
+
+    usable = [c for c in (_channels(first), _channels(second)) if chroma(c) >= 40 or _luminance(c) < 0.3]
+    if not usable:
+        return None
+    pick = max([c for c in usable if reads(c)] or usable, key=chroma)
+    while not reads(pick):
+        pick = [v * 0.92 for v in pick]
+    return "rgb({},{},{})".format(*(int(v) for v in pick))
 
 
 COLLECT_STEPS = 7  # progress steps collect reports; tests check this against the code

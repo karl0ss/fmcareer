@@ -51,6 +51,7 @@ function drawManagers() {
   $('managers').innerHTML = list.map(m => `<div class="item ${chosenManager === m.staff_uid ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${chosenManager === m.staff_uid}" data-uid="${m.staff_uid}"><span>${esc(m.name)}${m.human ? '<span class="badge">You</span>' : ''} <span class="muted">${esc(m.club || '')}</span></span><span class="m">${m.games} games · W${m.wins} D${m.draws} L${m.losses}</span></div>`).join('')
     || `<div class="item muted">No manager matches.</div>`;
   $('generate').disabled = chosenManager == null;
+  if (state) drawThemes();
 }
 function drawOptions() {
   const d = state.defaults, show = recall('show', d.show);
@@ -68,10 +69,13 @@ function drawOptions() {
 // the report's colour theme: a swatch per theme, the choice kept in this browser
 function drawThemes() {
   const cur = recall('theme', 'fm26');
+  // the club colours theme shows the chosen manager's club's colour, as their report will take it
+  const m = managers.find(x => x.staff_uid === chosenManager);
   $('themes').innerHTML = Object.entries(state.themes || {}).map(([id, t]) => {
-    const [page, card, accent] = t.swatch;
+    let [page, card, accent] = t.swatch, note = '';
+    if (id === 'club' && m?.tint) { accent = m.tint; note = `<small class="muted">${esc(m.club || '')}</small>`; }
     return `<label class="theme ${id === cur ? 'on' : ''}"><input type="radio" name="theme" value="${esc(id)}" ${id === cur ? 'checked' : ''}>
-      <span class="swatch" style="background:${page}"><i style="background:${card}"></i><b style="background:${accent}"></b></span>${esc(t.name)}</label>`;
+      <span class="swatch" style="background:${page}"><i style="background:${card}"></i><b style="background:${esc(accent)}"></b></span><span style="text-align:center">${esc(t.name)}${note}</span></label>`;
   }).join('');
 }
 $('themes').onchange = e => { remember('theme', e.target.value); drawThemes(); };

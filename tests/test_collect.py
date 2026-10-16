@@ -14,6 +14,7 @@ from fmcareer.collect import (
     _norm,
     career_record,
     club_colours,
+    club_tint,
     collect,
     countries,
     find_manager,
@@ -313,7 +314,7 @@ def test_a_new_saves_manager_is_listed_before_his_first_game():
     """Pre-season, the record holds no games (friendlies don't count) but he is still there."""
 
     def person(uid, human, unique_id):
-        return NS(uid=uid, name=f"P{uid}", club_name="C", is_human_manager=human, unique_id=unique_id)
+        return NS(uid=uid, name=f"P{uid}", club_name="C", club_uid=7, is_human_manager=human, unique_id=unique_id)
 
     def rec(ref, games):
         return NS(reference=ref, games=games, wins=0, draws=0, losses=0, club_jobs=1)
@@ -532,3 +533,11 @@ def test_club_colours_are_kept_for_the_managers_clubs_only():
     ]
     c = NS(s=NS(club_colours=lambda: rows), stints=[{"club_uid": 10}, {"club_uid": 20}])
     assert club_colours(c) == {"10": ["#26488B", "#FAFAFA"]}
+
+
+def test_the_club_tint_is_a_colour_white_text_reads_on():
+    assert club_tint("#26488B", "#FAFAFA") == "rgb(38,72,139)"  # Fethiyespor: the navy as it is
+    assert club_tint("#FFE252", "#2D68B5") == "rgb(45,104,181)"  # St Albans: the blue, not dark yellow
+    assert club_tint("#FAFAFA", "#3CB571") == "rgb(42,129,80)"  # Celtic: only the green, darkened
+    assert club_tint("#FAFAFA", "#1E2021") == "rgb(30,32,33)"  # Juventus: the black
+    assert club_tint("#FAFAFA", "#E6E6E6") is None  # two whites: the badge decides

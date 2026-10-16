@@ -4,6 +4,13 @@ What changed in each release, in plain words: these lines are the release's note
 and the app shows the first few when it offers the new version. Every release needs its section
 (a test checks the current version has one).
 
+## 0.0.27
+
+- The Club colours theme in Options shows the colour your manager's report will take, once
+  you've picked the manager.
+- A club's colour is one white text reads well on: St Albans City is its blue, not its yellow
+  darkened to olive.
+
 ## 0.0.26
 
 - Club colours come from the save itself, so the page takes the club's real colours even
