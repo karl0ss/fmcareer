@@ -13,6 +13,7 @@ from fmcareer.collect import (
     _live_squad_stats,
     _norm,
     career_record,
+    club_colours,
     collect,
     countries,
     find_manager,
@@ -522,3 +523,12 @@ def test_the_season_in_progress_comes_from_the_live_stats():
             rating=7.0,
         )
     ]
+
+
+def test_club_colours_are_kept_for_the_managers_clubs_only():
+    rows = [
+        NS(club_uid=10, first_colour="#26488B", second_colour="#FAFAFA"),
+        NS(club_uid=99, first_colour="#CF1C2C", second_colour="#FAFAFA"),
+    ]
+    c = NS(s=NS(club_colours=lambda: rows), stints=[{"club_uid": 10}, {"club_uid": 20}])
+    assert club_colours(c) == {"10": ["#26488B", "#FAFAFA"]}

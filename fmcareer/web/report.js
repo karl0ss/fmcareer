@@ -144,8 +144,23 @@ const NAV = [['me', 'Career overview'], ['seasons', 'Seasons'], ['players', 'Pla
 const CUR = (D.stints || []).find(s => !s.end) || (D.stints || []).slice(-1)[0];
 // the manager's face where a face pack or the game has one, else the current club's badge
 document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? crest(CUR.club_uid, CUR.club) : '')}${esc(M.name)} <span>· career history</span>`;
-// tint the page with the current club's badge colour
-(() => { const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
+// tint the page with the current club's colour: the one the game stores, else the badge's
+(() => {
+  // darkened until white text on it reaches 4.5:1 (a yellow club would otherwise give 2:1)
+  const lum = c => c.map(v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0);
+  const tint = rgb => {
+    while (1.05 / (lum(rgb) + .05) < 4.5) rgb = rgb.map(v => v * .92);
+    document.documentElement.style.setProperty('--club', `rgb(${rgb.map(v => v | 0).join(',')})`);
+  };
+  const chroma = rgb => Math.max(...rgb) - Math.min(...rgb);
+  const stored = CUR && (D.club_colours || {})[CUR.club_uid];
+  if (stored) {
+    // the more colourful of the two: a club stored white first (Celtic) is tinted green
+    const [a, b] = stored.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+    const pick = chroma(b) > chroma(a) ? b : a;
+    if (chroma(pick) >= 40 || lum(pick) < .3) return tint(pick);
+  }
+  const src = CUR && IM['club:' + CUR.club_uid]; if (!src) return;
   const im = new Image(); im.onload = () => { try {
     const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(im, 0, 0, 24, 24);
     // the badge's dominant colour: its coloured pixels grouped by hue, the biggest group averaged
@@ -159,13 +174,9 @@ document.getElementById('brand').innerHTML = `${face(M.person_id) || (CUR ? cres
       grp[0] += r; grp[1] += gg; grp[2] += b; grp[3]++;
     }
     const best = Object.values(groups).sort((x, y) => y[3] - x[3])[0];
-    if (!best) return;
-    // darkened until white text on it reaches 4.5:1 (a yellow badge would otherwise give 2:1)
-    const lum = c => c.map(v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0);
-    let rgb = best.slice(0, 3).map(v => v / best[3]);
-    while (1.05 / (lum(rgb) + .05) < 4.5) rgb = rgb.map(v => v * .92);
-    document.documentElement.style.setProperty('--club', `rgb(${rgb.map(v => v | 0).join(',')})`);
-  } catch (e) {} }; im.src = src; })();
+    if (best) tint(best.slice(0, 3).map(v => v / best[3]));
+  } catch (e) {} }; im.src = src;
+})();
 document.getElementById('asof').textContent = M.game_date ? 'As of ' + fmtDate(M.game_date) : '';
 document.getElementById('nav').innerHTML = NAV.map(([id, label]) => `<a href="#${id}" data-nav="${id}">${label}</a>`).join('');
 const view = document.getElementById('view');

@@ -427,6 +427,7 @@ def collect(
             c.comp_name,
             c.comp_db,
         )
+    colours = optional("Club colours", problems, {}, club_colours, c)
     data = dict(
         manager=c.manager_summary(),
         stints=[
@@ -454,6 +455,7 @@ def collect(
         club_today=club_today if "club" in opts["sections"] else None,
         options=opts,
         problems=problems,
+        club_colours=colours,
     )
     # badges are filed under the club's Unique ID, not the uid the rest of the save uses
     data["club_ids"] = {
@@ -1056,6 +1058,14 @@ def _live_squad_stats(c: Career, team_club: dict[int | None, int]) -> tuple[str,
             p["rating"] = round(total / p["apps"], 2)
             live.append(p)
     return season_label(end_year), live
+
+
+def club_colours(c: Career) -> dict[str, list[str]]:
+    """The two colours the game stores for each of the manager's clubs: {uid: [first, second]}."""
+    mine = {st["club_uid"] for st in c.stints}
+    return {
+        str(row.club_uid): [row.first_colour, row.second_colour] for row in c.s.club_colours() if row.club_uid in mine
+    }
 
 
 def career_record(c: Career) -> Record | None:
