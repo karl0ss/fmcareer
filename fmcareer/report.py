@@ -57,12 +57,13 @@ def main() -> None:
         options["show"] = {key: word in picked for key, word in SHOW_WORDS.items()}
     data = collect(a.save, a.manager, a.names, options=options)
     if a.install or a.graphics:
-        from fmcareer.images import load, load_pack, wanted_images
+        from fmcareer.images import by_report_key, load, load_pack, picture_keys
 
-        want = wanted_images(data)
+        keys = picture_keys(data)
+        want = {filed for filed, _shown in keys}
         pack = load_pack(a.graphics, want) if a.graphics else {}
         game = load(a.install, {k for k in want if f"{k[0]}:{k[1]}" not in pack}) if a.install else {}
-        data["images"] = {**game, **pack}
+        data["images"] = by_report_key({**game, **pack}, keys)
     with open(a.out, "w", encoding="utf-8") as f:
         f.write(render(data))
     if a.json:

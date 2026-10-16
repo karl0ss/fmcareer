@@ -22,6 +22,7 @@ import fmsave
 from fmsave import LeagueHistorySeason, ManagerCareerRecord, ManagerEvent, Save, Staff
 
 from fmcareer._types import Record, Step
+from fmcareer.images import wanted_images
 from fmcareer.league import mark_seasons, rank
 
 warnings.simplefilter("ignore")
@@ -426,7 +427,7 @@ def collect(
             c.comp_name,
             c.comp_db,
         )
-    return dict(
+    data = dict(
         manager=c.manager_summary(),
         stints=[
             dict(
@@ -454,6 +455,13 @@ def collect(
         options=opts,
         problems=problems,
     )
+    # badges are filed under the club's Unique ID, not the uid the rest of the save uses
+    data["club_ids"] = {
+        str(uid): c.clubs[uid].unique_id
+        for kind, uid in sorted(wanted_images(data))
+        if kind == "club" and uid in c.clubs and c.clubs[uid].unique_id is not None
+    }
+    return data
 
 
 class Career:
@@ -872,6 +880,13 @@ def statistics_section(
     }
     best_eleven = _best_eleven(c, history_rows, team_club)
     squad_stats = _squad_stats(c, history_rows, team_club)
+    # the season in progress: the save writes its history rows only at the season's end (or
+    # when a player moves), so the live figures win for every player who has any
+    season, live = _live_squad_stats(c, team_club)
+    if live:
+        have = {p["person_id"] for p in live}
+        rest = [p for p in squad_stats.get(season, []) if p["person_id"] not in have]
+        squad_stats[season] = sorted(live + rest, key=lambda x: (-x["apps"], x["name"]))
     # players whose stats rows are gone (retired, cut to a stub) still have their best-eleven line
     for season, xi in best_eleven.items():
         have = {p["name"] for p in squad_stats.get(season, [])}
@@ -991,6 +1006,56 @@ def _squad_stats(
             (p for p in players.values() if p["apps"] > 0), key=lambda x: (-x["apps"], x["name"])
         )
     return squad_stats
+
+
+_COMPETITIVE = {fmsave.SeasonStatsKind.LEAGUE, fmsave.SeasonStatsKind.CUP, fmsave.SeasonStatsKind.CONTINENTAL}
+
+
+def _live_squad_stats(c: Career, team_club: dict[int | None, int]) -> tuple[str, list[Record]]:
+    """The season in progress at the manager's first team, from the game's own season stats."""
+    if c.game_date is None:
+        return "", []
+    end_year = season_end_of(c.game_date)
+    players: dict[int, Record] = {}
+    for r in c.s.player_season_stats():
+        club = team_club.get(r.team_id)
+        if r.kind not in _COMPETITIVE or club is None or not c.in_career(club, end_year):
+            continue
+        p = players.setdefault(
+            r.player_uid,
+            dict(
+                name=c.person(r.player_uid, None, r.player_name),
+                current=r.player_uid in c.current_uids,
+                person_id=c.person_id(r.player_uid, None),
+                apps=0,
+                starts=0,
+                subs=0,
+                goals=0,
+                assists=0,
+                minutes=0,
+                rating_total=0.0,
+                pom=0,
+                yellow=0,
+                red=0,
+            ),
+        )
+        p["apps"] += r.rated_appearances or 0
+        p["starts"] += r.starts or 0
+        p["subs"] += r.substitute_appearances or 0
+        p["goals"] += r.goals or 0
+        p["assists"] += r.assists or 0
+        p["minutes"] += r.minutes or 0
+        p["rating_total"] += (r.average_rating or 0) * (r.rated_appearances or 0)
+        p["pom"] += r.player_of_the_match or 0
+        p["yellow"] += r.yellow_cards or 0
+        p["red"] += r.red_cards or 0
+    live = []
+    for p in players.values():
+        total = p.pop("rating_total")
+        if p["apps"] > 0:
+            p["rating"] = round(total / p["apps"], 2)
+            live.append(p)
+    return season_label(end_year), live
 
 
 def career_record(c: Career) -> Record | None:

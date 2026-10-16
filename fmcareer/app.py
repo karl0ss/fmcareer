@@ -404,9 +404,10 @@ def job_managers(step: Progress, path: str, everyone: bool, fresh: bool = False)
 def report_images(step: Progress, data: Record, install: str, graphics: str, fresh: bool) -> dict[str, str]:
     """Badges and photos for a career: graphics packs first (as in the game), then the
     install's own, which are kept between runs. One progress step."""
-    from fmcareer.images import load, load_pack, wanted_images
+    from fmcareer.images import by_report_key, load, load_pack, picture_keys
 
-    want = wanted_images(data)
+    keys = picture_keys(data)
+    want = {filed for filed, _shown in keys}
     sources = [name for name, folder in (("your graphics packs", graphics), ("the game", install)) if folder]
     step("Embedding badges and photos from " + " and ".join(sources))
     pack = load_pack(graphics, want) if graphics else {}
@@ -422,7 +423,7 @@ def report_images(step: Progress, data: Record, install: str, graphics: str, fre
             absent = absent + [list(k) for k in missing if f"{k[0]}:{k[1]}" not in found]
             cache_write(ikey, dict(pics=pics, absent=absent))
         game = {f"{k[0]}:{k[1]}": pics[f"{k[0]}:{k[1]}"] for k in want if f"{k[0]}:{k[1]}" in pics}
-    return {**game, **pack}
+    return by_report_key({**game, **pack}, keys)
 
 
 AI_TEXTS = CACHE / "ai" / "texts.json"

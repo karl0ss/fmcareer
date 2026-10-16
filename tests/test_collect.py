@@ -10,6 +10,7 @@ import pytest
 from fmcareer.collect import (
     CAREER_TOTALS,
     COLLECT_STEPS,
+    _live_squad_stats,
     _norm,
     career_record,
     collect,
@@ -461,3 +462,63 @@ def test_sponsorship_income_counts_only_running_contracts():
         NS(club_uid=2, end=dt.date(2035, 6, 30), annual_value=50),  # another club
     ]
     assert [x.annual_value for x in running_sponsors(rows, 1, today)] == [400, 100]
+
+
+def test_the_season_in_progress_comes_from_the_live_stats():
+    import fmsave
+
+    kind = fmsave.SeasonStatsKind
+
+    def stats(uid, kind, team, apps, goals=0, rating=7.0):
+        return NS(
+            player_uid=uid,
+            player_name=f"Player {uid}",
+            kind=kind,
+            team_id=team,
+            rated_appearances=apps,
+            starts=apps,
+            substitute_appearances=0,
+            goals=goals,
+            assists=0,
+            minutes=90 * apps,
+            average_rating=rating if apps else None,
+            player_of_the_match=0,
+            yellow_cards=0,
+            red_cards=0,
+        )
+
+    rows = [
+        stats(1, kind.LEAGUE, 500, 2, goals=1, rating=7.5),
+        stats(1, kind.CUP, 500, 1, rating=6.0),
+        stats(1, kind.OVERALL, 500, 3, goals=1),  # the season total, not added again
+        stats(1, kind.NON_COMPETITIVE, 500, 4),  # friendlies
+        stats(2, kind.LEAGUE, 501, 3),  # the reserves
+        stats(3, kind.LEAGUE, 500, 0),  # in the squad, not yet played
+    ]
+    c = NS(
+        s=NS(player_season_stats=lambda: rows),
+        game_date=dt.date(2025, 8, 31),
+        current_uids={1},
+        in_career=lambda club, end_year: (club, end_year) == (77, 2026),
+        person=lambda uid, ref, fallback=None: fallback,
+        person_id=lambda uid, ref: uid + 1000,
+    )
+    season, live = _live_squad_stats(c, {500: 77})
+    assert season == "2025/26"
+    assert live == [
+        dict(
+            name="Player 1",
+            current=True,
+            person_id=1001,
+            apps=3,
+            starts=3,
+            subs=0,
+            goals=1,
+            assists=0,
+            minutes=270,
+            pom=0,
+            yellow=0,
+            red=0,
+            rating=7.0,
+        )
+    ]

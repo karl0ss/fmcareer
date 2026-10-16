@@ -7,7 +7,7 @@ it under:
 
     [u32 length] "<kind>_<id>" [u32 32] "<32 hex digits>"
 
-with kinds `club` (keyed by the save's club uid), `person` (keyed by the person's
+with kinds `club` (keyed by the club's Unique ID, which is often not its uid), `person` (keyed by the person's
 `unique_id`, which for many players is not uid + 1) and `comp` (the competition's editor database id). Nation flags
 (`nation_flag_<nation id>`) sit in sprite atlases under other keys and are not read yet.
 The images are read from the user's own install at report time and
@@ -21,7 +21,7 @@ the game. A pack folder either maps its files with a config file
 (`<record from="716" to="graphics/pictures/club/716/logo"/>`, or `person/<id>/portrait`
 and `person/r-<id>/portrait` for players the game generated) or names its files by id
 (`logos/Clubs/Normal/Normal/716.png`), the folder saying what they are. The ids are the
-same as above: club uid, person unique_id, competition database id.
+same as above: club unique_id, person unique_id, competition database id.
 """
 
 import base64
@@ -234,3 +234,26 @@ def wanted_images(data: Record) -> set[ImageKey]:
         if career.get(key) and career[key].get("person_id"):
             want.add(("person", career[key]["person_id"]))
     return want
+
+
+def picture_keys(data: Record) -> list[tuple[ImageKey, ImageKey]]:
+    """(key the picture is filed under, key the report shows it by) for every wanted image.
+
+    The report names clubs by the save's uid, the game and the packs by the club's Unique ID
+    (`club_ids`); people and competitions already carry the game's own ids.
+    """
+    club_ids = data.get("club_ids") or {}
+    return [
+        ((kind, club_ids.get(str(ident), ident)) if kind == "club" else (kind, ident), (kind, ident))
+        for kind, ident in wanted_images(data)
+    ]
+
+
+def by_report_key(found: dict[str, str], keys: list[tuple[ImageKey, ImageKey]]) -> dict[str, str]:
+    """`found` (keyed by filed key) keyed by report key instead."""
+    out = {}
+    for (kind, filed), (_kind, shown) in keys:
+        uri = found.get(f"{kind}:{filed}")
+        if uri:
+            out[f"{kind}:{shown}"] = uri
+    return out

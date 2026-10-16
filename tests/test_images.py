@@ -2,7 +2,7 @@
 
 import struct
 
-from fmcareer.images import catalog, wanted_images
+from fmcareer.images import by_report_key, catalog, picture_keys, wanted_images
 
 
 def entry(address, digest):
@@ -41,6 +41,20 @@ def test_wanted_images_cover_every_page(sample):
     assert {("comp", 901), ("comp", 902), ("comp", 905)} <= want
     assert not any(kind == "nation_flag" for kind, _ in want)
     assert ("person", None) not in want
+
+
+def test_club_pictures_are_filed_by_unique_id_and_shown_by_uid(sample):
+    # the save's club uid 10 is the game's club 13: badges and packs know only the 13
+    data = dict(sample, club_ids={"10": 13})
+    keys = picture_keys(data)
+    filed = {f for f, _shown in keys}
+    assert ("club", 13) in filed and ("club", 10) not in filed
+    assert ("club", 20) in filed  # a club without a Unique ID keeps its uid
+    found = {"club:13": "badge", "club:10": "someone else's badge", "person:101": "face"}
+    shown = by_report_key(found, keys)
+    assert shown["club:10"] == "badge"
+    assert shown["person:101"] == "face"
+    assert "club:13" not in shown
 
 
 def png(path, colour):
