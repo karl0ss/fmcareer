@@ -108,7 +108,21 @@ async function refresh() {
   chosenSave = chosenSave || recall('save', null);
   if (chosenSave && !state.saves.some(s => s.path === chosenSave)) chosenSave = null;
   drawSaves(); drawOptions(); drawReports(); drawNames(); drawThemes(); drawAI();
+  $('updateCheck').checked = state.settings.update_check !== false;
 }
+// a newer release, asked for after the page is up so a slow network never holds it back
+async function checkUpdate() {
+  let u = null, mine = '';
+  try { ({update: u, version: mine} = await api('/api/update')); } catch (e) {}
+  $('update').hidden = !u;
+  if (!u) return;
+  const notes = (u.notes || []).slice(0, 3);
+  $('update').innerHTML = `<b>fmcareer ${esc(u.version)} is out</b> (you have ${esc(mine)}).
+    <a href="${esc(u.url)}" target="_blank" rel="noopener">Download it</a>${notes.length ? `<ul>${notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}`;
+}
+$('updateCheck').onchange = async () => {
+  try { await api('/api/settings', {update_check: $('updateCheck').checked}); await refresh(); checkUpdate(); } catch (e) {}
+};
 $('saves').onclick = e => { const it = e.target.closest('[data-path]'); if (!it) return; chosenSave = it.dataset.path; remember('save', chosenSave);
   managers = []; chosenManager = null; $('managerFilter').disabled = true; $('managers').innerHTML = '<div class="item muted">Load this save\'s managers.</div>'; drawSaves(); drawManagers();
   $('saves').querySelector(`[data-path="${CSS.escape(chosenSave)}"]`)?.focus(); };
@@ -203,4 +217,4 @@ $('generate').onclick = async () => {
     await refresh();
   } catch (e) { $('genState').innerHTML = failed(e, 'span'); } finally { $('generate').disabled = chosenManager == null; }
 };
-refresh();
+refresh().then(checkUpdate);

@@ -17,6 +17,7 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
     monkeypatch.setattr(app, "NAMES", tmp_path / "names")
     monkeypatch.setattr(app, "DATA", tmp_path / "data")
+    monkeypatch.setattr(app, "RELEASE_FILE", tmp_path / "latest-release.json")
     monkeypatch.setattr(app, "SAVE_DIR_GUESSES", [])
     monkeypatch.setattr(app, "INSTALL_GUESSES", [])
     httpd = app.http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
@@ -50,6 +51,7 @@ def test_page_and_state(server):
         "ai_endpoint": "",
         "ai_model": "",
         "ai_token_set": False,
+        "update_check": True,
     }
     assert state["saves"] == [] and state["reports"] == [] and state["names"] is None
     assert state["names_status"] == "no_install"
@@ -485,3 +487,71 @@ def test_names_status_says_what_to_do_next(monkeypatch, tmp_path):
     assert app.names_status(str(install)) == "ready"
     os.utime(lang, (later + 10, later + 10))  # a game patch
     assert app.names_status(str(install)) == "stale"
+
+
+RELEASE_BODY = """## What's new
+
+- Club colours come from the save itself.
+- The app tells you when a new version is out.
+
+## Download
+
+- not a note
+"""
+
+
+def test_release_notes_are_the_whats_new_bullets():
+    assert app.release_notes(RELEASE_BODY) == [
+        "Club colours come from the save itself.",
+        "The app tells you when a new version is out.",
+    ]
+    assert app.release_notes("") == []
+    assert app.version_tuple("v0.0.10") > app.version_tuple("0.0.9")
+
+
+def test_github_is_asked_at_most_once_a_day_and_silence_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "RELEASE_FILE", tmp_path / "latest-release.json")
+    asked = []
+
+    def fetch():
+        asked.append(1)
+        return dict(version="9.9.9", url="https://example/release", notes=["New things"])
+
+    assert app.latest_release(now=1000, fetch=fetch)["version"] == "9.9.9"
+    assert app.latest_release(now=1000 + 3600, fetch=fetch)["version"] == "9.9.9"
+    assert len(asked) == 1
+
+    def offline():
+        raise OSError("no network")
+
+    # a failed check keeps what was known and waits another day
+    assert app.latest_release(now=1000 + 2 * 86400, fetch=offline)["version"] == "9.9.9"
+    assert app.latest_release(now=1000 + 2 * 86400 + 60, fetch=fetch)["version"] == "9.9.9"
+    assert len(asked) == 1
+
+
+def test_the_update_is_offered_only_when_newer_and_wanted(server, monkeypatch):
+    base, _ = server
+    newer = dict(version="99.0.0", url="https://example/release", notes=["New things"])
+    monkeypatch.setattr(app, "latest_release", lambda: newer)
+    status, body = call(base + "/api/update")
+    assert status == 200 and json.loads(body) == {"update": newer, "version": app.__version__}
+    call(base + "/api/settings", {"update_check": False})
+    assert json.loads(call(base + "/api/update")[1])["update"] is None
+    call(base + "/api/settings", {"update_check": True})
+    monkeypatch.setattr(app, "latest_release", lambda: dict(newer, version=app.__version__))
+    assert json.loads(call(base + "/api/update")[1])["update"] is None
+
+
+def test_the_current_version_has_release_notes():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "packaging" / "release_notes.py"
+    spec = importlib.util.spec_from_file_location("release_notes", path)
+    assert spec and spec.loader
+    notes = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(notes)
+    assert notes.section(app.__version__), f"CHANGELOG.md needs a section for {app.__version__}"
+    text = notes.notes(app.__version__)
+    assert app.release_notes(text) == notes.section(app.__version__)

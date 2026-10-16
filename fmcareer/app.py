@@ -51,6 +51,9 @@ REPORTS = CACHE / "reports"
 NAMES = CACHE / "names"
 DATA = CACHE / "data"
 LOGS = CACHE / "logs"
+LATEST_RELEASE = "https://api.github.com/repos/karl0ss/fmcareer/releases/latest"
+RELEASE_FILE = CACHE / "latest-release.json"
+RELEASE_CHECK_SECONDS = 24 * 3600
 
 SAVE_DIR_GUESSES = [
     HOME / "Documents" / "Sports Interactive" / "Football Manager 26" / "games",
@@ -79,6 +82,7 @@ def load_settings() -> Record:
         "ai_endpoint": "",
         "ai_token": "",
         "ai_model": "",
+        "update_check": True,
     }
     with contextlib.suppress(OSError, ValueError):
         settings.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
@@ -110,6 +114,63 @@ def ai_config(settings: Record) -> dict[str, str] | None:
 def store_settings(settings: Record) -> None:
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(settings, indent=1), encoding="utf-8")
+
+
+# new versions
+
+
+def version_tuple(version: str) -> tuple[int, ...]:
+    return tuple(int(p) for p in re.findall(r"\d+", version)[:3])
+
+
+def release_notes(body: str) -> list[str]:
+    """The bullets under the release's "What's new" heading (the changelog's section)."""
+    notes, inside = [], False
+    for line in (body or "").splitlines():
+        if line.startswith("## "):
+            inside = line[3:].strip().lower().startswith("what's new")
+        elif inside and line.startswith("- "):
+            notes.append(line[2:].strip())
+    return notes
+
+
+def fetch_latest_release() -> Record | None:
+    """The latest release on GitHub: one anonymous request, nothing about the user in it."""
+    req = urllib.request.Request(LATEST_RELEASE, headers={"User-Agent": f"fmcareer/{__version__}"})
+    with urllib.request.urlopen(req, timeout=4) as r:
+        rel = json.loads(r.read())
+    return dict(version=rel["tag_name"].lstrip("v"), url=rel["html_url"], notes=release_notes(rel.get("body") or ""))
+
+
+def latest_release(
+    now: float | None = None, fetch: Callable[[], Record | None] = fetch_latest_release
+) -> Record | None:
+    """The latest release, asked of GitHub at most once a day; None when it has never answered."""
+    now = time.time() if now is None else now
+    known: Record = {}
+    with contextlib.suppress(OSError, ValueError):
+        known = json.loads(RELEASE_FILE.read_text(encoding="utf-8"))
+    if "checked" in known and now - known["checked"] < RELEASE_CHECK_SECONDS:
+        return known.get("release")
+    release = known.get("release")
+    try:
+        release = fetch()
+    except (OSError, ValueError, KeyError) as e:  # offline, or GitHub down: try again tomorrow
+        log.info("No word on a new version: %s", e)
+    with contextlib.suppress(OSError):
+        RELEASE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        RELEASE_FILE.write_text(json.dumps(dict(checked=now, release=release)), encoding="utf-8")
+    return release
+
+
+def available_update(settings: Record) -> Record | None:
+    """A release newer than this one, unless the check is turned off."""
+    if not settings.get("update_check", True):
+        return None
+    release = latest_release()
+    if release and version_tuple(release["version"]) > version_tuple(__version__):
+        return release
+    return None
 
 
 def names_dir() -> str | None:
@@ -597,6 +658,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, web.read("logo.svg"), "image/svg+xml")
         if self.path == "/api/version":
             return self.send(200, {"app": "fmcareer", "version": __version__})
+        if self.path == "/api/update":
+            return self.send(200, {"update": available_update(load_settings()), "version": __version__})
         if self.path == "/api/state":
             settings = load_settings()
             return self.send(
@@ -643,6 +706,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             settings.update({k: clean_path(str(req.get(k, settings[k]))) for k in ("saves_dir", "install", "graphics")})
             if "ai_enabled" in req:
                 settings["ai_enabled"] = bool(req["ai_enabled"])
+            if "update_check" in req:
+                settings["update_check"] = bool(req["update_check"])
             if req.get("ai_token"):  # a blank field keeps the saved token
                 settings["ai_token"] = str(req["ai_token"]).strip()
             if req.get("ai_token_clear"):

@@ -86,10 +86,17 @@ opens a page in your browser (served only on your own machine, at
 4. tick the pages to include, which kinds of move the transfer lists show at first
    (loans, trials, youth intake, released players, staff), and whether to embed images;
 5. set options: the report's colour theme (FM26, Midnight, Pitch, Crimson, Club colours
-   from the club's badge, or Matchday light) and AI-written articles (below);
+   (the colours the save stores for the club, else its badge's), or Matchday light),
+   AI-written articles (below), and whether to hear about new versions;
 6. generate: a progress bar counts the steps, then Open and Download buttons appear, with a
    link to share the report on [fm-careers.co.uk](https://fm-careers.co.uk). Reports are kept
    in `~/.cache/fmcareer/reports`.
+
+When a new version is out, a note at the top of the page says so, with what it brings and a
+download link. To know, the app asks GitHub for the latest release at most once a day: one
+request with nothing about you in it, and nothing else ever leaves your machine (apart from
+the AI endpoint, if you set one). Untick "Tell me when a new version of fmcareer is out" in
+Options to stop it.
 
 The Windows exe is this same app. On Windows `~` is your user folder
 (`C:\Users\<you>`), so settings are in `C:\Users\<you>\.config\fmcareer` and reports in
@@ -176,7 +183,9 @@ retro badge sets and small sizes are skipped.
 
 ## Releases
 
-The version lives in `fmcareer/__init__.py`. To publish one, bump it, commit, then tag:
+The version lives in `fmcareer/__init__.py`. Each version needs a section in `CHANGELOG.md`
+(a test checks): its bullets are the release's notes on GitHub, and the app shows the first
+few when it offers that version. To publish one, bump it, commit, then tag:
 
 ```sh
 git tag v0.0.26 && git push origin v0.0.26

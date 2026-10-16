@@ -108,6 +108,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Notes from CHANGELOG.md (the app shows their "What's new" bullets)
+        run: python packaging/release_notes.py "${GITHUB_REF_NAME#v}" > notes.md
       - uses: actions/download-artifact@v4
         with:
           pattern: fmcareer-*
@@ -118,14 +121,4 @@ jobs:
             *.exe
             *.tar.gz
           generate_release_notes: true
-          body: |
-            **Windows:** download `fmcareer-*-windows.exe` and double-click it: the app opens in your browser.
-            Leave the black window open while you use it; close it to stop.
-            Windows may warn about an unrecognised app the first time (the exe isn't code-signed):
-            choose "More info" then "Run anyway".
-
-            **macOS (Apple silicon):** download `fmcareer-*-macos-arm64.tar.gz`, double-click it to unpack,
-            then in Terminal run `xattr -d com.apple.quarantine fmcareer` in that folder once (the program isn't signed),
-            and start it with `./fmcareer`. The app opens in your browser; leave Terminal open while you use it.
-
-            **Linux (x64):** download `fmcareer-*-linux-x64.tar.gz`, then `tar -xzf fmcareer-*-linux-x64.tar.gz && ./fmcareer`.
+          body_path: notes.md
