@@ -54,21 +54,23 @@ needs_chrome = pytest.mark.skipif(CHROME is None, reason="no headless Chromium f
 def dom(tmp_path, html, page):
     path = tmp_path / "report.html"
     path.write_text(html, encoding="utf-8")
-    out = subprocess.run(
-        [
-            CHROME,
-            "--headless",
-            "--no-sandbox",
-            "--disable-gpu",
-            "--virtual-time-budget=3000",
-            "--dump-dom",
-            f"file://{path}#{page}",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    return out.stdout
+    args = [
+        CHROME,
+        "--headless",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--virtual-time-budget=3000",
+        "--dump-dom",
+        f"file://{path}#{page}",
+    ]
+    # a CI runner's Chromium now and then hangs on start (once in v0.0.26's release run): one retry
+    for attempt in range(2):
+        try:
+            return subprocess.run(args, capture_output=True, text=True, timeout=60).stdout
+        except subprocess.TimeoutExpired:
+            if attempt:
+                raise
+    raise AssertionError("unreachable")
 
 
 def view_of(text):
