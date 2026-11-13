@@ -1,13 +1,13 @@
 [project]
 name = "fmcareer"
 dynamic = ["version"]
-description = "A manager's career history report from a Football Manager 26 save"
+description = "A manager's career history report from a Football Manager 26 or 24 save"
 readme = "README.md"
 requires-python = ">=3.12"
 # fmsave is our fork (branch history-decoders), pinned to a commit so every build reads saves the
 # same way; move the pin forward deliberately when the fork changes.
 dependencies = [
-    "fmsave @ git+https://github.com/karl0ss/fmsave.git@a6d941c9a6a9fd87abed446ca4fe4f224cdb3770",
+    "fmsave @ git+https://github.com/karl0ss/fmsave.git@b56f946bfeb2e761db3b7949dc4a07c82bee33b1",
     "backports.zstd>=1.0; python_version < '3.14'",  # reading the game's database files (gamedb)
 ]
 
