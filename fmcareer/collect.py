@@ -1225,11 +1225,16 @@ def club_now(
     latest = months[-1] if months else None
     sponsors = running_sponsors(s.sponsorships(), club_uid, s.info.game_date)
     facilities = next((x for x in s.facilities() if x.club_uid == club_uid), None)
-    tactics = [
-        dict(name=x.name, style=x.style_name, mentality=_label(x.mentality))
-        for x in s.tactics()
-        if x.club_uid == club_uid and x.team_id == first_team
-    ]
+    try:
+        tactics = [
+            dict(name=x.name, style=x.style_name, mentality=_label(x.mentality))
+            for x in s.tactics()
+            if x.club_uid == club_uid and x.team_id == first_team
+        ]
+    except fmsave.ReaderCheckError as e:
+        # FM24 saves: fmsave cannot read their tactics yet; the rest of the page still can
+        log.warning("Tactics not read, so the club page lists none: %s", e)
+        tactics = []
     contracts = {c.player_uid: c for c in s.contracts() if c.club_uid == club_uid}
     teams = team_names(club, team_competitions(s, comp_name))
     squad = []
