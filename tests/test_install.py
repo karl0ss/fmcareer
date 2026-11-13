@@ -55,6 +55,29 @@ def test_mac_install_is_found_inside_the_app_bundle(mac, picked):
     assert len(lang_files(folder)) == 1
 
 
+def test_an_fm24_install_is_found_by_its_database(tmp_path):
+    install = tmp_path / "FootballManager24"
+    lang = install / "data" / "database" / "db" / "2430" / "2430_fm" / "lang_db.dat"
+    lang.parent.mkdir(parents=True)
+    lang.write_bytes(b"")
+    assert database_dir(str(install)) == str(install / "data" / "database" / "db")
+    assert lang_files(str(install)) == [str(lang)]
+    assert licensed_data_dir(str(install)) is None
+
+
+def test_names_are_only_read_from_the_saves_own_game(tmp_path, windows, monkeypatch):
+    monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "NAMES_FM24", tmp_path / "names-fm24")
+    fm24 = tmp_path / "FootballManager24"
+    lang = fm24 / "data" / "database" / "db" / "2430" / "2430_fm" / "lang_db.dat"
+    lang.parent.mkdir(parents=True)
+    lang.write_bytes(b"")
+    assert app.names_status(str(fm24), "FM24") == "needed"
+    assert app.names_status(str(fm24)) == "wrong_game"  # FM24 names would mislabel FM26 awards
+    assert app.names_status(str(windows), "FM24") == "wrong_game"
+    assert not app.names_needed(str(windows), "FM24")
+
+
 def test_other_folders_are_not_an_install(tmp_path):
     assert database_dir(str(tmp_path)) is None and licensed_data_dir(str(tmp_path)) is None
     assert database_dir("") is None and lang_files("") == [] and _folders(str(tmp_path)) == []

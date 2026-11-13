@@ -98,17 +98,34 @@ const NAMES_STATE = {
   bad_install: '<span class="err">That folder doesn\'t look like the Football Manager 26 install: the game\'s database isn\'t in it. With Steam it is usually …/steamapps/common/Football Manager 26 (on a Mac, ~/Library/Application Support/Steam/steamapps/common/Football Manager 26).</span>',
   saves_folder: '<span class="err">That is the game\'s own folder for saves and graphics, not where the game is installed. The install is where Steam put the game: usually …/steamapps/common/Football Manager 26 (on a Mac, ~/Library/Application Support/Steam/steamapps/common/Football Manager 26).</span>',
   no_install: 'Set the Football Manager 26 install folder above and save it, then read the names from the game.',
+  wrong_game: '<span class="err">That is the Football Manager 24 install. Put it in the FM24 folder below; this one is for Football Manager 26.</span>',
 };
+// FM24 saves number their awards by FM24's own award table, so they get names from the FM24 install
+const NAMES_STATE_FM24 = {
+  ready: '<span class="ok">FM24 names are ready.</span>',
+  needed: '<span class="warn">Read the names from Football Manager 24, so FM24 saves show competitions and awards by name.</span>',
+  stale: '<span class="warn">Football Manager 24 has been updated since its names were read: read them again.</span>',
+  bad_install: '<span class="err">That folder doesn\'t look like the Football Manager 24 install: its database isn\'t in it.</span>',
+  saves_folder: '<span class="err">That is Football Manager 24\'s folder for saves and graphics, not where the game is installed.</span>',
+  wrong_game: '<span class="err">That is the Football Manager 26 install, not Football Manager 24\'s.</span>',
+  no_install: 'Only for FM24 saves: set the Football Manager 24 install folder to show their competitions and awards by name.',
+};
+const NAMES_BLOCKED = ['no_install', 'bad_install', 'saves_folder', 'wrong_game'];
 function drawNames() {
-  const st = state.names_status;
+  const st = state.names_status, st24 = state.names_status_fm24;
   $('namesState').innerHTML = NAMES_STATE[st] || '';
   $('buildNames').textContent = state.names ? 'Read names again' : 'Read names from the game';
   $('buildNames').classList.toggle('ghost', st !== 'needed' && st !== 'stale');  // the main button when it's the next thing to do
-  $('buildNames').disabled = st === 'no_install' || st === 'bad_install' || st === 'saves_folder';
+  $('buildNames').disabled = NAMES_BLOCKED.includes(st);
+  $('namesStateFm24').innerHTML = NAMES_STATE_FM24[st24] || '';
+  $('buildNamesFm24').textContent = state.names_fm24 ? 'Read FM24 names again' : 'Read FM24 names';
+  $('buildNamesFm24').classList.toggle('ghost', st24 !== 'needed' && st24 !== 'stale');
+  $('buildNamesFm24').hidden = NAMES_BLOCKED.includes(st24);
 }
+const folders = () => ({saves_dir: $('savesDir').value, install: $('install').value, install_fm24: $('installFm24').value, graphics: $('graphics').value});
 async function refresh() {
   state = await api('/api/state');
-  $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install; $('graphics').value = state.settings.graphics;
+  $('savesDir').value = state.settings.saves_dir; $('install').value = state.settings.install; $('installFm24').value = state.settings.install_fm24 || ''; $('graphics').value = state.settings.graphics;
   chosenSave = chosenSave || recall('save', null);
   if (chosenSave && !state.saves.some(s => s.path === chosenSave)) chosenSave = null;
   drawSaves(); drawOptions(); drawReports(); drawNames(); drawThemes(); drawAI();
@@ -155,14 +172,19 @@ $('aiTest').onclick = async () => {
   } catch (e) { $('aiLog').innerHTML += failed(e); } finally { $('aiTest').disabled = false; }
 };
 $('saveSettings').onclick = async () => {
-  await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value}); await refresh();
+  await api('/api/settings', folders()); await refresh();
   $('namesLog').innerHTML = '';
   if (state.names_status === 'needed' || state.names_status === 'stale') $('buildNames').focus();
 };
 $('buildNames').onclick = async () => {
-  try { await api('/api/settings', {saves_dir: $('savesDir').value, install: $('install').value, graphics: $('graphics').value});
+  try { await api('/api/settings', folders());
     const {job} = await api('/api/names', {}); $('buildNames').disabled = true; await follow(job, $('namesLog')); await refresh();
   } catch (e) { $('namesLog').innerHTML = failed(e); } finally { drawNames(); }
+};
+$('buildNamesFm24').onclick = async () => {
+  try { await api('/api/settings', folders());
+    const {job} = await api('/api/names', {game: 'FM24'}); $('buildNamesFm24').disabled = true; await follow(job, $('namesLog')); await refresh();
+  } catch (e) { $('namesLog').innerHTML = failed(e); } finally { $('buildNamesFm24').disabled = false; drawNames(); }
 };
 $('loadManagers').onclick = async () => {
   $('loadManagers').disabled = true;
@@ -190,7 +212,7 @@ function gapsPanel(r) {
   const line = g => `<li>${g.count} ${GAP_WORDS[g.kind][g.count === 1 ? 0 : 1] || g.kind} without a name, shown as ${g.examples.map(x => `“${esc(x)}”`).join(', ')}${g.count > g.examples.length ? '…' : ''}</li>`;
   let html = '<h3>This report is missing things</h3>';
   if (theirs.length) html += `<p>Competition and award names haven't been read from the game yet, so these show as numbers:</p><ul>${theirs.map(line).join('')}</ul>
-    <p>They are read from the game automatically, so check the <b>Football Manager 26 install folder</b> in step 1 is right, then generate the report again.</p>`;
+    <p>They are read from the game automatically, so check the <b>${r.game === 'FM24' ? 'Football Manager 24' : 'Football Manager 26'} install folder</b> in step 1 is right, then generate the report again.</p>`;
   if (ours.length || leftOut.length) {
     const summary = [...ours.map(g => `${g.count} ${g.kind} without a name (${g.examples.join(', ')})`), ...leftOut.map(p => `left out: ${p}`)].join('\n');
     const ticket = `${ISSUES}/new?template=missing_data.yml&title=${encodeURIComponent('Missing from my report: ' + [...ours.map(g => g.kind), ...leftOut].join(', '))}`

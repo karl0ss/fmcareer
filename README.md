@@ -2,7 +2,7 @@
 
 **Site, downloads and an example report: https://karl0ss.github.io/fmcareer/**
 
-A manager's career history from a Football Manager 26 save: point it at a save and a
+A manager's career history from a Football Manager 26 or 24 save: point it at a save and a
 manager's name, and it builds one self-contained HTML page with:
 
 - **Career overview**: a newspaper-style feature on the whole career, profile, league record, the game's own managerial stats (games,
@@ -67,6 +67,12 @@ usually `C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26`, or 
 files are inside `fm.app`; give the folder that holds it (fmcareer also finds them from `fm.app`
 itself or a folder inside it).
 
+**FM24 saves** number their awards by FM24's own award table, so their names must come from the
+FM24 install (its database is in `data/database/db`): `fmcareer-names "/path/to/Football Manager
+2024" names-fm24`, and give `names-fm24` for FM24 saves. FM24 ships no licensed badges or photos:
+their images come from your graphics packs (`--graphics`), or from an FM26 install (`--install`),
+whose real clubs and players carry the same ids.
+
 ## The app
 
 ```sh
@@ -77,9 +83,11 @@ opens a page in your browser (served only on your own machine, at
 `http://127.0.0.1:8765/`) where you:
 
 1. set your saves folder, FM26 install folder and graphics folder (it finds the usual
-   Steam and Documents locations, and the graphics folder next to the saves). The
-   competition and award names are read from the game automatically the first time you
-   generate a report, and again after a game patch; "Read names again" forces it;
+   Steam and Documents locations, and the graphics folder next to the saves), and for FM24
+   saves the FM24 install folder. The competition and award names are read from the game
+   automatically the first time you generate a report, and again after a game patch; "Read
+   names again" forces it. Each save gets the names of its own game, which fmcareer reads
+   from the save;
 2. pick a save;
 3. load its managers and pick one: the save's human managers (tick "Show all managers"
    for every manager in the save, searchable by name or club);

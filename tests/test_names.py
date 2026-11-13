@@ -67,5 +67,5 @@ def test_name_tables_parse():
 
 
 def test_wrong_folder_says_where_the_install_is(tmp_path):
-    with pytest.raises(SystemExit, match="does not look like the Football Manager 26 install"):
+    with pytest.raises(SystemExit, match="does not look like a Football Manager 26 or 24 install"):
         main([str(tmp_path), str(tmp_path / "names")])

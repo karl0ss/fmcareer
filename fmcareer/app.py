@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import fmsave
 from fmsave import Save
 
 from fmcareer import __version__, web
@@ -48,7 +49,8 @@ HOME = Path.home()
 CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "fmcareer" / "settings.json"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", HOME / ".cache")) / "fmcareer"
 REPORTS = CACHE / "reports"
-NAMES = CACHE / "names"
+NAMES = CACHE / "names"  # read from the FM26 install, for FM26 saves
+NAMES_FM24 = CACHE / "names-fm24"  # read from the FM24 install, for FM24 saves
 DATA = CACHE / "data"
 LOGS = CACHE / "logs"
 LATEST_RELEASE = "https://api.github.com/repos/karl0ss/fmcareer/releases/latest"
@@ -68,6 +70,15 @@ INSTALL_GUESSES = [
     HOME / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "Football Manager 26",
     Path("/Users/Shared/Epic Games/FootballManager26"),
 ]
+INSTALL_FM24_GUESSES = [
+    Path("C:/Program Files (x86)/Steam/steamapps/common/Football Manager 2024"),
+    Path("C:/Program Files/Steam/steamapps/common/Football Manager 2024"),
+    Path("C:/Program Files/Epic Games/FootballManager24"),
+    HOME / ".steam" / "steam" / "steamapps" / "common" / "Football Manager 2024",
+    HOME / ".local" / "share" / "Steam" / "steamapps" / "common" / "Football Manager 2024",
+    HOME / "Library" / "Application Support" / "Steam" / "steamapps" / "common" / "Football Manager 2024",
+    Path("/Users/Shared/Epic Games/FootballManager24"),
+]
 
 
 # settings
@@ -77,6 +88,7 @@ def load_settings() -> Record:
     settings = {
         "saves_dir": "",
         "install": "",
+        "install_fm24": "",
         "graphics": "",
         "ai_enabled": False,
         "ai_endpoint": "",
@@ -90,6 +102,8 @@ def load_settings() -> Record:
         settings["saves_dir"] = next((str(p) for p in SAVE_DIR_GUESSES if p.is_dir()), "")
     if not settings["install"]:
         settings["install"] = next((str(p) for p in INSTALL_GUESSES if p.is_dir()), "")
+    if not settings["install_fm24"]:
+        settings["install_fm24"] = next((str(p) for p in INSTALL_FM24_GUESSES if p.is_dir()), "")
     if not settings["graphics"]:
         from fmcareer.images import guess_graphics
 
@@ -173,18 +187,47 @@ def available_update(settings: Record) -> Record | None:
     return None
 
 
-def names_dir() -> str | None:
-    return str(NAMES) if (NAMES / "competition_names.csv").exists() else None
+def names_folder(game: str = "FM26") -> Path:
+    """Where one game's names are kept. Each game's saves number their awards by that game's own
+    award table, so FM24 saves get names read from the FM24 install and FM26 saves from FM26's."""
+    return NAMES_FM24 if game == "FM24" else NAMES
 
 
-def names_needed(install: str) -> bool:
+def names_dir(game: str = "FM26") -> str | None:
+    folder = names_folder(game)
+    return str(folder) if (folder / "competition_names.csv").exists() else None
+
+
+def names_install(settings: Record, game: str) -> str:
+    """The install a save's names are read from: the FM24 one for FM24 saves."""
+    return settings["install_fm24"] if game == "FM24" else settings["install"]
+
+
+def names_needed(install: str, game: str = "FM26") -> bool:
     """Whether to read the names from the game before a report: there are none yet, or the
-    game's own files are newer (a patch can add competitions). False without an install."""
-    from fmcareer.names import lang_files
+    game's own files are newer (a patch can add competitions). False without an install of
+    that game: another game's names would put the wrong names on its awards."""
+    from fmcareer.names import install_game, lang_files
 
-    files = lang_files(install) if install else []
-    csv = NAMES / "competition_names.csv"
+    files = lang_files(install) if install and install_game(install) == game else []
+    csv = names_folder(game) / "competition_names.csv"
     return bool(files) and (not csv.exists() or csv.stat().st_mtime < max(os.path.getmtime(f) for f in files))
+
+
+GAMES: dict[tuple[str, float], str] = {}
+
+
+def save_game(path: str) -> str:
+    """The game a save comes from ("FM26", "FM24"), read from the save once per version of it."""
+    key = (path, os.path.getmtime(path))
+    if key not in GAMES:
+        try:
+            with fmsave.open(path) as s:
+                GAMES[key] = s.info.game
+        except Exception as e:  # the report itself says what is wrong with the save
+            log.warning("Couldn't tell which game %s is from: %s", path, e)
+            GAMES[key] = "FM26"
+    return GAMES[key]
 
 
 # what was read from a save, kept on disk so the same save opens fast next time.
@@ -219,7 +262,12 @@ def cache_key(path: str, *parts: object) -> str:
     import hashlib
 
     st = os.stat(path)
-    names = [(f.name, f.stat().st_mtime_ns) for f in sorted(NAMES.glob("*.csv"))] if NAMES.is_dir() else []
+    names = [
+        (f"{folder.name}/{f.name}", f.stat().st_mtime_ns)
+        for folder in (NAMES, NAMES_FM24)
+        if folder.is_dir()
+        for f in sorted(folder.glob("*.csv"))
+    ]
     raw = json.dumps([os.path.abspath(path), st.st_size, st.st_mtime_ns, names, CODE, *parts], default=str)
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
@@ -398,8 +446,9 @@ def start_job(fn: Callable[..., Any], *args: Any) -> str:
 
 
 def save_key(path: str) -> tuple[str, float, str | None, float | None]:
-    names = names_dir()
-    return (path, os.path.getmtime(path), names, os.path.getmtime(NAMES / "competition_names.csv") if names else None)
+    names = names_dir(save_game(path))
+    csv = Path(names) / "competition_names.csv" if names else None
+    return (path, os.path.getmtime(path), names, os.path.getmtime(csv) if csv else None)
 
 
 def get_save(step: Progress, path: str) -> Save:
@@ -407,43 +456,45 @@ def get_save(step: Progress, path: str) -> Save:
     if OPEN["key"] != key:
         OPEN.update(key=None, save=None)
         step("Opening the save")
-        OPEN.update(key=key, save=open_save(path, names_dir()))
+        OPEN.update(key=key, save=open_save(path, names_dir(save_game(path))))
     else:
         step("Using the save already open")
     return OPEN["save"]
 
 
-def job_names(step: Progress, install: str) -> Record:
+def job_names(step: Progress, install: str, game: str = "FM26") -> Record:
     from fmcareer.names import main as build_names
 
     step.plan(1)
     step("Reading competition and award names from the game")
-    build_names([install, str(NAMES)])
-    return dict(names=names_dir())
+    build_names([install, str(names_folder(game))])
+    return dict(names=names_dir(game))
 
 
-def names_status(install: str) -> str:
+def names_status(install: str, game: str = "FM26") -> str:
     """For the page: "ready", "needed" (missing, or older than the game's), "stale" (needed,
     after a game patch), "saves_folder" (the game's user folder, not its install), "bad_install"
-    (not an FM26 folder) or "no_install"."""
-    from fmcareer.names import lang_files
+    (not a game folder), "wrong_game" (the other game's install) or "no_install"."""
+    from fmcareer.names import install_game, lang_files
 
     if not install:
         return "no_install"
     if not lang_files(install):
         return "saves_folder" if looks_like_saves(install) else "bad_install"
-    if not names_needed(install):
+    if install_game(install) != game:
+        return "wrong_game"
+    if not names_needed(install, game):
         return "ready"
-    return "stale" if names_dir() else "needed"
+    return "stale" if names_dir(game) else "needed"
 
 
-def read_names_from_game(step: Progress, install: str) -> None:
+def read_names_from_game(step: Progress, install: str, game: str = "FM26") -> None:
     """One progress step. A failure is logged and the report goes on with numbers for names."""
     from fmcareer.names import main as build_names
 
     step("Reading competition and award names from the game")
     try:
-        build_names([install, str(NAMES)])
+        build_names([install, str(names_folder(game))])
     except (Exception, SystemExit) as e:
         log.warning("Couldn't read the names from %s: %s", install, e)
 
@@ -567,21 +618,26 @@ def job_report(
     fresh: bool = False,
     graphics: str = "",
     ai: dict[str, str] | None = None,
+    install_fm24: str = "",
 ) -> Record:
+    # names come from the save's own game: an FM24 save's from the FM24 install. Badges and
+    # photos come from the FM26 install either way (FM24 ships none), and the graphics packs.
+    game = save_game(path)
+    names_from = install_fm24 if game == "FM24" else install
     # names are read automatically, so nobody has to remember the button; new names mean a fresh read
-    names = names_needed(install)
+    names = names_needed(names_from, game)
     key = cache_key(path, "career", staff_uid)
     data = None if fresh or names else cache_read(key)
     images = bool(images and (install or graphics))
     step.plan(names + (1 if data is not None else 1 + COLLECT_STEPS) + images + 1)  # names, read, images, writing
     if names:
-        read_names_from_game(step, install)
+        read_names_from_game(step, names_from, game)
         key = cache_key(path, "career", staff_uid)  # the key covers the names files
     if data is not None:
         step("Using the career read earlier from this save")
     else:
         s = get_save(step, path)
-        data = collect(path, None, names_dir(), staff_uid=staff_uid, save=s, progress=step)  # every section
+        data = collect(path, None, names_dir(game), staff_uid=staff_uid, save=s, progress=step)  # every section
         cache_write(key, data)
     # options only choose what the page shows, so one read serves every choice of options
     data = dict(data, options=options, club_today=data["club_today"] if "club" in options["sections"] else None)
@@ -616,7 +672,8 @@ def job_report(
         ai=ai_note,
         left_out=[p["part"] for p in data.get("problems", [])],
         gaps=gaps,
-        names=names_dir() is not None,
+        names=names_dir(game) is not None,
+        game=game,
         version=__version__,
     )
 
@@ -671,6 +728,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     reports_dir=str(REPORTS),
                     names=names_dir(),
                     names_status=names_status(settings["install"]),
+                    names_fm24=names_dir("FM24"),
+                    names_status_fm24=names_status(settings["install_fm24"], "FM24"),
                     images=images_available(),
                     themes={k: {"name": n, "swatch": sw} for k, (n, sw) in THEMES.items()},
                     defaults=DEFAULT_OPTIONS,
@@ -703,7 +762,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         settings = load_settings()
         if self.path == "/api/settings":
             settings.update({k: str(req.get(k, settings[k])).strip() for k in ("ai_endpoint", "ai_model")})
-            settings.update({k: clean_path(str(req.get(k, settings[k]))) for k in ("saves_dir", "install", "graphics")})
+            settings.update(
+                {
+                    k: clean_path(str(req.get(k, settings[k])))
+                    for k in ("saves_dir", "install", "install_fm24", "graphics")
+                }
+            )
             if "ai_enabled" in req:
                 settings["ai_enabled"] = bool(req["ai_enabled"])
             if "update_check" in req:
@@ -721,9 +785,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             token = str(req.get("token") or settings["ai_token"]).strip()
             return self.send(200, {"job": start_job(job_ai_test, endpoint, token, str(req.get("model") or "").strip())})
         if self.path == "/api/names":
-            if not os.path.isdir(settings["install"]):
-                return self.send(400, {"error": "Set the Football Manager 26 install folder first."})
-            return self.send(200, {"job": start_job(job_names, settings["install"])})
+            game = "FM24" if req.get("game") == "FM24" else "FM26"
+            install = names_install(settings, game)
+            if not os.path.isdir(install):
+                which = "Football Manager 24" if game == "FM24" else "Football Manager 26"
+                return self.send(400, {"error": f"Set the {which} install folder first."})
+            if names_status(install, game) == "wrong_game":
+                return self.send(400, {"error": f"That folder isn't the {game} install."})
+            return self.send(200, {"job": start_job(job_names, install, game)})
         save = req.get("save") or ""
         if self.path in ("/api/managers", "/api/report") and not os.path.isfile(save):
             return self.send(400, {"error": "Pick a save file first."})
@@ -755,6 +824,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         bool(req.get("fresh")),
                         settings["graphics"],
                         ai_config(settings),
+                        settings["install_fm24"],
                     )
                 },
             )

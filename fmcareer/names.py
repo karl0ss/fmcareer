@@ -1,4 +1,4 @@
-"""Extract English competition and award names from an FM26 install.
+"""Extract English competition and award names from an FM26 (or FM24) install.
 
 Usage: fmcareer-names FM26_INSTALL_DIR OUT_DIR [--db 2600 --db 2620 ...]  (default: the newest game's versions)
 
@@ -37,8 +37,19 @@ def current_versions(folders: list[str]) -> list[str]:
     return [v for v in versions if v[:2] == newest]
 
 
+def install_game(install: str) -> str | None:
+    """The game an install's newest database belongs to ("FM26", "FM24"), or None.
+
+    A save's award names come from its own game's award table, so names read from one game
+    must never be used for another game's saves.
+    """
+    root = database_dir(install)
+    versions = current_versions(os.listdir(root)) if root else []
+    return f"FM{versions[-1][:2]}" if versions else None
+
+
 def lang_files(install: str, versions: list[str] | None = None) -> list[str]:
-    """The install's name tables, in load order; empty when it isn't an FM26 install."""
+    """The install's name tables, in load order; empty when it isn't a game install."""
     root = database_dir(install)
     if not root:
         return []
@@ -60,7 +71,7 @@ def main(argv: list[str] | None = None) -> None:
     a = ap.parse_args(argv)
     if not database_dir(a.install):
         raise SystemExit(
-            f"{a.install} does not look like the Football Manager 26 install folder (its game database "
+            f"{a.install} does not look like a Football Manager 26 or 24 install folder (its game database "
             "wasn't found). With Steam it is usually "
             r"C:\Program Files (x86)\Steam\steamapps\common\Football Manager 26, or on a Mac "
             "~/Library/Application Support/Steam/steamapps/common/Football Manager 26"

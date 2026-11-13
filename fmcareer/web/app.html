@@ -12,7 +12,7 @@ __STYLE__
 </style>
 </head>
 <body>
-<div class="bar"><div class="in"><span class="brand"><img class="mark" src="/logo.svg" alt="">fmcareer</span><span class="brand"><span>career history reports from Football Manager 26 saves · v__VERSION__</span></span></div></div>
+<div class="bar"><div class="in"><span class="brand"><img class="mark" src="/logo.svg" alt="">fmcareer</span><span class="brand"><span>career history reports from Football Manager 26 and 24 saves · v__VERSION__</span></span></div></div>
 <div class="wrap">
   <div class="update" id="update" role="status" hidden></div>
   <h2><span class="n">1</span>Folders</h2>
@@ -20,10 +20,12 @@ __STYLE__
     <div class="row">
       <div><label class="f" for="savesDir">Saves folder (where your .fm files are)</label><input type="text" id="savesDir"></div>
       <div><label class="f" for="install">Football Manager 26 install folder (for names, badges and photos)</label><input type="text" id="install"></div>
+      <div><label class="f" for="installFm24">Football Manager 24 install folder (names for FM24 saves; optional)</label><input type="text" id="installFm24"></div>
       <div><label class="f" for="graphics">Graphics folder (logo and face packs; optional)</label><input type="text" id="graphics"></div>
       <button class="ghost" id="saveSettings">Save folders</button>
     </div>
     <div class="actions"><span id="namesState" class="muted"></span><button class="ghost" id="buildNames">Read names from the game</button></div>
+    <div class="actions" id="namesFm24Row"><span id="namesStateFm24" class="muted"></span><button class="ghost" id="buildNamesFm24">Read FM24 names</button></div>
     <div class="log" id="namesLog"></div>
   </div>
 

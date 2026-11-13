@@ -16,10 +16,12 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "CONFIG_FILE", tmp_path / "config" / "settings.json")
     monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
     monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "NAMES_FM24", tmp_path / "names-fm24")
     monkeypatch.setattr(app, "DATA", tmp_path / "data")
     monkeypatch.setattr(app, "RELEASE_FILE", tmp_path / "latest-release.json")
     monkeypatch.setattr(app, "SAVE_DIR_GUESSES", [])
     monkeypatch.setattr(app, "INSTALL_GUESSES", [])
+    monkeypatch.setattr(app, "INSTALL_FM24_GUESSES", [])
     httpd = app.http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}", tmp_path
@@ -46,6 +48,7 @@ def test_page_and_state(server):
     assert state["settings"] == {
         "saves_dir": "",
         "install": "",
+        "install_fm24": "",
         "graphics": "",
         "ai_enabled": False,
         "ai_endpoint": "",
@@ -168,9 +171,11 @@ def test_a_report_says_what_it_has_without_a_name(monkeypatch, tmp_path):
 
 def fake_app(monkeypatch, tmp_path):
     """Jobs over a fake save: counts how often the slow readers run."""
-    calls = {"open": 0, "collect": 0, "list": 0, "render": []}
+    calls = {"open": 0, "collect": 0, "list": 0, "render": [], "names": []}
     monkeypatch.setattr(app, "OPEN", {"key": None, "save": None})
     monkeypatch.setattr(app, "NAMES", tmp_path / "names")
+    monkeypatch.setattr(app, "NAMES_FM24", tmp_path / "names-fm24")
+    monkeypatch.setattr(app, "GAMES", {})
     monkeypatch.setattr(app, "REPORTS", tmp_path / "reports")
     monkeypatch.setattr(app, "DATA", tmp_path / "data")
 
@@ -180,6 +185,7 @@ def fake_app(monkeypatch, tmp_path):
 
     def fake_collect(*a, progress, options=None, **k):
         calls["collect"] += 1
+        calls["names"].append(a[2])
         assert options is None  # always every section; options are applied afterwards
         for i in range(app.COLLECT_STEPS):
             progress(f"part {i}")
@@ -226,6 +232,19 @@ def test_what_was_read_is_kept_until_the_save_changes(monkeypatch, tmp_path):
     run(app.job_managers, str(save), False)
     run(app.job_managers, str(save), False)
     assert calls["list"] == 1
+
+
+def test_an_fm24_save_gets_the_fm24_names(monkeypatch, tmp_path):
+    calls = fake_app(monkeypatch, tmp_path)
+    save = tmp_path / "a.fm"
+    save.write_bytes(b"x")
+    for folder in ("names", "names-fm24"):
+        (tmp_path / folder).mkdir()
+        (tmp_path / folder / "competition_names.csv").write_text("1,League\n")
+    monkeypatch.setattr(app, "save_game", lambda path: "FM24")
+    job = wait(app.start_job(app.job_report, str(save), 1, {"sections": ["me"], "show": {}}, False, None))
+    assert calls["names"] == [str(tmp_path / "names-fm24")]
+    assert job["result"]["game"] == "FM24" and job["result"]["names"] is True
 
 
 def test_cache_keeps_only_the_newest_entries(monkeypatch, tmp_path):

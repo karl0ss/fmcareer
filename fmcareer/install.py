@@ -1,10 +1,13 @@
-"""Where an FM26 install keeps the files fmcareer reads, on Windows, Linux and macOS.
+"""Where an FM26 (or FM24) install keeps the files fmcareer reads, on Windows, Linux and macOS.
 
 On Windows they sit in the install folder (`shared/data/database/db`, `fm_Data/StreamingAssets`).
 On macOS they are inside the app bundle: the database under
 `fm.app/Contents/PlugIns/game_plugin.bundle/Contents/Resources/shared`, the Unity assets under
 `fm.app/Contents/Resources/Data/StreamingAssets`. People pick the install folder, `fm.app`, or a
 folder inside either, so each of those is tried, from the folder given and from its parents.
+
+An FM24 install keeps its database in `data/database/db` instead, and has no licensed artwork:
+its names can be read, its images can't.
 """
 
 import os
@@ -25,20 +28,21 @@ def clean_path(text: str) -> str:
     return os.path.expanduser(text) if text else ""
 
 
-def _find(install: str, places: list[tuple[str, ...]], leaf: tuple[str, ...]) -> str | None:
+def _find(install: str, places: list[tuple[str, ...]], *leaves: tuple[str, ...]) -> str | None:
     if not install:
         return None
     start = Path(clean_path(install))
     for base in [start, *list(start.parents)[:_UP]]:
         for place in places:
-            if (found := base.joinpath(*place, *leaf)).is_dir():
-                return str(found)
+            for leaf in leaves:
+                if (found := base.joinpath(*place, *leaf)).is_dir():
+                    return str(found)
     return None
 
 
 def database_dir(install: str) -> str | None:
     """The game database's `db` folder (one subfolder per database version), or None."""
-    return _find(install, DB_PLACES, ("shared", "data", "database", "db"))
+    return _find(install, DB_PLACES, ("shared", "data", "database", "db"), ("data", "database", "db"))
 
 
 def licensed_data_dir(install: str) -> str | None:
