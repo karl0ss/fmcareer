@@ -196,7 +196,7 @@ The version lives in `fmcareer/__init__.py`. Each version needs a section in `CH
 few when it offers that version. To publish one, bump it, commit, then tag:
 
 ```sh
-git tag v0.0.28 && git push origin v0.0.28
+git tag v0.0.29 && git push origin v0.0.29
 ```
 
 GitHub Actions runs the tests, builds the program on Windows, Linux and macOS with

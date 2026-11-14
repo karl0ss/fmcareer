@@ -4,6 +4,15 @@ What changed in each release, in plain words: these lines are the release's note
 and the app shows the first few when it offers the new version. Every release needs its section
 (a test checks the current version has one).
 
+## 0.0.28
+
+- Football Manager 24 saves work too: the report reads an FM24 career the way it reads an
+  FM26 one. The game is told from the save, so there's nothing to pick.
+- For an FM24 save, names come from your FM24 install: set its folder under Folders (Football
+  Manager 24 install folder). FM24 has no licensed badges or photos, so those come from
+  graphics packs or an FM26 install.
+- Club today lists your FM24 tactics by name, style and mentality, without their positions.
+
 ## 0.0.27
 
 - The Club colours theme in Options shows the colour your manager's report will take, once
